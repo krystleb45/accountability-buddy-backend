@@ -1,0 +1,108 @@
+# ==========================
+# Node.js dependencies
+# ==========================
+node_modules/
+
+# ==========================
+# Logs
+# ==========================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ==========================
+# Runtime files
+# ==========================
+pids/
+*.pid
+*.pid.lock
+
+# ==========================
+# Compiled source
+# ==========================
+dist/
+build/
+*.js
+*.d.ts
+*.js.map
+*.tsbuildinfo
+
+# ==========================
+# TypeScript
+# ==========================
+*.tsbuildinfo
+
+# ==========================
+# Environment variables
+# ==========================
+.env
+.env.local
+.env.*.local
+
+# ==========================
+# Editor directories and files
+# ==========================
+.idea/
+.vscode/
+*.swp
+
+# ==========================
+# Operating system files
+# ==========================
+.DS_Store
+Thumbs.db
+
+# ==========================
+# Temporary files
+# ==========================
+*.tmp
+*.temp
+
+# ==========================
+# Test files and coverage
+# ==========================
+coverage/
+.nyc_output/
+jest/
+junit.xml
+cypress/screenshots/
+cypress/videos/
+
+# ==========================
+# Linting
+# ==========================
+.eslintcache
+.stylelintcache
+
+# ==========================
+# Optional npm cache directory
+# ==========================
+.npm/
+
+# ==========================
+# Yarn lock files (if using npm)
+# ==========================
+yarn.lock
+
+# ==========================
+# Dependency directories for other tools
+# ==========================
+/.parcel-cache/
+/.pnpm-store/
+
+# ==========================
+# Generated IDE settings
+# ==========================
+*.iml
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# ==========================
+# Other specific tools
+# ==========================
+/.vercel/
+.netlify/
+out/

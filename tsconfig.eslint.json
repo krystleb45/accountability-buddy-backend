@@ -1,0 +1,38 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "src/**/*.ts", // Include all TypeScript files in src
+    "src/**/*.tsx", // Include .tsx files if using React
+    "jest.setup.ts", // Include Jest setup file
+    "jest.setup.js", // Include Jest setup file (JavaScript)
+    "jest.config.js", // Include Jest configuration file
+    ".eslintrc.js", // Include ESLint configuration file
+    ".eslintrc.cjs", // If you have ESLint in CommonJS
+    ".eslintrc.mjs" // If you have ESLint in ECMAScript module format
+  ],
+  "compilerOptions": {
+    "types": ["jest"], // Add Jest types for testing
+    "allowJs": true, // Allow JavaScript files for linting
+    "noEmit": true, // Prevent emitting compiled output during linting
+    "resolveJsonModule": true, // Allow importing JSON files
+    "baseUrl": ".", // Ensure base URL is set for path aliases
+    "paths": {
+      "@src/*": ["src/*"], // Path alias for source files
+      "@test/*": ["src/tests/*"] // Path alias for test files
+    }
+  },
+  "exclude": [
+    "node_modules", // Exclude dependencies
+    "dist", // Exclude compiled files
+    "coverage", // Exclude coverage reports
+    "build", // Exclude build folder
+    "@types", // Exclude @types folder
+    "**/*.test.js", // Exclude JS test files
+    "**/*.spec.js", // Exclude JS spec files
+    "*.d.ts", // Exclude all declaration files
+    "**/static/**", // Exclude static assets (if applicable)
+    "**/public/**", // Exclude public assets (if applicable)
+    "**/*.min.js", // Exclude minified JavaScript files
+    "**/*.bundle.js" // Exclude bundled JavaScript files
+  ]
+}

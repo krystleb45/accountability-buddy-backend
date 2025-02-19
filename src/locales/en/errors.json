@@ -1,0 +1,135 @@
+{
+  "404": {
+    "title": "Page Not Found",
+    "message": "The page you're looking for could not be found."
+  },
+  "500": {
+    "title": "Server Error",
+    "message": "An unexpected error occurred. Please try again later."
+  },
+  "networkError": {
+    "title": "Network Error",
+    "message": "Unable to connect to the server. Please check your internet connection."
+  },
+  "validationError": {
+    "title": "Validation Error",
+    "message": "Some inputs are invalid. Please check the highlighted fields and try again."
+  },
+  "authenticationError": {
+    "title": "Authentication Error",
+    "message": "You are not authorized to access this resource. Please log in again."
+  },
+  "authorizationError": {
+    "title": "Authorization Error",
+    "message": "You do not have the necessary permissions to perform this action."
+  },
+  "timeoutError": {
+    "title": "Timeout Error",
+    "message": "The request took too long to process. Please try again later."
+  },
+  "formSubmissionError": {
+    "title": "Form Submission Error",
+    "message": "There was an error submitting the form. Please try again."
+  },
+  "resourceNotFound": {
+    "title": "Resource Not Found",
+    "message": "The requested resource could not be found."
+  },
+  "passwordMismatch": {
+    "title": "Password Mismatch",
+    "message": "The passwords entered do not match. Please check and try again."
+  },
+  "accountLocked": {
+    "title": "Account Locked",
+    "message": "Your account has been locked. Please contact support for assistance."
+  },
+  "accountNotActivated": {
+    "title": "Account Not Activated",
+    "message": "Your account has not been activated yet. Please check your email to activate your account."
+  },
+  "invalidCredentials": {
+    "title": "Invalid Credentials",
+    "message": "The email or password you entered is incorrect. Please try again."
+  },
+  "subscriptionExpired": {
+    "title": "Subscription Expired",
+    "message": "Your subscription has expired. Please renew to continue using the service."
+  },
+  "paymentFailed": {
+    "title": "Payment Failed",
+    "message": "Payment could not be processed. Please try again with a different method."
+  },
+  "duplicateEntry": {
+    "title": "Duplicate Entry",
+    "message": "This entry already exists. Please use a different value."
+  },
+  "quotaExceeded": {
+    "title": "Quota Exceeded",
+    "message": "You have exceeded your quota. Please upgrade your plan or contact support."
+  },
+  "fileUploadError": {
+    "title": "File Upload Error",
+    "message": "An error occurred while uploading the file. Please try again."
+  },
+  "fileSizeExceeded": {
+    "title": "File Size Exceeded",
+    "message": "The file size exceeds the allowed limit. Please upload a smaller file."
+  },
+  "invalidFileType": {
+    "title": "Invalid File Type",
+    "message": "The selected file type is not supported. Please upload a valid file format."
+  },
+  "databaseError": {
+    "title": "Database Error",
+    "message": "An error occurred while connecting to the database. Please try again later."
+  },
+  "emailNotRegistered": {
+    "title": "Email Not Registered",
+    "message": "The email address entered is not associated with any account."
+  },
+  "invalidToken": {
+    "title": "Invalid Token",
+    "message": "The token provided is invalid or expired. Please request a new token."
+  },
+  "sessionExpired": {
+    "title": "Session Expired",
+    "message": "Your session has expired. Please log in again."
+  },
+  "serviceUnavailable": {
+    "title": "Service Unavailable",
+    "message": "The service is temporarily unavailable. Please try again later."
+  },
+  "maintenanceMode": {
+    "title": "Maintenance Mode",
+    "message": "The service is currently undergoing maintenance. Please try again later."
+  },
+  "emailNotSent": {
+    "title": "Email Not Sent",
+    "message": "We could not send the email. Please check your connection and try again."
+  },
+  "invalidInput": {
+    "title": "Invalid Input",
+    "message": "The provided input is invalid. Please correct it and try again."
+  },
+  "termsNotAccepted": {
+    "title": "Terms Not Accepted",
+    "message": "You must accept the terms and conditions to proceed."
+  },
+  "actionFailed": {
+    "title": "Action Failed",
+    "message": "An error occurred while processing your request. Please try again."
+  },
+  "connectionLost": {
+    "title": "Connection Lost",
+    "message": "The connection was lost. Attempting to reconnect..."
+  },
+  "reconnectionFailed": {
+    "title": "Reconnection Failed",
+    "message": "Failed to reconnect. Please refresh the page or check your connection."
+  },
+  "unexpectedError": {
+    "title": "Unexpected Error",
+    "message": "An unexpected error occurred. Please refresh the page or try again later."
+  }
+}
+

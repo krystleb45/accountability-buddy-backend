@@ -1,0 +1,62 @@
+{
+    "success": {
+      "goalCompleted": "¡Felicidades! Has completado tu objetivo con éxito.",
+      "profileUpdated": "Tu perfil ha sido actualizado con éxito.",
+      "settingsSaved": "Configuraciones guardadas con éxito.",
+      "passwordChanged": "Tu contraseña ha sido actualizada con éxito.",
+      "emailSent": "El correo electrónico se ha enviado con éxito.",
+      "paymentProcessed": "El pago se ha procesado con éxito.",
+      "taskCompleted": "Tarea completada con éxito.",
+      "milestoneAchieved": "¡Hito alcanzado! ¡Sigue con el buen trabajo!"
+    },
+    "info": {
+      "reminder": "Tienes un recordatorio programado para {time}.",
+      "newMessage": "Tienes un nuevo mensaje.",
+      "inviteReceived": "Has recibido una invitación.",
+      "deadlineApproaching": "Se aproxima la fecha límite.",
+      "newComment": "Se ha agregado un nuevo comentario.",
+      "progressUpdate": "Tu progreso ha sido actualizado.",
+      "eventScheduled": "Se ha programado un nuevo evento.",
+      "subscriptionActive": "Tu suscripción está ahora activa.",
+      "trialEndingSoon": "Tu prueba gratuita está por finalizar. Considera actualizar tu plan.",
+      "goalInProgress": "¡Estás avanzando muy bien hacia tu objetivo!"
+    },
+    "warning": {
+      "passwordExpiring": "Tu contraseña está por expirar. Por favor, actualízala pronto.",
+      "storageLimit": "Estás cerca del límite de almacenamiento.",
+      "subscriptionExpiring": "Tu suscripción está por expirar. Por favor, renuévala para continuar usando el servicio.",
+      "quotaAlmostReached": "Estás cerca de alcanzar tu límite de cuota.",
+      "sessionExpiring": "Tu sesión está por expirar. Por favor, guarda tu trabajo.",
+      "actionRequired": "Se requiere acción para continuar.",
+      "lowProgress": "Tu progreso es menor al esperado. Considera revisar tus objetivos."
+    },
+    "error": {
+      "emailNotSent": "No se pudo enviar el correo electrónico. Por favor, inténtalo más tarde.",
+      "notificationFailed": "No se pudo entregar la notificación.",
+      "paymentFailed": "El pago no se pudo procesar. Por favor, intenta de nuevo.",
+      "reminderFailed": "No se pudo guardar el recordatorio.",
+      "actionFailed": "La acción solicitada no se pudo completar.",
+      "updateFailed": "No se pudieron actualizar los datos. Por favor, inténtalo de nuevo.",
+      "uploadFailed": "No se pudo cargar el archivo. Por favor, intenta de nuevo."
+    },
+    "system": {
+      "systemUpdate": "El sistema está siendo actualizado. Mantente atento a las mejoras.",
+      "maintenance": "El servicio está actualmente en mantenimiento. Por favor, inténtalo más tarde.",
+      "restartRequired": "Se requiere un reinicio del sistema para aplicar los cambios.",
+      "downtimeScheduled": "Hay un mantenimiento programado para el {date}. El servicio puede estar temporalmente no disponible."
+    },
+    "reminders": {
+      "taskDue": "Tu tarea '{task}' vence pronto.",
+      "eventReminder": "No olvides el evento '{event}' el {date}.",
+      "followUp": "Realiza un seguimiento de '{task}' pronto.",
+      "milestoneReminder": "¡No olvides alcanzar tu próximo hito!",
+      "weeklySummary": "Tu informe de progreso semanal ya está disponible."
+    },
+    "updates": {
+      "featureAdded": "Se ha agregado una nueva función: {feature}.",
+      "featureUpdated": "Se ha actualizado una función: {feature}.",
+      "bugFix": "Se ha aplicado una corrección de error: {issue}.",
+      "policyChange": "Se han actualizado nuestros términos y política de privacidad."
+    }
+  }
+  

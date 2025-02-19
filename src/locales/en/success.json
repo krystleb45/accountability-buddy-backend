@@ -1,0 +1,96 @@
+{
+    "general": {
+      "actionCompleted": "Action completed successfully.",
+      "savedSuccessfully": "Saved successfully.",
+      "updatedSuccessfully": "Updated successfully.",
+      "deletedSuccessfully": "Deleted successfully."
+    },
+    "auth": {
+      "accountCreated": "Your account has been created successfully.",
+      "loginSuccessful": "You have logged in successfully.",
+      "logoutSuccessful": "You have logged out successfully.",
+      "passwordReset": "Your password has been reset successfully.",
+      "passwordUpdated": "Your password has been updated successfully.",
+      "emailVerified": "Your email has been verified successfully.",
+      "verificationEmailSent": "A verification email has been sent successfully."
+    },
+    "profile": {
+      "profileUpdated": "Your profile has been updated successfully.",
+      "avatarUpdated": "Your profile picture has been updated successfully.",
+      "settingsSaved": "Your settings have been saved successfully."
+    },
+    "goals": {
+      "goalCreated": "Goal created successfully.",
+      "goalUpdated": "Goal updated successfully.",
+      "goalDeleted": "Goal deleted successfully.",
+      "goalCompleted": "Congratulations! You have successfully completed your goal."
+    },
+    "milestones": {
+      "milestoneCreated": "Milestone created successfully.",
+      "milestoneUpdated": "Milestone updated successfully.",
+      "milestoneAchieved": "Milestone achieved successfully! Keep up the great work!",
+      "milestoneDeleted": "Milestone deleted successfully."
+    },
+    "tasks": {
+      "taskCreated": "Task created successfully.",
+      "taskUpdated": "Task updated successfully.",
+      "taskDeleted": "Task deleted successfully.",
+      "taskCompleted": "Task completed successfully."
+    },
+    "payments": {
+      "paymentProcessed": "Payment processed successfully.",
+      "subscriptionActivated": "Subscription activated successfully.",
+      "subscriptionRenewed": "Subscription renewed successfully.",
+      "subscriptionCancelled": "Subscription cancelled successfully.",
+      "refundProcessed": "Refund processed successfully."
+    },
+    "notifications": {
+      "notificationSent": "Notification sent successfully.",
+      "reminderSet": "Reminder set successfully.",
+      "reminderUpdated": "Reminder updated successfully.",
+      "reminderDeleted": "Reminder deleted successfully."
+    },
+    "uploads": {
+      "fileUploaded": "File uploaded successfully.",
+      "fileDeleted": "File deleted successfully.",
+      "imageUpdated": "Image updated successfully."
+    },
+    "messages": {
+      "messageSent": "Message sent successfully.",
+      "messageDeleted": "Message deleted successfully."
+    },
+    "reviews": {
+      "reviewSubmitted": "Review submitted successfully.",
+      "reviewDeleted": "Review deleted successfully."
+    },
+    "progress": {
+      "progressUpdated": "Progress updated successfully.",
+      "milestoneReached": "Milestone reached successfully.",
+      "trackerCreated": "Tracker created successfully.",
+      "trackerUpdated": "Tracker updated successfully.",
+      "trackerDeleted": "Tracker deleted successfully."
+    },
+    "collaboration": {
+      "inviteSent": "Invitation sent successfully.",
+      "inviteAccepted": "Invitation accepted successfully.",
+      "inviteDeclined": "Invitation declined successfully.",
+      "partnershipCreated": "Partnership created successfully.",
+      "partnershipEnded": "Partnership ended successfully."
+    },
+    "security": {
+      "twoFactorEnabled": "Two-factor authentication enabled successfully.",
+      "twoFactorDisabled": "Two-factor authentication disabled successfully.",
+      "securitySettingsUpdated": "Security settings updated successfully."
+    },
+    "feedback": {
+      "feedbackSubmitted": "Your feedback has been submitted successfully.",
+      "ratingSubmitted": "Your rating has been submitted successfully."
+    },
+    "data": {
+      "dataExported": "Data exported successfully.",
+      "dataImported": "Data imported successfully.",
+      "backupCreated": "Backup created successfully.",
+      "backupRestored": "Backup restored successfully."
+    }
+  }
+  

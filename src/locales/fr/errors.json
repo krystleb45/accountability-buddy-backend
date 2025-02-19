@@ -1,0 +1,130 @@
+{
+  "404": {
+    "title": "Page Non Trouvée",
+    "message": "La page que vous recherchez n'a pas été trouvée."
+  },
+  "500": {
+    "title": "Erreur du Serveur",
+    "message": "Une erreur inattendue s'est produite. Veuillez réessayer plus tard."
+  },
+  "networkError": {
+    "title": "Erreur Réseau",
+    "message": "Impossible de se connecter au serveur. Veuillez vérifier votre connexion Internet."
+  },
+  "validationError": {
+    "title": "Erreur de Validation",
+    "message": "Certaines entrées ne sont pas valides. Veuillez vérifier les champs et réessayer."
+  },
+  "authenticationError": {
+    "title": "Erreur d'Authentification",
+    "message": "Vous n'êtes pas autorisé à accéder à cette ressource. Veuillez vous reconnecter."
+  },
+  "authorizationError": {
+    "title": "Erreur d'Autorisation",
+    "message": "Vous n'avez pas les autorisations nécessaires pour effectuer cette action."
+  },
+  "timeoutError": {
+    "title": "Erreur de Délai d'Attente",
+    "message": "La requête a pris trop de temps à être traitée. Veuillez réessayer plus tard."
+  },
+  "formSubmissionError": {
+    "title": "Erreur de Soumission du Formulaire",
+    "message": "Une erreur s'est produite lors de la soumission du formulaire. Veuillez réessayer."
+  },
+  "resourceNotFound": {
+    "title": "Ressource Non Trouvée",
+    "message": "La ressource demandée est introuvable."
+  },
+  "passwordMismatch": {
+    "title": "Les Mots de Passe Ne Correspondent Pas",
+    "message": "Les mots de passe saisis ne correspondent pas. Veuillez vérifier et réessayer."
+  },
+  "accountLocked": {
+    "title": "Compte Verrouillé",
+    "message": "Votre compte a été verrouillé. Veuillez contacter le support pour obtenir de l'aide."
+  },
+  "accountNotActivated": {
+    "title": "Compte Non Activé",
+    "message": "Votre compte n'a pas encore été activé. Veuillez vérifier votre e-mail pour activer votre compte."
+  },
+  "invalidCredentials": {
+    "title": "Identifiants Invalides",
+    "message": "L'e-mail ou le mot de passe est incorrect. Veuillez réessayer."
+  },
+  "subscriptionExpired": {
+    "title": "Abonnement Expiré",
+    "message": "Votre abonnement a expiré. Veuillez le renouveler pour continuer à utiliser le service."
+  },
+  "paymentFailed": {
+    "title": "Échec du Paiement",
+    "message": "Le paiement n'a pas pu être traité. Veuillez essayer un autre mode de paiement."
+  },
+  "quotaExceeded": {
+    "title": "Quota Dépassé",
+    "message": "Vous avez dépassé votre quota autorisé. Veuillez mettre à niveau votre plan ou contacter le support."
+  },
+  "fileUploadError": {
+    "title": "Erreur de Téléversement",
+    "message": "Une erreur s'est produite lors du téléversement du fichier. Veuillez réessayer."
+  },
+  "fileSizeExceeded": {
+    "title": "Taille de Fichier Dépassée",
+    "message": "Le fichier dépasse la taille maximale autorisée. Veuillez téléverser un fichier plus petit."
+  },
+  "invalidFileType": {
+    "title": "Type de Fichier Invalide",
+    "message": "Le type de fichier sélectionné n'est pas pris en charge. Veuillez téléverser un format valide."
+  },
+  "databaseError": {
+    "title": "Erreur de Base de Données",
+    "message": "Une erreur s'est produite lors de la connexion à la base de données. Veuillez réessayer plus tard."
+  },
+  "emailNotRegistered": {
+    "title": "E-mail Non Enregistré",
+    "message": "Cette adresse e-mail n'est pas enregistrée."
+  },
+  "invalidToken": {
+    "title": "Jeton Invalide",
+    "message": "Le jeton fourni est invalide ou a expiré. Veuillez demander un nouveau jeton."
+  },
+  "sessionExpired": {
+    "title": "Session Expirée",
+    "message": "Votre session a expiré. Veuillez vous reconnecter."
+  },
+  "serviceUnavailable": {
+    "title": "Service Indisponible",
+    "message": "Le service est temporairement indisponible. Veuillez réessayer plus tard."
+  },
+  "maintenanceMode": {
+    "title": "Mode Maintenance",
+    "message": "Le service est actuellement en maintenance. Veuillez réessayer plus tard."
+  },
+  "emailNotSent": {
+    "title": "E-mail Non Envoyé",
+    "message": "Impossible d'envoyer l'e-mail. Veuillez vérifier votre connexion et réessayer."
+  },
+  "invalidInput": {
+    "title": "Entrée Invalide",
+    "message": "L'entrée fournie n'est pas valide. Veuillez corriger les erreurs et réessayer."
+  },
+  "termsNotAccepted": {
+    "title": "Conditions Non Acceptées",
+    "message": "Vous devez accepter les termes et conditions pour continuer."
+  },
+  "actionFailed": {
+    "title": "Action Échouée",
+    "message": "Une erreur s'est produite lors du traitement de votre demande. Veuillez réessayer."
+  },
+  "connectionLost": {
+    "title": "Connexion Perdue",
+    "message": "La connexion a été perdue. Tentative de reconnexion..."
+  },
+  "reconnectionFailed": {
+    "title": "Reconnexion Échouée",
+    "message": "Impossible de se reconnecter. Veuillez actualiser la page ou vérifier votre connexion."
+  },
+  "unexpectedError": {
+    "title": "Erreur Inattendue",
+    "message": "Une erreur inattendue s'est produite. Veuillez actualiser la page ou réessayer plus tard."
+  }
+}

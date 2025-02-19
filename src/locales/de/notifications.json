@@ -1,0 +1,57 @@
+{
+    "success": {
+      "goalCompleted": "Herzlichen Glückwunsch! Sie haben Ihr Ziel erreicht!",
+      "profileUpdated": "Ihr Profil wurde erfolgreich aktualisiert.",
+      "settingsSaved": "Einstellungen wurden erfolgreich gespeichert.",
+      "passwordChanged": "Ihr Passwort wurde erfolgreich geändert.",
+      "emailSent": "Die E-Mail wurde erfolgreich gesendet.",
+      "paymentProcessed": "Zahlung wurde erfolgreich verarbeitet.",
+      "taskCompleted": "Aufgabe erfolgreich abgeschlossen.",
+      "milestoneAchieved": "Meilenstein erreicht! Weiter so!"
+    },
+    "info": {
+      "reminder": "Sie haben eine Erinnerung für {time}.",
+      "newMessage": "Sie haben eine neue Nachricht.",
+      "inviteReceived": "Sie haben eine Einladung erhalten.",
+      "deadlineApproaching": "Ein wichtiger Termin rückt näher.",
+      "newComment": "Ein neuer Kommentar wurde hinzugefügt.",
+      "progressUpdate": "Ihr Fortschritt wurde aktualisiert.",
+      "eventScheduled": "Ein neues Ereignis wurde geplant."
+    },
+    "warning": {
+      "passwordExpiring": "Ihr Passwort läuft bald ab. Bitte ändern Sie es rechtzeitig.",
+      "storageLimit": "Sie nähern sich Ihrem Speicherlimit.",
+      "subscriptionExpiring": "Ihr Abonnement läuft bald ab. Bitte erneuern Sie es.",
+      "quotaAlmostReached": "Sie haben fast Ihr Kontingent erreicht.",
+      "sessionExpiring": "Ihre Sitzung läuft bald ab. Bitte speichern Sie Ihre Arbeit.",
+      "actionRequired": "Es ist eine Aktion erforderlich, um fortzufahren."
+    },
+    "error": {
+      "emailNotSent": "Die E-Mail konnte nicht gesendet werden. Bitte versuchen Sie es später erneut.",
+      "notificationFailed": "Benachrichtigung konnte nicht zugestellt werden.",
+      "paymentFailed": "Die Zahlung ist fehlgeschlagen. Bitte überprüfen Sie Ihre Zahlungsdetails.",
+      "reminderFailed": "Die Erinnerung konnte nicht gespeichert werden.",
+      "actionFailed": "Die gewünschte Aktion konnte nicht ausgeführt werden.",
+      "updateFailed": "Aktualisierung fehlgeschlagen. Bitte versuchen Sie es erneut."
+    },
+    "system": {
+      "systemUpdate": "Das System wird aktualisiert. Bitte bleiben Sie auf dem Laufenden.",
+      "maintenance": "Der Dienst ist wegen Wartungsarbeiten vorübergehend nicht verfügbar.",
+      "restartRequired": "Ein Neustart des Systems ist erforderlich, um die Änderungen zu übernehmen.",
+      "downtimeScheduled": "Geplante Wartung am {date}. Der Dienst ist währenddessen nicht verfügbar."
+    },
+    "reminders": {
+      "taskDue": "Ihre Aufgabe '{task}' ist fällig.",
+      "eventReminder": "Denken Sie an das Ereignis '{event}' am {date}.",
+      "followUp": "Bitte folgen Sie bei '{task}' nach.",
+      "milestoneReminder": "Vergessen Sie nicht, Ihren nächsten Meilenstein zu erreichen!",
+      "weeklySummary": "Ihr wöchentlicher Fortschrittsbericht ist verfügbar."
+    },
+    "updates": {
+      "featureAdded": "Eine neue Funktion wurde hinzugefügt: {feature}.",
+      "featureUpdated": "Eine Funktion wurde aktualisiert: {feature}.",
+      "bugFix": "Ein Fehler wurde behoben: {issue}.",
+      "policyChange": "Unsere Nutzungsbedingungen oder Datenschutzrichtlinien wurden aktualisiert."
+    }
+  }
+  

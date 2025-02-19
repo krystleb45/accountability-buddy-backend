@@ -1,0 +1,62 @@
+{
+    "success": {
+      "goalCompleted": "Congratulations! You have successfully completed your goal!",
+      "profileUpdated": "Your profile has been updated successfully.",
+      "settingsSaved": "Settings have been saved successfully.",
+      "passwordChanged": "Your password has been updated successfully.",
+      "emailSent": "The email has been sent successfully.",
+      "paymentProcessed": "Payment was processed successfully.",
+      "taskCompleted": "Task completed successfully.",
+      "milestoneAchieved": "Milestone achieved! Keep up the great work!"
+    },
+    "info": {
+      "reminder": "You have a reminder set for {time}.",
+      "newMessage": "You have a new message.",
+      "inviteReceived": "You have received an invitation.",
+      "deadlineApproaching": "A deadline is approaching soon.",
+      "newComment": "A new comment has been added.",
+      "progressUpdate": "Your progress has been updated.",
+      "eventScheduled": "A new event has been scheduled.",
+      "subscriptionActive": "Your subscription is now active.",
+      "trialEndingSoon": "Your free trial is ending soon. Consider upgrading your plan.",
+      "goalInProgress": "You are making great progress toward your goal!"
+    },
+    "warning": {
+      "passwordExpiring": "Your password is expiring soon. Please update it promptly.",
+      "storageLimit": "You are approaching your storage limit.",
+      "subscriptionExpiring": "Your subscription is about to expire. Please renew it to continue using the service.",
+      "quotaAlmostReached": "You have almost reached your quota limit.",
+      "sessionExpiring": "Your session is about to expire. Please save your work.",
+      "actionRequired": "An action is required to proceed.",
+      "lowProgress": "Your progress is lower than expected. Consider reviewing your goals."
+    },
+    "error": {
+      "emailNotSent": "Failed to send the email. Please try again later.",
+      "notificationFailed": "Failed to deliver the notification.",
+      "paymentFailed": "Payment could not be processed. Please try again.",
+      "reminderFailed": "Failed to save the reminder.",
+      "actionFailed": "The requested action could not be completed.",
+      "updateFailed": "Failed to update data. Please try again.",
+      "uploadFailed": "Failed to upload the file. Please try again."
+    },
+    "system": {
+      "systemUpdate": "The system is being updated. Please stay tuned for improvements.",
+      "maintenance": "The service is currently under maintenance. Please try again later.",
+      "restartRequired": "A system restart is required to apply changes.",
+      "downtimeScheduled": "Scheduled maintenance is planned for {date}. The service may be unavailable during this time."
+    },
+    "reminders": {
+      "taskDue": "Your task '{task}' is due.",
+      "eventReminder": "Don't forget the event '{event}' on {date}.",
+      "followUp": "Follow up on '{task}' soon.",
+      "milestoneReminder": "Don't forget to reach your next milestone!",
+      "weeklySummary": "Your weekly progress report is now available."
+    },
+    "updates": {
+      "featureAdded": "A new feature has been added: {feature}.",
+      "featureUpdated": "A feature has been updated: {feature}.",
+      "bugFix": "A bug fix has been applied: {issue}.",
+      "policyChange": "Our terms and privacy policy have been updated."
+    }
+  }
+  

@@ -1,0 +1,96 @@
+{
+    "general": {
+      "actionCompleted": "Action complétée avec succès.",
+      "savedSuccessfully": "Enregistré avec succès.",
+      "updatedSuccessfully": "Mis à jour avec succès.",
+      "deletedSuccessfully": "Supprimé avec succès."
+    },
+    "auth": {
+      "accountCreated": "Votre compte a été créé avec succès.",
+      "loginSuccessful": "Connexion réussie.",
+      "logoutSuccessful": "Déconnexion réussie.",
+      "passwordReset": "Votre mot de passe a été réinitialisé avec succès.",
+      "passwordUpdated": "Votre mot de passe a été mis à jour avec succès.",
+      "emailVerified": "Votre e-mail a été vérifié avec succès.",
+      "verificationEmailSent": "L'e-mail de vérification a été envoyé avec succès."
+    },
+    "profile": {
+      "profileUpdated": "Votre profil a été mis à jour avec succès.",
+      "avatarUpdated": "Votre photo de profil a été mise à jour avec succès.",
+      "settingsSaved": "Paramètres enregistrés avec succès."
+    },
+    "goals": {
+      "goalCreated": "Objectif créé avec succès.",
+      "goalUpdated": "Objectif mis à jour avec succès.",
+      "goalDeleted": "Objectif supprimé avec succès.",
+      "goalCompleted": "Félicitations ! Vous avez atteint votre objectif."
+    },
+    "milestones": {
+      "milestoneCreated": "Jalon créé avec succès.",
+      "milestoneUpdated": "Jalon mis à jour avec succès.",
+      "milestoneAchieved": "Félicitations ! Jalon atteint avec succès.",
+      "milestoneDeleted": "Jalon supprimé avec succès."
+    },
+    "tasks": {
+      "taskCreated": "Tâche créée avec succès.",
+      "taskUpdated": "Tâche mise à jour avec succès.",
+      "taskDeleted": "Tâche supprimée avec succès.",
+      "taskCompleted": "Tâche terminée avec succès."
+    },
+    "payments": {
+      "paymentProcessed": "Paiement traité avec succès.",
+      "subscriptionActivated": "Abonnement activé avec succès.",
+      "subscriptionRenewed": "Abonnement renouvelé avec succès.",
+      "subscriptionCancelled": "Abonnement annulé avec succès.",
+      "refundProcessed": "Remboursement traité avec succès."
+    },
+    "notifications": {
+      "notificationSent": "Notification envoyée avec succès.",
+      "reminderSet": "Rappel programmé avec succès.",
+      "reminderUpdated": "Rappel mis à jour avec succès.",
+      "reminderDeleted": "Rappel supprimé avec succès."
+    },
+    "uploads": {
+      "fileUploaded": "Fichier téléversé avec succès.",
+      "fileDeleted": "Fichier supprimé avec succès.",
+      "imageUpdated": "Image mise à jour avec succès."
+    },
+    "messages": {
+      "messageSent": "Message envoyé avec succès.",
+      "messageDeleted": "Message supprimé avec succès."
+    },
+    "reviews": {
+      "reviewSubmitted": "Votre avis a été soumis avec succès.",
+      "reviewDeleted": "Avis supprimé avec succès."
+    },
+    "progress": {
+      "progressUpdated": "Progression mise à jour avec succès.",
+      "milestoneReached": "Objectif atteint avec succès.",
+      "trackerCreated": "Suivi créé avec succès.",
+      "trackerUpdated": "Suivi mis à jour avec succès.",
+      "trackerDeleted": "Suivi supprimé avec succès."
+    },
+    "collaboration": {
+      "inviteSent": "Invitation envoyée avec succès.",
+      "inviteAccepted": "Invitation acceptée avec succès.",
+      "inviteDeclined": "Invitation refusée avec succès.",
+      "partnershipCreated": "Partenariat créé avec succès.",
+      "partnershipEnded": "Partenariat terminé avec succès."
+    },
+    "security": {
+      "twoFactorEnabled": "L'authentification à deux facteurs a été activée avec succès.",
+      "twoFactorDisabled": "L'authentification à deux facteurs a été désactivée avec succès.",
+      "securitySettingsUpdated": "Paramètres de sécurité mis à jour avec succès."
+    },
+    "feedback": {
+      "feedbackSubmitted": "Vos commentaires ont été envoyés avec succès.",
+      "ratingSubmitted": "Votre évaluation a été envoyée avec succès."
+    },
+    "data": {
+      "dataExported": "Données exportées avec succès.",
+      "dataImported": "Données importées avec succès.",
+      "backupCreated": "Sauvegarde créée avec succès.",
+      "backupRestored": "Sauvegarde restaurée avec succès."
+    }
+  }
+  

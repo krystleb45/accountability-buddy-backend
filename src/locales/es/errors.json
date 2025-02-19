@@ -1,0 +1,130 @@
+{
+  "404": {
+    "title": "Página No Encontrada",
+    "message": "La página que buscas no se pudo encontrar."
+  },
+  "500": {
+    "title": "Error del Servidor",
+    "message": "Ocurrió un error inesperado. Por favor, inténtalo de nuevo más tarde."
+  },
+  "networkError": {
+    "title": "Error de Red",
+    "message": "No se pudo conectar al servidor. Verifica tu conexión a Internet."
+  },
+  "validationError": {
+    "title": "Error de Validación",
+    "message": "Algunos campos no son válidos. Revisa los campos marcados y vuelve a intentarlo."
+  },
+  "authenticationError": {
+    "title": "Error de Autenticación",
+    "message": "No tienes autorización para acceder a este recurso. Por favor, inicia sesión nuevamente."
+  },
+  "authorizationError": {
+    "title": "Error de Autorización",
+    "message": "No tienes los permisos necesarios para realizar esta acción."
+  },
+  "timeoutError": {
+    "title": "Error de Tiempo de Espera",
+    "message": "La solicitud tardó demasiado en procesarse. Por favor, inténtalo de nuevo más tarde."
+  },
+  "formSubmissionError": {
+    "title": "Error en el Envío del Formulario",
+    "message": "Hubo un error al enviar el formulario. Por favor, inténtalo de nuevo."
+  },
+  "resourceNotFound": {
+    "title": "Recurso No Encontrado",
+    "message": "El recurso solicitado no se pudo encontrar."
+  },
+  "passwordMismatch": {
+    "title": "Las Contraseñas No Coinciden",
+    "message": "Las contraseñas ingresadas no coinciden. Por favor, revisa y vuelve a intentarlo."
+  },
+  "accountLocked": {
+    "title": "Cuenta Bloqueada",
+    "message": "Tu cuenta ha sido bloqueada. Por favor, contacta al soporte para recibir ayuda."
+  },
+  "accountNotActivated": {
+    "title": "Cuenta No Activada",
+    "message": "Tu cuenta aún no ha sido activada. Revisa tu correo electrónico para activar tu cuenta."
+  },
+  "invalidCredentials": {
+    "title": "Credenciales Inválidas",
+    "message": "El correo electrónico o la contraseña son incorrectos. Por favor, inténtalo de nuevo."
+  },
+  "subscriptionExpired": {
+    "title": "Suscripción Expirada",
+    "message": "Tu suscripción ha expirado. Por favor, renueva para continuar usando el servicio."
+  },
+  "paymentFailed": {
+    "title": "Error de Pago",
+    "message": "El pago no se pudo procesar. Intenta con un método diferente."
+  },
+  "quotaExceeded": {
+    "title": "Cuota Excedida",
+    "message": "Has superado tu cuota permitida. Actualiza tu plan o contacta al soporte."
+  },
+  "fileUploadError": {
+    "title": "Error de Carga de Archivo",
+    "message": "Hubo un error al subir el archivo. Por favor, inténtalo de nuevo."
+  },
+  "fileSizeExceeded": {
+    "title": "Tamaño de Archivo Excedido",
+    "message": "El archivo supera el tamaño máximo permitido. Por favor, sube un archivo más pequeño."
+  },
+  "invalidFileType": {
+    "title": "Tipo de Archivo Inválido",
+    "message": "El tipo de archivo seleccionado no está permitido. Por favor, sube un formato válido."
+  },
+  "databaseError": {
+    "title": "Error de Base de Datos",
+    "message": "Hubo un error al conectarse a la base de datos. Por favor, inténtalo más tarde."
+  },
+  "emailNotRegistered": {
+    "title": "Correo No Registrado",
+    "message": "La dirección de correo electrónico no está registrada."
+  },
+  "invalidToken": {
+    "title": "Token Inválido",
+    "message": "El token proporcionado no es válido o ha caducado. Solicita uno nuevo."
+  },
+  "sessionExpired": {
+    "title": "Sesión Expirada",
+    "message": "Tu sesión ha expirado. Por favor, vuelve a iniciar sesión."
+  },
+  "serviceUnavailable": {
+    "title": "Servicio No Disponible",
+    "message": "El servicio no está disponible temporalmente. Por favor, inténtalo más tarde."
+  },
+  "maintenanceMode": {
+    "title": "Modo de Mantenimiento",
+    "message": "El servicio está en mantenimiento. Por favor, inténtalo más tarde."
+  },
+  "emailNotSent": {
+    "title": "Correo No Enviado",
+    "message": "No se pudo enviar el correo. Verifica tu conexión e inténtalo de nuevo."
+  },
+  "invalidInput": {
+    "title": "Entrada No Válida",
+    "message": "La entrada proporcionada no es válida. Corrige los errores e inténtalo nuevamente."
+  },
+  "termsNotAccepted": {
+    "title": "Términos No Aceptados",
+    "message": "Debes aceptar los términos y condiciones para continuar."
+  },
+  "actionFailed": {
+    "title": "Acción Fallida",
+    "message": "Hubo un error al procesar tu solicitud. Por favor, inténtalo de nuevo."
+  },
+  "connectionLost": {
+    "title": "Conexión Perdida",
+    "message": "La conexión se perdió. Intentando reconectar..."
+  },
+  "reconnectionFailed": {
+    "title": "Reconexión Fallida",
+    "message": "No se pudo reconectar. Por favor, actualiza la página o verifica tu conexión."
+  },
+  "unexpectedError": {
+    "title": "Error Inesperado",
+    "message": "Ocurrió un error inesperado. Por favor, actualiza la página o inténtalo más tarde."
+  }
+}

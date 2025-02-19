@@ -1,0 +1,62 @@
+{
+    "success": {
+      "goalCompleted": "おめでとうございます！目標を達成しました。",
+      "profileUpdated": "プロフィールが正常に更新されました。",
+      "settingsSaved": "設定が正常に保存されました。",
+      "passwordChanged": "パスワードが正常に変更されました。",
+      "emailSent": "メールが正常に送信されました。",
+      "paymentProcessed": "支払いが正常に処理されました。",
+      "taskCompleted": "タスクが正常に完了しました。",
+      "milestoneAchieved": "マイルストーンを達成しました！素晴らしい進捗です！"
+    },
+    "info": {
+      "reminder": "{time}にリマインダーが設定されています。",
+      "newMessage": "新しいメッセージが届きました。",
+      "inviteReceived": "招待が届きました。",
+      "deadlineApproaching": "締め切りが近づいています。",
+      "newComment": "新しいコメントが追加されました。",
+      "progressUpdate": "進捗状況が更新されました。",
+      "eventScheduled": "新しいイベントがスケジュールされました。",
+      "subscriptionActive": "サブスクリプションが有効になりました。",
+      "trialEndingSoon": "試用期間が間もなく終了します。プランを更新してください。",
+      "goalInProgress": "目標に向かって順調に進んでいます！"
+    },
+    "warning": {
+      "passwordExpiring": "パスワードの有効期限が間もなく切れます。更新してください。",
+      "storageLimit": "ストレージの上限に近づいています。",
+      "subscriptionExpiring": "サブスクリプションの有効期限が切れそうです。更新してください。",
+      "quotaAlmostReached": "クォータの上限に達しそうです。",
+      "sessionExpiring": "セッションがまもなく期限切れになります。作業内容を保存してください。",
+      "actionRequired": "続行するにはアクションが必要です。",
+      "lowProgress": "進捗が期待よりも低いです。目標を見直してください。"
+    },
+    "error": {
+      "emailNotSent": "メールの送信に失敗しました。もう一度お試しください。",
+      "notificationFailed": "通知の配信に失敗しました。",
+      "paymentFailed": "支払いを処理できませんでした。別の方法をお試しください。",
+      "reminderFailed": "リマインダーの登録に失敗しました。",
+      "actionFailed": "要求されたアクションを完了できませんでした。",
+      "updateFailed": "データの更新に失敗しました。もう一度お試しください。",
+      "uploadFailed": "ファイルのアップロードに失敗しました。"
+    },
+    "system": {
+      "systemUpdate": "システムが更新されました。最新機能をご確認ください。",
+      "maintenance": "現在サービスはメンテナンス中です。しばらくお待ちください。",
+      "restartRequired": "変更を適用するには再起動が必要です。",
+      "downtimeScheduled": "{date}にメンテナンスが予定されています。一時的にサービスが利用できなくなる場合があります。"
+    },
+    "reminders": {
+      "taskDue": "タスク「{task}」の期限が近づいています。",
+      "eventReminder": "イベント「{event}」は{date}に予定されています。",
+      "followUp": "「{task}」を確認するのを忘れないでください。",
+      "milestoneReminder": "次のマイルストーンの達成を目指しましょう！",
+      "weeklySummary": "週次の進捗レポートが利用可能です。"
+    },
+    "updates": {
+      "featureAdded": "新機能「{feature}」が追加されました。",
+      "featureUpdated": "機能「{feature}」が更新されました。",
+      "bugFix": "問題「{issue}」が修正されました。",
+      "policyChange": "利用規約とプライバシーポリシーが更新されました。"
+    }
+  }
+  

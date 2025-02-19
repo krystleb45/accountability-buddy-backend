@@ -1,0 +1,62 @@
+{
+    "success": {
+      "goalCompleted": "Félicitations ! Vous avez atteint votre objectif.",
+      "profileUpdated": "Votre profil a été mis à jour avec succès.",
+      "settingsSaved": "Paramètres enregistrés avec succès.",
+      "passwordChanged": "Votre mot de passe a été changé avec succès.",
+      "emailSent": "E-mail envoyé avec succès.",
+      "paymentProcessed": "Paiement traité avec succès.",
+      "taskCompleted": "Tâche terminée avec succès.",
+      "milestoneAchieved": "Objectif atteint avec succès ! Continuez comme ça !"
+    },
+    "info": {
+      "reminder": "Vous avez un rappel programmé pour {time}.",
+      "newMessage": "Vous avez un nouveau message.",
+      "inviteReceived": "Vous avez reçu une invitation.",
+      "deadlineApproaching": "La date limite approche.",
+      "newComment": "Un nouveau commentaire a été ajouté.",
+      "progressUpdate": "Votre progression a été mise à jour.",
+      "eventScheduled": "Un nouvel événement a été programmé.",
+      "subscriptionActive": "Votre abonnement est maintenant actif.",
+      "trialEndingSoon": "Votre période d'essai se termine bientôt. Pensez à mettre à jour votre plan.",
+      "goalInProgress": "Vous avancez très bien vers votre objectif !"
+    },
+    "warning": {
+      "passwordExpiring": "Votre mot de passe va bientôt expirer. Veuillez le mettre à jour.",
+      "storageLimit": "Vous approchez de la limite de stockage.",
+      "subscriptionExpiring": "Votre abonnement est sur le point d'expirer. Veuillez le renouveler pour continuer à utiliser le service.",
+      "quotaAlmostReached": "Vous êtes sur le point d'atteindre votre limite de quota.",
+      "sessionExpiring": "Votre session va bientôt expirer. Veuillez enregistrer votre travail.",
+      "actionRequired": "Une action est requise pour continuer.",
+      "lowProgress": "Votre progression est inférieure aux attentes. Pensez à revoir vos objectifs."
+    },
+    "error": {
+      "emailNotSent": "L'e-mail n'a pas pu être envoyé. Veuillez réessayer plus tard.",
+      "notificationFailed": "Impossible de livrer la notification.",
+      "paymentFailed": "Le paiement n'a pas pu être traité. Veuillez réessayer.",
+      "reminderFailed": "Impossible d'enregistrer le rappel.",
+      "actionFailed": "L'action demandée n'a pas pu être complétée.",
+      "updateFailed": "Impossible de mettre à jour les données. Veuillez réessayer.",
+      "uploadFailed": "Le téléversement du fichier a échoué. Veuillez réessayer."
+    },
+    "system": {
+      "systemUpdate": "Le système est en cours de mise à jour. Restez à l'écoute des améliorations.",
+      "maintenance": "Le service est actuellement en maintenance. Veuillez réessayer plus tard.",
+      "restartRequired": "Un redémarrage est nécessaire pour appliquer les modifications.",
+      "downtimeScheduled": "Une maintenance est prévue pour le {date}. Le service peut être temporairement indisponible."
+    },
+    "reminders": {
+      "taskDue": "Votre tâche '{task}' arrive bientôt à échéance.",
+      "eventReminder": "N'oubliez pas l'événement '{event}' prévu le {date}.",
+      "followUp": "N'oubliez pas de suivre '{task}' bientôt.",
+      "milestoneReminder": "N'oubliez pas d'atteindre votre prochain objectif !",
+      "weeklySummary": "Votre rapport de progression hebdomadaire est maintenant disponible."
+    },
+    "updates": {
+      "featureAdded": "Une nouvelle fonctionnalité a été ajoutée : {feature}.",
+      "featureUpdated": "Une fonctionnalité a été mise à jour : {feature}.",
+      "bugFix": "Un correctif a été appliqué : {issue}.",
+      "policyChange": "Nos conditions et politiques de confidentialité ont été mises à jour."
+    }
+  }
+  

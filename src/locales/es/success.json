@@ -1,0 +1,96 @@
+{
+    "general": {
+      "actionCompleted": "Acción completada con éxito.",
+      "savedSuccessfully": "Guardado con éxito.",
+      "updatedSuccessfully": "Actualizado con éxito.",
+      "deletedSuccessfully": "Eliminado con éxito."
+    },
+    "auth": {
+      "accountCreated": "Tu cuenta ha sido creada con éxito.",
+      "loginSuccessful": "Has iniciado sesión con éxito.",
+      "logoutSuccessful": "Has cerrado sesión con éxito.",
+      "passwordReset": "Tu contraseña ha sido restablecida con éxito.",
+      "passwordUpdated": "Tu contraseña ha sido actualizada con éxito.",
+      "emailVerified": "Tu correo electrónico ha sido verificado con éxito.",
+      "verificationEmailSent": "Se ha enviado el correo de verificación con éxito."
+    },
+    "profile": {
+      "profileUpdated": "Tu perfil ha sido actualizado con éxito.",
+      "avatarUpdated": "Tu foto de perfil ha sido actualizada con éxito.",
+      "settingsSaved": "Configuraciones guardadas con éxito."
+    },
+    "goals": {
+      "goalCreated": "Objetivo creado con éxito.",
+      "goalUpdated": "Objetivo actualizado con éxito.",
+      "goalDeleted": "Objetivo eliminado con éxito.",
+      "goalCompleted": "¡Felicidades! Has completado tu objetivo."
+    },
+    "milestones": {
+      "milestoneCreated": "Hito creado con éxito.",
+      "milestoneUpdated": "Hito actualizado con éxito.",
+      "milestoneAchieved": "¡Hito alcanzado con éxito! ¡Sigue con el buen trabajo!",
+      "milestoneDeleted": "Hito eliminado con éxito."
+    },
+    "tasks": {
+      "taskCreated": "Tarea creada con éxito.",
+      "taskUpdated": "Tarea actualizada con éxito.",
+      "taskDeleted": "Tarea eliminada con éxito.",
+      "taskCompleted": "Tarea completada con éxito."
+    },
+    "payments": {
+      "paymentProcessed": "Pago procesado con éxito.",
+      "subscriptionActivated": "Suscripción activada con éxito.",
+      "subscriptionRenewed": "Suscripción renovada con éxito.",
+      "subscriptionCancelled": "Suscripción cancelada con éxito.",
+      "refundProcessed": "Reembolso procesado con éxito."
+    },
+    "notifications": {
+      "notificationSent": "Notificación enviada con éxito.",
+      "reminderSet": "Recordatorio configurado con éxito.",
+      "reminderUpdated": "Recordatorio actualizado con éxito.",
+      "reminderDeleted": "Recordatorio eliminado con éxito."
+    },
+    "uploads": {
+      "fileUploaded": "Archivo subido con éxito.",
+      "fileDeleted": "Archivo eliminado con éxito.",
+      "imageUpdated": "Imagen actualizada con éxito."
+    },
+    "messages": {
+      "messageSent": "Mensaje enviado con éxito.",
+      "messageDeleted": "Mensaje eliminado con éxito."
+    },
+    "reviews": {
+      "reviewSubmitted": "Reseña enviada con éxito.",
+      "reviewDeleted": "Reseña eliminada con éxito."
+    },
+    "progress": {
+      "progressUpdated": "Progreso actualizado con éxito.",
+      "milestoneReached": "Hito alcanzado con éxito.",
+      "trackerCreated": "Seguimiento creado con éxito.",
+      "trackerUpdated": "Seguimiento actualizado con éxito.",
+      "trackerDeleted": "Seguimiento eliminado con éxito."
+    },
+    "collaboration": {
+      "inviteSent": "Invitación enviada con éxito.",
+      "inviteAccepted": "Invitación aceptada con éxito.",
+      "inviteDeclined": "Invitación rechazada con éxito.",
+      "partnershipCreated": "Asociación creada con éxito.",
+      "partnershipEnded": "Asociación finalizada con éxito."
+    },
+    "security": {
+      "twoFactorEnabled": "La autenticación en dos pasos se ha habilitado con éxito.",
+      "twoFactorDisabled": "La autenticación en dos pasos se ha deshabilitado con éxito.",
+      "securitySettingsUpdated": "Configuraciones de seguridad actualizadas con éxito."
+    },
+    "feedback": {
+      "feedbackSubmitted": "Tus comentarios se han enviado con éxito.",
+      "ratingSubmitted": "Tu calificación se ha enviado con éxito."
+    },
+    "data": {
+      "dataExported": "Datos exportados con éxito.",
+      "dataImported": "Datos importados con éxito.",
+      "backupCreated": "Copia de seguridad creada con éxito.",
+      "backupRestored": "Copia de seguridad restaurada con éxito."
+    }
+  }
+  

@@ -1,0 +1,94 @@
+{
+  "404": {
+    "title": "Seite nicht gefunden",
+    "message": "Die von Ihnen gesuchte Seite wurde nicht gefunden."
+  },
+  "500": {
+    "title": "Serverfehler",
+    "message": "Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es später erneut."
+  },
+  "networkError": {
+    "title": "Netzwerkfehler",
+    "message": "Es konnte keine Verbindung zum Server hergestellt werden. Bitte überprüfen Sie Ihre Internetverbindung."
+  },
+  "validationError": {
+    "title": "Validierungsfehler",
+    "message": "Einige Eingaben sind ungültig. Bitte überprüfen Sie die markierten Felder und versuchen Sie es erneut."
+  },
+  "authenticationError": {
+    "title": "Authentifizierungsfehler",
+    "message": "Sie sind nicht berechtigt, auf diese Ressource zuzugreifen. Bitte melden Sie sich erneut an."
+  },
+  "authorizationError": {
+    "title": "Berechtigungsfehler",
+    "message": "Sie haben nicht die erforderlichen Berechtigungen, um diese Aktion auszuführen."
+  },
+  "timeoutError": {
+    "title": "Zeitüberschreitung",
+    "message": "Die Anfrage hat zu lange gedauert. Bitte versuchen Sie es später erneut."
+  },
+  "formSubmissionError": {
+    "title": "Formularübermittlungsfehler",
+    "message": "Beim Senden des Formulars ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut."
+  },
+  "resourceNotFound": {
+    "title": "Ressource nicht gefunden",
+    "message": "Die angeforderte Ressource wurde nicht gefunden."
+  },
+  "passwordMismatch": {
+    "title": "Passwort stimmt nicht überein",
+    "message": "Die eingegebenen Passwörter stimmen nicht überein. Bitte überprüfen Sie sie."
+  },
+  "accountLocked": {
+    "title": "Konto gesperrt",
+    "message": "Ihr Konto wurde gesperrt. Bitte wenden Sie sich an den Support, um Hilfe zu erhalten."
+  },
+  "accountNotActivated": {
+    "title": "Konto nicht aktiviert",
+    "message": "Ihr Konto wurde noch nicht aktiviert. Bitte überprüfen Sie Ihre E-Mails für den Aktivierungslink."
+  },
+  "duplicateEntry": {
+    "title": "Doppelter Eintrag",
+    "message": "Dieser Eintrag existiert bereits. Bitte geben Sie einen anderen Wert ein."
+  },
+  "fileUploadError": {
+    "title": "Datei-Upload-Fehler",
+    "message": "Beim Hochladen der Datei ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut."
+  },
+  "paymentError": {
+    "title": "Zahlungsfehler",
+    "message": "Ein Fehler ist während der Zahlungsabwicklung aufgetreten. Bitte überprüfen Sie Ihre Angaben und versuchen Sie es erneut."
+  },
+  "serviceUnavailable": {
+    "title": "Dienst nicht verfügbar",
+    "message": "Der Dienst ist vorübergehend nicht verfügbar. Bitte versuchen Sie es später erneut."
+  },
+  "quotaExceeded": {
+    "title": "Kontingent überschritten",
+    "message": "Sie haben das Kontingent überschritten. Bitte kontaktieren Sie den Support, um Hilfe zu erhalten."
+  },
+  "invalidToken": {
+    "title": "Ungültiges Token",
+    "message": "Das Token ist ungültig oder abgelaufen. Bitte fordern Sie ein neues Token an."
+  },
+  "emailNotRegistered": {
+    "title": "E-Mail nicht registriert",
+    "message": "Die angegebene E-Mail-Adresse ist nicht registriert. Bitte erstellen Sie ein Konto."
+  },
+  "databaseError": {
+    "title": "Datenbankfehler",
+    "message": "Ein Fehler ist bei der Verbindung zur Datenbank aufgetreten. Bitte versuchen Sie es später erneut."
+  },
+  "unexpectedError": {
+    "title": "Unerwarteter Fehler",
+    "message": "Ein unerwarteter Fehler ist aufgetreten. Bitte aktualisieren Sie die Seite oder versuchen Sie es später erneut."
+  },
+  "maintenanceMode": {
+    "title": "Wartungsmodus",
+    "message": "Der Dienst befindet sich derzeit im Wartungsmodus. Bitte versuchen Sie es später erneut."
+  },
+  "sessionExpired": {
+    "title": "Sitzung abgelaufen",
+    "message": "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an."
+  }
+}

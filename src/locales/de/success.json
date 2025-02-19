@@ -1,0 +1,81 @@
+{
+    "general": {
+      "actionCompleted": "Aktion erfolgreich abgeschlossen.",
+      "savedSuccessfully": "Erfolgreich gespeichert.",
+      "updatedSuccessfully": "Erfolgreich aktualisiert.",
+      "deletedSuccessfully": "Erfolgreich gelöscht."
+    },
+    "auth": {
+      "accountCreated": "Konto erfolgreich erstellt.",
+      "loginSuccessful": "Erfolgreich angemeldet.",
+      "logoutSuccessful": "Erfolgreich abgemeldet.",
+      "passwordReset": "Ihr Passwort wurde erfolgreich zurückgesetzt.",
+      "passwordUpdated": "Ihr Passwort wurde erfolgreich aktualisiert.",
+      "emailVerified": "Ihre E-Mail wurde erfolgreich bestätigt.",
+      "verificationEmailSent": "Bestätigungs-E-Mail wurde erfolgreich gesendet."
+    },
+    "profile": {
+      "profileUpdated": "Ihr Profil wurde erfolgreich aktualisiert.",
+      "avatarUpdated": "Ihr Profilbild wurde erfolgreich aktualisiert.",
+      "settingsSaved": "Einstellungen wurden erfolgreich gespeichert."
+    },
+    "goals": {
+      "goalCreated": "Ziel erfolgreich erstellt.",
+      "goalUpdated": "Ziel erfolgreich aktualisiert.",
+      "goalDeleted": "Ziel erfolgreich gelöscht.",
+      "goalCompleted": "Herzlichen Glückwunsch! Sie haben Ihr Ziel erreicht."
+    },
+    "milestones": {
+      "milestoneCreated": "Meilenstein erfolgreich erstellt.",
+      "milestoneUpdated": "Meilenstein erfolgreich aktualisiert.",
+      "milestoneAchieved": "Meilenstein erreicht! Weiter so!",
+      "milestoneDeleted": "Meilenstein erfolgreich gelöscht."
+    },
+    "tasks": {
+      "taskCreated": "Aufgabe erfolgreich erstellt.",
+      "taskUpdated": "Aufgabe erfolgreich aktualisiert.",
+      "taskDeleted": "Aufgabe erfolgreich gelöscht.",
+      "taskCompleted": "Aufgabe erfolgreich abgeschlossen."
+    },
+    "payments": {
+      "paymentProcessed": "Zahlung wurde erfolgreich verarbeitet.",
+      "subscriptionActivated": "Abonnement erfolgreich aktiviert.",
+      "subscriptionRenewed": "Abonnement erfolgreich erneuert.",
+      "subscriptionCancelled": "Abonnement erfolgreich gekündigt.",
+      "refundProcessed": "Rückerstattung erfolgreich bearbeitet."
+    },
+    "notifications": {
+      "notificationSent": "Benachrichtigung erfolgreich gesendet.",
+      "reminderSet": "Erinnerung erfolgreich eingestellt.",
+      "reminderUpdated": "Erinnerung erfolgreich aktualisiert.",
+      "reminderDeleted": "Erinnerung erfolgreich gelöscht."
+    },
+    "uploads": {
+      "fileUploaded": "Datei erfolgreich hochgeladen.",
+      "fileDeleted": "Datei erfolgreich gelöscht.",
+      "imageUpdated": "Bild erfolgreich aktualisiert."
+    },
+    "messages": {
+      "messageSent": "Nachricht erfolgreich gesendet.",
+      "messageDeleted": "Nachricht erfolgreich gelöscht."
+    },
+    "reviews": {
+      "reviewSubmitted": "Bewertung erfolgreich eingereicht.",
+      "reviewDeleted": "Bewertung erfolgreich gelöscht."
+    },
+    "progress": {
+      "progressUpdated": "Fortschritt erfolgreich aktualisiert.",
+      "milestoneReached": "Meilenstein erfolgreich erreicht.",
+      "trackerCreated": "Tracker erfolgreich erstellt.",
+      "trackerUpdated": "Tracker erfolgreich aktualisiert.",
+      "trackerDeleted": "Tracker erfolgreich gelöscht."
+    },
+    "collaboration": {
+      "inviteSent": "Einladung erfolgreich gesendet.",
+      "inviteAccepted": "Einladung erfolgreich angenommen.",
+      "inviteDeclined": "Einladung erfolgreich abgelehnt.",
+      "partnershipCreated": "Partnerschaft erfolgreich erstellt.",
+      "partnershipEnded": "Partnerschaft erfolgreich beendet."
+    }
+  }
+  

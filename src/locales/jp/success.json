@@ -1,0 +1,96 @@
+{
+    "general": {
+      "actionCompleted": "アクションが正常に完了しました。",
+      "savedSuccessfully": "正常に保存されました。",
+      "updatedSuccessfully": "正常に更新されました。",
+      "deletedSuccessfully": "正常に削除されました。"
+    },
+    "auth": {
+      "accountCreated": "アカウントが正常に作成されました。",
+      "loginSuccessful": "ログインに成功しました。",
+      "logoutSuccessful": "ログアウトに成功しました。",
+      "passwordReset": "パスワードが正常にリセットされました。",
+      "passwordUpdated": "パスワードが正常に更新されました。",
+      "emailVerified": "メールが正常に確認されました。",
+      "verificationEmailSent": "確認メールが正常に送信されました。"
+    },
+    "profile": {
+      "profileUpdated": "プロフィールが正常に更新されました。",
+      "avatarUpdated": "プロフィール画像が正常に更新されました。",
+      "settingsSaved": "設定が正常に保存されました。"
+    },
+    "goals": {
+      "goalCreated": "目標が正常に作成されました。",
+      "goalUpdated": "目標が正常に更新されました。",
+      "goalDeleted": "目標が正常に削除されました。",
+      "goalCompleted": "おめでとうございます！目標を達成しました！"
+    },
+    "milestones": {
+      "milestoneCreated": "マイルストーンが正常に作成されました。",
+      "milestoneUpdated": "マイルストーンが正常に更新されました。",
+      "milestoneAchieved": "おめでとうございます！マイルストーンを達成しました！",
+      "milestoneDeleted": "マイルストーンが正常に削除されました。"
+    },
+    "tasks": {
+      "taskCreated": "タスクが正常に作成されました。",
+      "taskUpdated": "タスクが正常に更新されました。",
+      "taskDeleted": "タスクが正常に削除されました。",
+      "taskCompleted": "タスクが正常に完了しました。"
+    },
+    "payments": {
+      "paymentProcessed": "支払いが正常に処理されました。",
+      "subscriptionActivated": "サブスクリプションが正常に有効化されました。",
+      "subscriptionRenewed": "サブスクリプションが正常に更新されました。",
+      "subscriptionCancelled": "サブスクリプションが正常にキャンセルされました。",
+      "refundProcessed": "返金が正常に処理されました。"
+    },
+    "notifications": {
+      "notificationSent": "通知が正常に送信されました。",
+      "reminderSet": "リマインダーが正常に設定されました。",
+      "reminderUpdated": "リマインダーが正常に更新されました。",
+      "reminderDeleted": "リマインダーが正常に削除されました。"
+    },
+    "uploads": {
+      "fileUploaded": "ファイルが正常にアップロードされました。",
+      "fileDeleted": "ファイルが正常に削除されました。",
+      "imageUpdated": "画像が正常に更新されました。"
+    },
+    "messages": {
+      "messageSent": "メッセージが正常に送信されました。",
+      "messageDeleted": "メッセージが正常に削除されました。"
+    },
+    "reviews": {
+      "reviewSubmitted": "レビューが正常に送信されました。",
+      "reviewDeleted": "レビューが正常に削除されました。"
+    },
+    "progress": {
+      "progressUpdated": "進捗が正常に更新されました。",
+      "milestoneReached": "おめでとうございます！マイルストーンを達成しました。",
+      "trackerCreated": "トラッカーが正常に作成されました。",
+      "trackerUpdated": "トラッカーが正常に更新されました。",
+      "trackerDeleted": "トラッカーが正常に削除されました。"
+    },
+    "collaboration": {
+      "inviteSent": "招待が正常に送信されました。",
+      "inviteAccepted": "招待が正常に承認されました。",
+      "inviteDeclined": "招待が正常に拒否されました。",
+      "partnershipCreated": "パートナーシップが正常に作成されました。",
+      "partnershipEnded": "パートナーシップが正常に終了しました。"
+    },
+    "security": {
+      "twoFactorEnabled": "2要素認証が正常に有効化されました。",
+      "twoFactorDisabled": "2要素認証が正常に無効化されました。",
+      "securitySettingsUpdated": "セキュリティ設定が正常に更新されました。"
+    },
+    "feedback": {
+      "feedbackSubmitted": "フィードバックが正常に送信されました。",
+      "ratingSubmitted": "評価が正常に送信されました。"
+    },
+    "data": {
+      "dataExported": "データが正常にエクスポートされました。",
+      "dataImported": "データが正常にインポートされました。",
+      "backupCreated": "バックアップが正常に作成されました。",
+      "backupRestored": "バックアップが正常に復元されました。"
+    }
+  }
+  
