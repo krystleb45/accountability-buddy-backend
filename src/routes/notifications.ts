@@ -1,18 +1,15 @@
-import type { Router, Request, Response, NextFunction } from "express";
+import type { Router } from "express";
 import express from "express";
 import { check } from "express-validator";
 import rateLimit from "express-rate-limit";
-import sanitize from "mongo-sanitize";
 import authMiddleware from "../middleware/authMiddleware";
 import * as NotificationController from "../controllers/NotificationController";
-import logger from "../utils/winstonLogger";
 import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust the path
-
 
 const router: Router = express.Router();
 
 /**
- * Rate limiter to prevent spam requests for SMS notifications.
+ * Rate limiter to prevent spam requests for sending notifications.
  */
 const notificationLimiter = rateLimit({
   windowMs: 10 * 60 * 1000, // 10 minutes
@@ -25,54 +22,55 @@ const notificationLimiter = rateLimit({
   },
 });
 
-
-
 /**
- * @route   POST /send-sms-notification
- * @desc    Send an SMS notification
+ * @route   POST /api/notifications
+ * @desc    Send a notification
  * @access  Private
  */
 router.post(
-  "/send-sms-notification",
+  "/",
   authMiddleware,
   notificationLimiter,
   [
-    check("to", "Please provide a valid recipient phone number").isMobilePhone("any"), // Fixed validation
-    check("message", "Message text is required").notEmpty(),
+    check("receiverId", "Receiver ID is required").notEmpty(),
+    check("message", "Notification message is required").notEmpty(),
+    check("type", "Notification type is required").isIn([
+      "friend_request",
+      "message",
+      "group_invite",
+      "blog_activity",
+      "goal_milestone",
+    ]),
   ],
   handleValidationErrors,
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      // Sanitize input data
-      const sanitizedBody = sanitize(req.body);
-      const { to, message } = sanitizedBody;
-
-      // Ensure required fields are present after sanitization
-      if (!to || !message) {
-        res.status(400).json({
-          success: false,
-          message: "Phone number and message are required.",
-        });
-        return;
-      }
-
-      // Call the NotificationController to handle SMS sending
-      await NotificationController.sendNotification(req, res, next); // Pass required args
-
-      // Success response
-      res.status(200).json({
-        success: true,
-        message: "SMS notification sent successfully",
-      });
-    } catch (err) {
-      // Log and handle errors
-      logger.error("Error sending SMS notification", {
-        error: err,
-        to: req.body.to,
-      });
-      next(err); // Forward error to middleware
-    }
-  },
+  NotificationController.sendNotification
 );
+
+/**
+ * @route   GET /api/notifications
+ * @desc    Get notifications for the authenticated user
+ * @access  Private
+ */
+router.get("/", authMiddleware, NotificationController.getNotifications);
+
+/**
+ * @route   PATCH /api/notifications/read
+ * @desc    Mark notifications as read
+ * @access  Private
+ */
+router.patch(
+  "/read",
+  authMiddleware,
+  [check("notificationIds", "Notification IDs array is required").isArray()],
+  handleValidationErrors,
+  NotificationController.markNotificationsAsRead
+);
+
+/**
+ * @route   DELETE /api/notifications/:notificationId
+ * @desc    Delete a specific notification
+ * @access  Private
+ */
+router.delete("/:notificationId", authMiddleware, NotificationController.deleteNotification);
 
 export default router;

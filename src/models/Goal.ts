@@ -5,6 +5,7 @@ import mongoose, { Schema } from "mongoose";
 export interface IReminder {
   message: string;
   remindAt: Date;
+  status: "pending" | "sent"; // ✅ Added status property
 }
 
 // Milestone interface

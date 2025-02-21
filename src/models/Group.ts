@@ -3,6 +3,7 @@ import mongoose, { Schema } from "mongoose";
 
 // Define the Group interface
 export interface IGroup extends Document {
+  _id: mongoose.Types.ObjectId; // ✅ Explicitly define `_id` to fix `unknown` type errors
   name: string;
   description?: string;
   members: mongoose.Types.ObjectId[];
@@ -54,13 +55,13 @@ const GroupSchema = new Schema<IGroup>(
     timestamps: true, // Adds createdAt and updatedAt fields automatically
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
-  },
+  }
 );
 
-// Middleware to ensure the creator is added as a member
+// ✅ Ensure `createdBy` is added to `members` when creating a new group
 GroupSchema.pre("save", function (next) {
   try {
-    if (!this.members.includes(this.createdBy)) {
+    if (!this.members.some((member) => member.equals(this.createdBy))) {
       this.members.push(this.createdBy);
     }
     next();
@@ -69,40 +70,40 @@ GroupSchema.pre("save", function (next) {
   }
 });
 
-// Instance method to add a member
+// ✅ Instance method to add a member
 GroupSchema.methods.addMember = async function (
-  userId: mongoose.Types.ObjectId,
+  userId: mongoose.Types.ObjectId
 ): Promise<void> {
-  if (!this.members.includes(userId)) {
+  if (!this.members.some((member: { equals: (arg0: mongoose.Types.ObjectId) => any; }) => member.equals(userId))) {
     this.members.push(userId);
     await this.save();
   }
 };
 
-// Instance method to remove a member
+// ✅ Instance method to remove a member
 GroupSchema.methods.removeMember = async function (
-  userId: mongoose.Types.ObjectId,
+  userId: mongoose.Types.ObjectId
 ): Promise<void> {
   this.members = this.members.filter(
-    (member: mongoose.Types.ObjectId) => member.toString() !== userId.toString(),
+    (member: mongoose.Types.ObjectId) => !member.equals(userId)
   );
   await this.save();
 };
 
-// Static method to fetch public groups
+// ✅ Static method to fetch public groups
 GroupSchema.statics.findPublicGroups = async function (): Promise<IGroup[]> {
-  return await this.find({ visibility: "public", isActive: true });
+  return await this.find({ visibility: "public", isActive: true }).lean();
 };
 
-// Virtual field to get the member count
+// ✅ Virtual field to get the member count
 GroupSchema.virtual("memberCount").get(function () {
   return this.members.length;
 });
 
-// Indexes for optimization
+// ✅ Indexes for optimization
 GroupSchema.index({ name: 1, isActive: 1 }); // Optimize searches by name and activity
 GroupSchema.index({ members: 1 }); // Optimize member-based queries
-GroupSchema.index({ visibility: 1 }); // Optimize visibility-based queries
+GroupSchema.index({ visibility: 1 }, { sparse: true }); // Optimize visibility-based queries
 
 // Named export
 export const Group: Model<IGroup> = mongoose.model<IGroup>("Group", GroupSchema);

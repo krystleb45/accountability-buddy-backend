@@ -1,97 +1,183 @@
-// Updated AchievementController.ts
-
-const achievements: Array<{ id: string; userId: string; name: string; description: string }> = [];
-
-/**
- * Get all achievements for a user
- */
-export const getAllAchievements = async (
-  userId: string,
-): Promise<{ id: string; userId: string; name: string; description: string }[]> => {
-  try {
-    // Filter achievements by userId
-    return achievements.filter((a) => a.userId === userId);
-  } catch (error) {
-    throw new Error(`Failed to fetch achievements for user ${userId}: ${(error as Error).message}`);
-  }
-};
+import type { Request, Response, NextFunction } from "express";
+import mongoose from "mongoose";
+import Achievement from "../models/Achievement";
+import catchAsync from "../utils/catchAsync";
+import sendResponse from "../utils/sendResponse";
+import { createError } from "../middleware/errorHandler";
+import { IUser } from "../models/User";
 
 /**
- * Get a single achievement by ID
+ * @desc Get all achievements for a user
+ * @route GET /api/achievements
+ * @access Private
  */
-export const getAchievementById = async (
-  id: string,
-): Promise<{ id: string; userId: string; name: string; description: string } | null> => {
-  try {
-    const achievement = achievements.find((a) => a.id === id);
-    return achievement || null;
-  } catch (error) {
-    throw new Error(`Failed to fetch achievement by ID ${id}: ${(error as Error).message}`);
-  }
-};
+export const getAllAchievements = catchAsync(
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const userId = req.user?.id;
 
-/**
- * Create a new achievement
- */
-export const addAchievement = async (
-  userId: string,
-  achievementData: { name: string; description: string },
-): Promise<{ id: string; userId: string; name: string; description: string }> => {
-  try {
-    const { name, description } = achievementData;
-
-    if (!name || !description) {
-      throw new Error("Name and description are required");
+    if (!userId) {
+      return next(createError("Unauthorized access", 401));
     }
 
-    // Add userId to the new achievement
-    const newAchievement = { id: Date.now().toString(), userId, name, description };
-    achievements.push(newAchievement);
-    return newAchievement;
-  } catch (error) {
-    throw new Error(`Failed to add achievement: ${(error as Error).message}`);
+    const achievements = await Achievement.find({ user: userId });
+
+    sendResponse(res, 200, true, "User achievements retrieved successfully", { achievements });
+  }
+);
+
+/**
+ * @desc Check if user qualifies for a new streak achievement
+ * @param user - The user object
+ */
+export const checkStreakAchievements = async (user: IUser): Promise<void> => {
+  // ✅ Ensure `streak` has a default value
+  user.streak = user.streak ?? 0;
+
+  const streakAchievements = await Achievement.find({ name: /streak/i });
+
+  for (const achievement of streakAchievements) {
+    user.achievements = user.achievements ?? [];
+
+    const achievementId = achievement._id as mongoose.Types.ObjectId;
+
+    if (!user.achievements.includes(achievementId) && user.streak >= achievement.requirements) {
+      user.achievements.push(achievementId);
+      await user.save();
+    }
   }
 };
 
-/**
- * Update an existing achievement by ID
- */
-export const updateAchievement = async (
-  id: string,
-  updateData: { name?: string; description?: string },
-): Promise<{ id: string; userId: string; name: string; description: string } | null> => {
-  try {
-    const achievement = achievements.find((a) => a.id === id);
 
+/**
+ * @desc Get a single achievement by ID
+ * @route GET /api/achievements/:id
+ * @access Private
+ */
+export const getAchievementById = catchAsync(
+  async (req: Request<{ id: string }>, res: Response, next: NextFunction): Promise<void> => {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return next(createError("Invalid achievement ID", 400));
+    }
+
+    const achievement = await Achievement.findById(id);
     if (!achievement) {
-      throw new Error("Achievement not found");
+      return next(createError("Achievement not found", 404));
     }
 
-    // Update fields if provided
-    if (updateData.name) achievement.name = updateData.name;
-    if (updateData.description) achievement.description = updateData.description;
-
-    return achievement;
-  } catch (error) {
-    throw new Error(`Failed to update achievement with ID ${id}: ${(error as Error).message}`);
+    sendResponse(res, 200, true, "Achievement retrieved successfully", { achievement });
   }
-};
+);
 
 /**
- * Delete an achievement by ID
+ * @desc Create a new achievement
+ * @route POST /api/achievements
+ * @access Private
  */
-export const deleteAchievement = async (id: string): Promise<boolean> => {
-  try {
-    const index = achievements.findIndex((a) => a.id === id);
+export const addAchievement = catchAsync(
+  async (
+    req: Request<{}, {}, { name: string; description: string; requirements: number }>,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    const { name, description, requirements } = req.body;
+    const userId = req.user?.id;
 
-    if (index === -1) {
-      throw new Error("Achievement not found");
+    if (!userId) {
+      return next(createError("Unauthorized access", 401));
     }
 
-    // Remove the achievement
-    achievements.splice(index, 1);
-    return true;
-  } catch (error) {
-    throw new Error(`Failed to delete achievement with ID ${id}: ${(error as Error).message}`);
+    if (!name || !description || !requirements) {
+      return next(createError("Name, description, and requirements are required", 400));
+    }
+
+    const newAchievement = await Achievement.create({ name, description, requirements });
+
+    sendResponse(res, 201, true, "Achievement created successfully", { achievement: newAchievement });
   }
+);
+
+/**
+ * @desc Update an achievement
+ * @route PUT /api/achievements/:id
+ * @access Private
+ */
+export const updateAchievement = catchAsync(
+  async (
+    req: Request<{ id: string }, {}, { name?: string; description?: string; requirements?: number }>,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    const { id } = req.params;
+    const updates = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return next(createError("Invalid achievement ID", 400));
+    }
+
+    const achievement = await Achievement.findById(id);
+    if (!achievement) {
+      return next(createError("Achievement not found", 404));
+    }
+
+    Object.assign(achievement, updates);
+    await achievement.save();
+
+    sendResponse(res, 200, true, "Achievement updated successfully", { achievement });
+  }
+);
+
+/**
+ * @desc Delete an achievement
+ * @route DELETE /api/achievements/:id
+ * @access Private
+ */
+export const deleteAchievement = catchAsync(
+  async (req: Request<{ id: string }>, res: Response, next: NextFunction): Promise<void> => {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return next(createError("Invalid achievement ID", 400));
+    }
+
+    const achievement = await Achievement.findById(id);
+    if (!achievement) {
+      return next(createError("Achievement not found", 404));
+    }
+
+    await achievement.deleteOne();
+
+    sendResponse(res, 200, true, "Achievement deleted successfully");
+  }
+);
+
+/**
+ * @desc Get leaderboard achievements (Admin only)
+ * @route GET /api/achievements/leaderboard
+ * @access Private/Admin
+ */
+export const getLeaderboardAchievements = catchAsync(
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    if (!req.user?.isAdmin) {
+      return next(createError("Access denied", 403));
+    }
+
+    const achievements = await Achievement.find().sort({ createdAt: -1 });
+
+    sendResponse(res, 200, true, "Leaderboard achievements retrieved successfully", { achievements });
+  }
+);
+
+/**
+ * ✅ Export all controllers correctly
+ */
+export default {
+  getAllAchievements,
+  getAchievementById,
+  addAchievement,
+  updateAchievement,
+  deleteAchievement,
+  getLeaderboardAchievements,
+  checkStreakAchievements
 };

@@ -1,17 +1,31 @@
 import type { Document, Model } from "mongoose";
 import mongoose, { Schema } from "mongoose";
 
-// Interface for the Leaderboard document
+// Interface for Leaderboard Document
 export interface ILeaderboard extends Document {
   user: mongoose.Types.ObjectId;
   completedGoals: number;
   completedMilestones: number;
   totalPoints: number;
+  streakDays: number;
   rank: number | null;
-  rankDescription: string; // Virtual field
+  rankDescription: string;
 }
 
-// Schema definition
+// ✅ Define static methods for the Leaderboard Model
+interface ILeaderboardModel extends Model<ILeaderboard> {
+  updateLeaderboard(
+    userId: mongoose.Types.ObjectId,
+    points: number,
+    goals: number,
+    milestones: number,
+    streak: number
+  ): Promise<ILeaderboard | null>;
+
+  recalculateRanks(): Promise<void>;
+}
+
+// Schema Definition
 const LeaderboardSchema = new Schema<ILeaderboard>(
   {
     user: {
@@ -24,64 +38,77 @@ const LeaderboardSchema = new Schema<ILeaderboard>(
     completedGoals: {
       type: Number,
       default: 0,
-      min: [0, "Completed goals cannot be negative"], // Prevent negative values
+      min: [0, "Completed goals cannot be negative"],
     },
     completedMilestones: {
       type: Number,
       default: 0,
-      min: [0, "Completed milestones cannot be negative"], // Prevent negative values
+      min: [0, "Completed milestones cannot be negative"],
     },
     totalPoints: {
       type: Number,
       default: 0,
-      min: [0, "Total points cannot be negative"], // Prevent negative values
+      min: [0, "Total points cannot be negative"],
+    },
+    streakDays: {
+      type: Number,
+      default: 0,
+      min: [0, "Streak days cannot be negative"],
     },
     rank: {
       type: Number,
-      default: null, // Rank will be computed later
+      default: null,
     },
   },
   {
-    timestamps: true, // Automatically manage createdAt and updatedAt fields
+    timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
-  },
+  }
 );
 
-// Compound index for efficient leaderboard sorting
+// Compound index for sorting leaderboard
 LeaderboardSchema.index({
   totalPoints: -1,
   completedGoals: -1,
   completedMilestones: -1,
+  streakDays: -1,
 });
 
-// Static method to update leaderboard entry
+// ✅ Define Static Method: Update Leaderboard Entry
 LeaderboardSchema.statics.updateLeaderboard = async function (
   userId: mongoose.Types.ObjectId,
   points: number,
   goals: number,
   milestones: number,
+  streak: number
 ): Promise<ILeaderboard | null> {
-  return await this.findOneAndUpdate(
+  const leaderboardEntry = await this.findOneAndUpdate(
     { user: userId },
     {
       $inc: {
         totalPoints: points,
         completedGoals: goals,
         completedMilestones: milestones,
+        streakDays: streak,
       },
     },
-    { new: true, upsert: true, setDefaultsOnInsert: true }, // Create a new entry if it doesn't exist
+    { new: true, upsert: true, setDefaultsOnInsert: true }
   );
+
+  // ✅ Ensure Rank Updates
+  await Leaderboard.recalculateRanks();
+  return leaderboardEntry;
 };
 
-// Static method to recalculate ranks
+// ✅ Define Static Method: Recalculate Ranks
 LeaderboardSchema.statics.recalculateRanks = async function (): Promise<void> {
   const leaderboardEntries = await this.find()
     .sort({
       totalPoints: -1,
       completedGoals: -1,
       completedMilestones: -1,
+      streakDays: -1,
     })
     .exec();
 
@@ -91,7 +118,7 @@ LeaderboardSchema.statics.recalculateRanks = async function (): Promise<void> {
   }
 };
 
-// Virtual field for rank description
+// ✅ Virtual Field: Rank Description
 LeaderboardSchema.virtual("rankDescription").get(function (): string {
   switch (this.rank) {
     case 1:
@@ -105,24 +132,7 @@ LeaderboardSchema.virtual("rankDescription").get(function (): string {
   }
 });
 
-// Pre-save hook to validate leaderboard data
-LeaderboardSchema.pre<ILeaderboard>("save", function (next): void {
-  const minimumPoints =
-    this.completedGoals * 10 + this.completedMilestones * 5; // Example calculation logic
-  if (this.totalPoints < minimumPoints) {
-    return next(
-      new Error(
-        "Total points cannot be less than the sum of completed goals and milestones",
-      ),
-    );
-  }
-  next();
-});
-
-// Export the Leaderboard model
-export const Leaderboard: Model<ILeaderboard> = mongoose.model<ILeaderboard>(
-  "Leaderboard",
-  LeaderboardSchema,
-);
+// ✅ Ensure TypeScript Recognizes Static Methods
+const Leaderboard = mongoose.model<ILeaderboard, ILeaderboardModel>("Leaderboard", LeaderboardSchema);
 
 export default Leaderboard;

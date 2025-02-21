@@ -5,7 +5,7 @@ import rateLimit from "express-rate-limit";
 import * as chatController from "../controllers/chatController";
 import authMiddleware from "../middleware/authMiddleware";
 import handleValidationErrors from "../middleware/handleValidationErrors";
-import type { AuthenticatedRequest } from "@src/types/request";
+import type { AuthenticatedRequest } from "../types/AuthenticatedRequest";
 
 const router: Router = Router();
 
@@ -32,17 +32,17 @@ router.post(
     handleValidationErrors,
   ],
   async (
-    req: AuthenticatedRequest<{}, {}, { message: string; groupId: string }>,
+    req: AuthenticatedRequest<{ groupId: string }, {}, { message: string }, {}>,
     res: Response,
-    next: NextFunction,
+    next: NextFunction
   ): Promise<void> => {
     try {
-      const messageResult = await chatController.sendMessage(req as any, res, next);
+      const messageResult = chatController.sendMessage(req, res, next);
       res.status(200).json({ success: true, messageResult });
     } catch (err) {
       next(err);
     }
-  },
+  }
 );
 
 /**
@@ -56,7 +56,7 @@ router.get(
   async (
     req: AuthenticatedRequest<{ groupId: string }>,
     res: Response,
-    next: NextFunction,
+    next: NextFunction
   ): Promise<void> => {
     try {
       const chatHistory = await chatController.getChatHistory(req, res, next);
@@ -64,10 +64,56 @@ router.get(
     } catch (err) {
       next(err);
     }
-  },
+  }
 );
 
+/**
+ * @route POST /chat/private/:friendId
+ * @desc Send a private message to a friend
+ * @access Private
+ */
+router.post(
+  "/private/:friendId",
+  authMiddleware,
+  [
+    check("message", "Message cannot be empty").notEmpty(),
+    handleValidationErrors,
+  ],
+  async (
+    req: AuthenticatedRequest<{ friendId: string }, {}, { message: string }>,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const messageResult = await chatController.sendPrivateMessage(req, res, next);
+      res.status(201).json({ success: true, messageResult });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
+/**
+ * @route GET /chat/private/:friendId
+ * @desc Get private chat history between two users
+ * @access Private
+ */
+router.get(
+  "/private/:friendId",
+  authMiddleware,
+  async (
+    req: AuthenticatedRequest<{ friendId: string }>,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const chatHistory = await chatController.getPrivateChats(req, res, next);
+      res.status(200).json({ success: true, chatHistory });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 /**
  * @route POST /chat/group
@@ -85,16 +131,15 @@ router.post(
   async (
     req: AuthenticatedRequest<{}, {}, { groupName: string; members: string[] }>,
     res: Response,
-    next: NextFunction,
+    next: NextFunction
   ): Promise<void> => {
     try {
       const group = await chatController.createGroup(req, res, next);
-
       res.status(201).json({ success: true, group });
     } catch (err) {
       next(err);
     }
-  },
+  }
 );
 
 /**
@@ -112,17 +157,15 @@ router.put(
   async (
     req: AuthenticatedRequest<{ groupId: string }, {}, { userId: string }>,
     res: Response,
-    next: NextFunction,
+    next: NextFunction
   ): Promise<void> => {
     try {
       const updatedGroup = await chatController.addUserToGroup(req, res, next);
-
       res.status(200).json({ success: true, updatedGroup });
     } catch (err) {
       next(err);
     }
-  },
+  }
 );
-
 
 export default router;

@@ -41,6 +41,12 @@ export interface IUser extends Document {
   settings?: UserSettings;
   twoFactorSecret?: string;
   stripeCustomerId?: string;
+  completedGoals?: number;
+  streak?: number;
+  achievements?: mongoose.Types.ObjectId[];
+  lastGoalCompletedAt?: Date; // Add this line
+  
+
 
   comparePassword(candidatePassword: string): Promise<boolean>;
   generateResetToken(): string;
@@ -63,11 +69,11 @@ const UserSchema: Schema<IUser> = new Schema(
     friends: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     friendRequests: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     points: { type: Number, default: 0 },
-    rewards: [{ type: mongoose.Schema.Types.ObjectId, ref: "Reward" }], // ObjectId[] for rewards
+    rewards: [{ type: mongoose.Schema.Types.ObjectId, ref: "Reward" }],
     resetPasswordToken: { type: String },
     resetPasswordExpires: { type: Date },
     subscriptions: [{ type: mongoose.Schema.Types.ObjectId, ref: "Subscription" }],
-    stripeCustomerId: { type: String }, // Added stripeCustomerId field
+    stripeCustomerId: { type: String },
     settings: {
       notifications: {
         email: { type: Boolean, default: true },
@@ -85,21 +91,35 @@ const UserSchema: Schema<IUser> = new Schema(
       },
     },
     twoFactorSecret: { type: String },
+
+    // ✅ Leaderboards & Achievements Fields
+    completedGoals: { type: Number, default: 0, min: 0 },
+    streak: { type: Number, default: 0, min: 0 },
+    lastGoalCompletedAt: { type: Date, default: null }, // ✅ Track the last completed goal date
+    achievements: [{ type: mongoose.Schema.Types.ObjectId, ref: "Achievement" }],
   },
-  { timestamps: true },
+  { timestamps: true }
 );
 
+
+
 // Password hashing
+// Password hashing & streak handling
 UserSchema.pre<IUser>("save", async function (next) {
   if (!this.isModified("password")) return next();
   try {
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
+
+    // ✅ Ensure streak is always a positive number
+    this.streak = Math.max(this.streak ?? 0, 0);
+
     next();
   } catch (error) {
     next(error as CallbackError);
   }
 });
+
 
 // Compare Password
 UserSchema.methods.comparePassword = async function (

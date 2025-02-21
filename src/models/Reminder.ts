@@ -14,6 +14,8 @@ export interface IReminder extends Document {
   createdAt: Date;
   updatedAt: Date;
   isRecurring: boolean; // Virtual field
+  status: string; // or whatever type you need
+
 }
 
 // Extend the model interface for static methods

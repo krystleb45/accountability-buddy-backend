@@ -1,11 +1,19 @@
 import type { Request, Response } from "express";
-
-import { Leaderboard } from "../models/Leaderboard";
+import Leaderboard from "../models/Leaderboard"; // ✅ Ensure this matches your model's export
 import Goal from "../models/Goal";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
 import logger from "../utils/winstonLogger";
 
+// Define an authenticated request type
+interface AuthenticatedRequest extends Request {
+  user?: {
+    id: string;
+    email?: string;
+    role: "user" | "admin" | "moderator";
+    isAdmin?: boolean;
+  };
+}
 
 /**
  * @desc Get the leaderboard
@@ -15,7 +23,7 @@ import logger from "../utils/winstonLogger";
 export const getLeaderboard = catchAsync(
   async (
     req: Request<{}, any, { limit?: string; page?: string }>,
-    res: Response,
+    res: Response
   ): Promise<void> => {
     const limit = parseInt(req.query.limit as string, 10) || 10;
     const page = parseInt(req.query.page as string, 10) || 1;
@@ -37,7 +45,7 @@ export const getLeaderboard = catchAsync(
         totalPages,
       },
     });
-  },
+  }
 );
 
 /**
@@ -61,13 +69,13 @@ export const updateLeaderboard = async (userId: string): Promise<void> => {
     await Leaderboard.findOneAndUpdate(
       { user: userId },
       { completedGoals, completedMilestones },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
     );
 
     logger.info(`Leaderboard updated for user: ${userId}`);
   } catch (error) {
     logger.error(
-      `Error updating leaderboard for user ${userId}: ${(error as Error).message}`,
+      `Error updating leaderboard for user ${userId}: ${(error as Error).message}`
     );
   }
 };
@@ -78,17 +86,20 @@ export const updateLeaderboard = async (userId: string): Promise<void> => {
  * @access Private
  */
 export const getUserLeaderboardPosition = catchAsync(
-  async (req: Request<{}, {}, {}, {}>, res: Response): Promise<void> => {
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     const userId = req.user?.id;
+
+    if (!userId) {
+      sendResponse(res, 401, false, "Unauthorized access");
+      return;
+    }
 
     const leaderboard = await Leaderboard.find()
       .sort({ completedGoals: -1, completedMilestones: -1 })
       .populate("user", "username profilePicture");
 
-    const userPosition =
-      leaderboard.findIndex((entry) => entry.user.toString() === userId) + 1;
     const userEntry = leaderboard.find(
-      (entry) => entry.user.toString() === userId,
+      (entry) => entry.user && entry.user.toString() === userId
     );
 
     if (!userEntry) {
@@ -96,17 +107,14 @@ export const getUserLeaderboardPosition = catchAsync(
       return;
     }
 
-    sendResponse(
-      res,
-      200,
-      true,
-      "User leaderboard position fetched successfully",
-      {
-        userPosition,
-        userEntry,
-      },
-    );
-  },
+    const userPosition =
+      leaderboard.findIndex((entry) => entry.user?.toString() === userId) + 1;
+
+    sendResponse(res, 200, true, "User leaderboard position fetched successfully", {
+      userPosition,
+      userEntry,
+    });
+  }
 );
 
 /**
@@ -115,7 +123,7 @@ export const getUserLeaderboardPosition = catchAsync(
  * @access Private/Admin
  */
 export const resetLeaderboard = catchAsync(
-  async (req: Request<{}, {}, {}, {}>, res: Response): Promise<void> => {
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     if (!req.user?.isAdmin) {
       sendResponse(res, 403, false, "Access denied");
       return;
@@ -124,5 +132,5 @@ export const resetLeaderboard = catchAsync(
     await Leaderboard.deleteMany();
 
     sendResponse(res, 200, true, "Leaderboard reset successfully");
-  },
+  }
 );

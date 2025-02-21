@@ -25,10 +25,10 @@ const sanitizeInput = (input: any): any => {
  */
 export const sendNotification = catchAsync(
   async (
-    req: Request<{}, {}, { receiverId: string; message: string }>, // Explicit body type
+    req: Request<{}, {}, { receiverId: string; message: string; type?: string; link?: string }>, // Explicit body type
     res: Response,
   ): Promise<void> => {
-    const { receiverId, message } = sanitizeInput(req.body);
+    const { receiverId, message, type = "info", link } = sanitizeInput(req.body);
     const senderId = req.user?.id;
 
     if (!receiverId) {
@@ -49,8 +49,11 @@ export const sendNotification = catchAsync(
 
     const newNotification = await Notification.create({
       sender: senderId,
-      receiver: receiverId,
-      content: message,
+      user: receiverId,
+      message,
+      type,
+      link,
+      read: false,
     });
 
     logger.info(`Notification sent from user ${senderId} to user ${receiverId}`);
@@ -74,12 +77,12 @@ export const getNotifications = catchAsync(
     const limit = parseInt(req.query.limit || "10", 10);
     const page = parseInt(req.query.page || "1", 10);
 
-    const notifications = await Notification.find({ receiver: userId })
+    const notifications = await Notification.find({ user: userId })
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit);
 
-    const totalNotifications = await Notification.countDocuments({ receiver: userId });
+    const totalNotifications = await Notification.countDocuments({ user: userId });
 
     sendResponse(res, 200, true, "Notifications fetched successfully", {
       notifications,
@@ -106,8 +109,8 @@ export const markNotificationsAsRead = catchAsync(
     const { notificationIds } = req.body;
 
     const result = await Notification.updateMany(
-      { receiver: userId, _id: { $in: notificationIds }, isRead: false },
-      { isRead: true },
+      { user: userId, _id: { $in: notificationIds }, read: false }, // ✅ Fixed `read` field
+      { read: true },
     );
 
     sendResponse(res, 200, true, "Notifications marked as read", {

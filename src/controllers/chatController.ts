@@ -1,232 +1,212 @@
-import type { Request, Response, NextFunction } from "express";
+import type { Request as _Request, Response, NextFunction as _NextFunction } from "express";
+import mongoose from "mongoose";
 import catchAsync from "../utils/catchAsync";
-import type { UserGroup, AddUserToGroupResponse } from "../types/chat";
-import type { AuthenticatedRequest } from "@src/middleware/authMiddleware";
+import Chat from "../models/Chat";
+import Message from "../models/Message";
+import Notification from "../models/Notification"; // ✅ Import Notification model
+import sendResponse from "../utils/sendResponse";
+import type { AuthenticatedRequest } from "../middleware/authMiddleware";
 
-// Reusable types for service responses
-type GroupServiceResponse = { groupId: string; status: string };
-type PrivateChat = { chatId: string; userId: string };
-type ChatMessage = { message: string; groupId: string; senderId: string; timestamp: Date };
-type CreatedGroup = { groupName: string; id: string };
-type SendMessageResponse = { groupId: string; messageId: string; status: string };
+// Type Definitions
+type MarkAsReadResponse = { chatId: string; userId: string; status: string };
+type AddReactionResponse = { messageId: string; reaction: string; status: string };
 
 /**
- * @desc    Delete a chat group
- * @route   DELETE /chat/group/:groupId
+ * @desc    Send a private message to a friend
+ * @route   POST /chat/private/:friendId
  * @access  Private
  */
-export const deleteGroup = catchAsync(
-  async (req: Request<{ groupId: string }>, res: Response, _next: NextFunction): Promise<void> => {
-    const { groupId } = req.params;
+export const sendPrivateMessage = catchAsync(
+  async (
+    req: AuthenticatedRequest<{ friendId: string }, {}, { message: string }>,
+    res: Response
+  ): Promise<void> => {
+    const { friendId } = req.params;
+    const { message } = req.body;
+    const senderId = req.user?.id;
 
-    if (!groupId) {
-      res.status(400).json({ message: "Group ID is required." });
+    if (!friendId || !senderId || !message.trim()) {
+      sendResponse(res, 400, false, "Friend ID, sender ID, and message are required.");
       return;
     }
 
-    const result = await deleteGroupService(groupId);
-    res.status(200).json({
-      message: "Chat group deleted successfully.",
-      data: result,
+    const senderObjectId = new mongoose.Types.ObjectId(senderId);
+    const receiverObjectId = new mongoose.Types.ObjectId(friendId);
+
+    let chat = await Chat.findOne({
+      participants: { $all: [senderObjectId, receiverObjectId] },
     });
-  },
+
+    if (!chat) {
+      chat = await Chat.create({
+        participants: [senderObjectId, receiverObjectId],
+        messages: [],
+        chatType: "private",
+      });
+    }
+
+    const newMessage = await Message.create({
+      chatId: chat._id,
+      senderId: senderObjectId,
+      receiverId: receiverObjectId,
+      text: message,
+      messageType: "private",
+      timestamp: new Date(),
+      readBy: [],
+      reactions: [],
+    });
+
+    chat.messages.push(newMessage._id as mongoose.Types.ObjectId);
+    await chat.save();
+
+    // ✅ Create a notification for the recipient
+    await Notification.create({
+      user: receiverObjectId,
+      message: `New message from ${senderId}`,
+      type: "message",
+      read: false,
+      link: `/chat/private/${senderId}`, // ✅ Link to the chat
+    });
+
+    sendResponse(res, 201, true, "Message sent successfully.", {
+      chatId: chat._id.toHexString(),
+      message: {
+        ...newMessage.toObject(),
+        _id: (newMessage._id as mongoose.Types.ObjectId).toHexString(),
+      },
+    });
+
+    // Emit socket event for real-time notifications
+    global.io.to(friendId).emit("newMessage", { chatId: chat._id.toHexString(), message: newMessage });
+  }
 );
 
 /**
- * @desc    Get private chats between two users
- * @route   GET /chat/private/:userId
+ * @desc    Mark messages as read
+ * @route   POST /chat/:chatId/read
+ * @access  Private
+ */
+export const markMessagesAsRead = catchAsync(
+  async (
+    req: AuthenticatedRequest<{ chatId: string }>,
+    res: Response<MarkAsReadResponse>
+  ): Promise<void> => {
+    const { chatId } = req.params;
+    const userId = req.user?.id;
+
+    if (!mongoose.Types.ObjectId.isValid(chatId)) {
+      sendResponse(res, 400, false, "Invalid chat ID");
+      return;
+    }
+
+    await Message.updateMany(
+      { chatId, readBy: { $ne: userId } },
+      { $addToSet: { readBy: userId } }
+    );
+
+    // ✅ Send notification for read messages
+    await Notification.create({
+      user: new mongoose.Types.ObjectId(userId),
+      message: "Your messages have been read.",
+      type: "info",
+      read: false,
+      link: `/chat/${chatId}`,
+    });
+
+    sendResponse(res, 200, true, "Messages marked as read.", { chatId, userId, status: "read" });
+
+    // Emit socket event for real-time notifications
+    global.io.to(chatId).emit("messagesRead", { chatId, userId });
+  }
+);
+
+/**
+ * @desc    Add a reaction to a message
+ * @route   POST /chat/message/:messageId/reaction
+ * @access  Private
+ */
+export const addReaction = catchAsync(
+  async (
+    req: AuthenticatedRequest<{ messageId: string }, {}, { reaction: string }>,
+    res: Response<AddReactionResponse>
+  ): Promise<void> => {
+    const { messageId } = req.params;
+    const { reaction } = req.body;
+    const userId = req.user?.id;
+
+    const validReactions = ["👍", "❤️", "😂", "😮", "😢", "😡"];
+
+    if (!validReactions.includes(reaction)) {
+      sendResponse(res, 400, false, "Invalid reaction");
+      return;
+    }
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+      sendResponse(res, 404, false, "Message not found");
+      return;
+    }
+
+    // Remove existing reaction from user (if any)
+    message.reactions = message.reactions.filter((r) => r.user.toString() !== userId);
+
+    // Add new reaction
+    message.reactions.push({
+      user: new mongoose.Types.ObjectId(userId),
+      emoji: reaction,
+      userId: new mongoose.Types.ObjectId(userId),
+    });
+
+    await message.save();
+
+    // ✅ Create a notification for the reaction
+    await Notification.create({
+      user: message.senderId,
+      message: `Someone reacted to your message: ${reaction}`,
+      type: "message",
+      read: false,
+      link: `/chat/${message.chatId}`,
+    });
+
+    sendResponse(res, 200, true, "Reaction added successfully.", { messageId, reaction, status: "added" });
+
+    // Emit socket event for real-time updates
+    global.io.to(message.chatId.toString()).emit("reactionAdded", { messageId, reaction, userId });
+  }
+);
+
+/**
+ * @desc    Get chat history between two users
+ * @route   GET /chat/private/:friendId
  * @access  Private
  */
 export const getPrivateChats = catchAsync(
-  async (req: Request<{ userId: string }>, res: Response, _next: NextFunction): Promise<void> => {
-    const { userId } = req.params;
-
-    if (!userId) {
-      res.status(400).json({ message: "User ID is required." });
-      return;
-    }
-
-    const chats = await getPrivateChatsService(userId);
-    res.status(200).json({
-      message: "Private chats retrieved successfully.",
-      data: chats,
-    });
-  },
-);
-
-/**
- * @desc    Get chat history for a group
- * @route   GET /chat/group/:groupId/history
- * @access  Private
- */
-export const getChatHistory = catchAsync(
-  async (req: Request<{ groupId: string }>, res: Response, _next: NextFunction): Promise<void> => {
-    const { groupId } = req.params;
-
-    if (!groupId) {
-      res.status(400).json({ message: "Group ID is required." });
-      return;
-    }
-
-    const history = await getChatHistoryService(groupId);
-    res.status(200).json({
-      message: "Chat history retrieved successfully.",
-      data: history,
-    });
-  },
-);
-
-/**
- * @desc Send a message in a group
- * @route POST /chat/group/:groupId/message
- * @access Private
- */
-export const sendMessage = catchAsync(
   async (
-    req: AuthenticatedRequest<
-      { groupId: string }, // Params
-      {},                 // Response body
-      { message: string; senderId: string } // Request body
-    >,
-    res: Response,
-    _next: NextFunction,
+    req: AuthenticatedRequest<{ friendId: string }>,
+    res: Response
   ): Promise<void> => {
-    const { groupId } = req.params;
-    const { message, senderId } = req.body;
-
-    if (!groupId || !message || !senderId) {
-      res.status(400).json({ message: "Group ID, message, and sender ID are required." });
-      return;
-    }
-
-    const result = await sendMessageService(groupId, senderId, message);
-    res.status(201).json({
-      message: "Message sent successfully.",
-      data: result,
-    });
-  },
-);
-
-
-/**
- * @desc    Create a new chat group
- * @route   POST /chat/group
- * @access  Private
- */
-export const createGroup = catchAsync(
-  async (
-    req: Request<{}, {}, { groupName: string; members: string[] }>,
-    res: Response,
-    _next: NextFunction,
-  ): Promise<void> => {
-    const { groupName, members } = req.body;
-
-    if (!groupName || !Array.isArray(members)) {
-      res.status(400).json({ message: "Group name and members are required." });
-      return;
-    }
-
-    const group = await createGroupService(groupName, members);
-    res.status(201).json({
-      message: "Chat group created successfully.",
-      data: group,
-    });
-  },
-);
-
-/**
- * @desc    Get all groups the user belongs to
- * @route   GET /chat/groups
- * @access  Private
- */
-export const getUserGroups = catchAsync(
-  async (
-    req: Request & { user?: { id: string } }, // Ensure req.user is explicitly defined
-    res: Response,
-    _next: NextFunction,
-  ): Promise<void> => {
+    const { friendId } = req.params;
     const userId = req.user?.id;
 
-    if (!userId) {
-      res.status(401).json({ message: "Unauthorized. User ID is required." });
+    if (!friendId || !userId) {
+      sendResponse(res, 400, false, "Friend ID and user ID are required.");
       return;
     }
 
-    const groups = await getUserGroupsService(userId);
-    res.status(200).json({
-      message: "User groups retrieved successfully.",
-      data: groups,
-    });
-  },
-);
+    const chat = await Chat.findOne({
+      participants: { $all: [new mongoose.Types.ObjectId(userId), new mongoose.Types.ObjectId(friendId)] },
+    }).populate("messages").lean();
 
-/**
- * @desc    Add a user to a chat group
- * @route   PUT /chat/group/:groupId/add
- * @access  Private
- */
-export const addUserToGroup = catchAsync(
-  async (
-    req: Request<{ groupId: string }, {}, { userId: string }>,
-    res: Response,
-    _next: NextFunction,
-  ): Promise<void> => {
-    const { groupId } = req.params;
-    const { userId } = req.body;
-
-    if (!groupId || !userId) {
-      res.status(400).json({ message: "Group ID and User ID are required." });
+    if (!chat) {
+      sendResponse(res, 404, false, "No chat history found.");
       return;
     }
 
-    const result = await addUserToGroupService(groupId, userId);
-    res.status(200).json({
-      message: "User added to group successfully.",
-      data: result,
+    sendResponse(res, 200, true, "Private chat retrieved successfully.", {
+      messages: chat.messages.map((msg: any) => ({
+        ...msg,
+        _id: msg._id.toHexString(),
+      })),
     });
-  },
+  }
 );
-
-/**
- * Mock services (replace with actual implementation)
- */
-const deleteGroupService = async (groupId: string): Promise<GroupServiceResponse> => {
-  return { groupId, status: "deleted" };
-};
-
-const getPrivateChatsService = async (userId: string): Promise<PrivateChat[]> => {
-  return [{ chatId: "123", userId }];
-};
-
-const getChatHistoryService = async (groupId: string): Promise<ChatMessage[]> => {
-  return [{ message: "Hello", groupId, senderId: "user1", timestamp: new Date() }];
-};
-
-const createGroupService = async (groupName: string, _members: string[]): Promise<CreatedGroup> => {
-  return { groupName, id: "456" };
-};
-
-/**
- * Mock service for sending a message (replace with actual implementation)
- */
-const sendMessageService = async (
-  groupId: string,
-  _senderId: string,
-  _message: string,
-): Promise<SendMessageResponse> => {
-  return { groupId, messageId: "msg123", status: "sent" };
-};
-
-const getUserGroupsService = async (userId: string): Promise<UserGroup[]> => {
-  return [
-    { groupId: "group1", userId },
-    { groupId: "group2", userId },
-  ];
-};
-
-const addUserToGroupService = async (
-  groupId: string,
-  userId: string,
-): Promise<AddUserToGroupResponse> => {
-  return { groupId, userId, status: "added" };
-};

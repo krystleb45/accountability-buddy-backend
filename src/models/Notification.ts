@@ -3,9 +3,10 @@ import mongoose, { Schema } from "mongoose";
 
 // Interface for Notification
 export interface INotification extends Document {
-  user: mongoose.Types.ObjectId;
+  user: mongoose.Types.ObjectId; // The receiver of the notification
+  sender?: mongoose.Types.ObjectId; // The sender (if applicable, e.g., friend request)
   message: string;
-  type: "info" | "warning" | "alert" | "success";
+  type: "friend_request" | "message" | "group_invite" | "blog_activity" | "goal_milestone";
   read: boolean;
   link?: string;
   expiresAt?: Date;
@@ -17,16 +18,33 @@ export interface INotification extends Document {
 // Notification Schema
 const NotificationSchema: Schema<INotification> = new Schema(
   {
-    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-    message: { type: String, required: true },
+    user: { 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: "User", 
+      required: true, 
+      index: true // ✅ Indexed for faster lookups
+    },
+    sender: { 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: "User", 
+      default: null, // Optional, only needed for friend requests/messages
+    },
+    message: { 
+      type: String, 
+      required: true, 
+      trim: true // ✅ Prevents storing blank messages
+    },
     type: {
       type: String,
-      enum: ["info", "warning", "alert", "success"],
-      default: "info",
+      enum: ["friend_request", "message", "group_invite", "blog_activity", "goal_milestone"],
+      required: true, // ✅ Enforce explicit event type
     },
     read: { type: Boolean, default: false },
-    link: { type: String },
-    expiresAt: { type: Date },
+    link: { type: String, trim: true },
+    expiresAt: { 
+      type: Date, 
+      index: { expires: "30d" } // ✅ Automatically delete notifications after 30 days
+    },
   },
   { timestamps: true },
 );
