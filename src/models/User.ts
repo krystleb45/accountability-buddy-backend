@@ -22,7 +22,7 @@ export interface IUser extends Document {
   _id: Types.ObjectId;
   firstName?: string;
   lastName?: string;
-  name?: string; // Add this field
+  name?: string;
   username: string;
   email: string;
   password: string;
@@ -40,18 +40,20 @@ export interface IUser extends Document {
   subscriptions?: Types.ObjectId[];
   settings?: UserSettings;
   twoFactorSecret?: string;
-  stripeCustomerId?: string;
   completedGoals?: number;
   streak?: number;
   achievements?: mongoose.Types.ObjectId[];
-  lastGoalCompletedAt?: Date; // Add this line
+  lastGoalCompletedAt?: Date;
   
-
+  // ✅ Free Trial & Subscription Fields
+  trial_start_date?: Date;
+  subscription_status: "trial" | "active" | "expired";
+  next_billing_date?: Date;
+  stripeCustomerId?: string;
 
   comparePassword(candidatePassword: string): Promise<boolean>;
   generateResetToken(): string;
 }
-
 
 // Define User Schema
 const UserSchema: Schema<IUser> = new Schema(
@@ -74,6 +76,13 @@ const UserSchema: Schema<IUser> = new Schema(
     resetPasswordExpires: { type: Date },
     subscriptions: [{ type: mongoose.Schema.Types.ObjectId, ref: "Subscription" }],
     stripeCustomerId: { type: String },
+
+    // ✅ Free Trial & Subscription Tracking
+    trial_start_date: { type: Date, default: null },
+    subscription_status: { type: String, enum: ["trial", "active", "expired"], default: "trial" },
+    next_billing_date: { type: Date, default: null },
+
+    // ✅ User Settings
     settings: {
       notifications: {
         email: { type: Boolean, default: true },
@@ -95,16 +104,13 @@ const UserSchema: Schema<IUser> = new Schema(
     // ✅ Leaderboards & Achievements Fields
     completedGoals: { type: Number, default: 0, min: 0 },
     streak: { type: Number, default: 0, min: 0 },
-    lastGoalCompletedAt: { type: Date, default: null }, // ✅ Track the last completed goal date
+    lastGoalCompletedAt: { type: Date, default: null },
     achievements: [{ type: mongoose.Schema.Types.ObjectId, ref: "Achievement" }],
   },
   { timestamps: true }
 );
 
-
-
-// Password hashing
-// Password hashing & streak handling
+// ✅ Password hashing & streak handling
 UserSchema.pre<IUser>("save", async function (next) {
   if (!this.isModified("password")) return next();
   try {
@@ -120,15 +126,14 @@ UserSchema.pre<IUser>("save", async function (next) {
   }
 });
 
-
-// Compare Password
+// ✅ Compare Password
 UserSchema.methods.comparePassword = async function (
-  candidatePassword: string,
+  candidatePassword: string
 ): Promise<boolean> {
   return bcrypt.compare(candidatePassword, this.password);
 };
 
-// Generate Reset Token
+// ✅ Generate Reset Token
 UserSchema.methods.generateResetToken = function (): string {
   const resetToken = crypto.randomBytes(20).toString("hex");
   this.resetPasswordToken = crypto.createHash("sha256").update(resetToken).digest("hex");
@@ -136,6 +141,6 @@ UserSchema.methods.generateResetToken = function (): string {
   return resetToken;
 };
 
-// Export User Model
+// ✅ Export User Model
 const User: Model<IUser> = mongoose.model<IUser>("User", UserSchema);
 export default User;

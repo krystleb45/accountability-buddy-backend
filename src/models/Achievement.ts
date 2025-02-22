@@ -8,8 +8,14 @@ export interface IAchievement extends Document {
   badgeUrl?: string;
   createdAt?: Date;
   updatedAt?: Date;
+  id: string;
 }
-
+interface Achievement {
+  id: string;
+  name: string;
+  description: string;
+  // Add other properties as needed
+}
 const AchievementSchema: Schema<IAchievement> = new Schema(
   {
     name: {

@@ -15,13 +15,15 @@ export interface AuthenticatedRequest<
     email?: string;
     role: "user" | "admin" | "moderator";
     isAdmin?: boolean;
+    subscription_status?: "trial" | "active" | "expired";
   };
 }
 
+// ✅ Middleware to check authentication and subscription status
 const authMiddleware = async (
   req: AuthenticatedRequest,
   res: Response,
-  next: NextFunction,
+  next: NextFunction
 ): Promise<void> => {
   try {
     const authHeader = req.headers.authorization;
@@ -37,7 +39,7 @@ const authMiddleware = async (
     const token = authHeader.split(" ")[1];
     const decoded = jwt.verify(
       token,
-      process.env.JWT_SECRET || "default_secret",
+      process.env.JWT_SECRET || "default_secret"
     ) as { id: string; role: "user" | "admin" | "moderator" };
 
     if (!decoded.id || !decoded.role) {
@@ -48,7 +50,11 @@ const authMiddleware = async (
       return;
     }
 
-    const user = await User.findById(decoded.id).select("id email role");
+    // ✅ Find user and check subscription status
+    const user = await User.findById(decoded.id).select(
+      "id email role trial_start_date subscription_status next_billing_date"
+    );
+
     if (!user) {
       res.status(401).json({
         success: false,
@@ -57,12 +63,24 @@ const authMiddleware = async (
       return;
     }
 
-    // Attach the user object to the request
+    // ✅ Check if trial has expired
+    if (user.subscription_status === "trial" && user.trial_start_date) {
+      const trialEndDate = new Date(user.trial_start_date);
+      trialEndDate.setDate(trialEndDate.getDate() + 7);
+
+      if (new Date() > trialEndDate) {
+        user.subscription_status = "expired"; // ✅ Mark trial as expired
+        await user.save();
+      }
+    }
+
+    // ✅ Attach user data to the request
     req.user = {
       id: user.id,
       email: user.email,
       role: user.role as "user" | "admin" | "moderator",
       isAdmin: user.role === "admin",
+      subscription_status: user.subscription_status, // ✅ Include subscription status
     };
 
     next();
@@ -82,6 +100,29 @@ const authMiddleware = async (
       return;
     }
   }
+};
+
+// ✅ Middleware to restrict access to subscribed users only
+export const requireSubscription = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ success: false, message: "Unauthorized access." });
+    return;
+  }
+
+  // ✅ Check if subscription is expired
+  if (req.user.subscription_status === "expired") {
+    res.status(403).json({
+      success: false,
+      message: "Your free trial has expired. Please subscribe to continue.",
+    });
+    return;
+  }
+
+  next();
 };
 
 export default authMiddleware;
