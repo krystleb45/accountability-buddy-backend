@@ -17,7 +17,13 @@ export interface UserSettings {
   };
 }
 
-// User Interface
+// ✅ Chat Preferences Interface
+export interface ChatPreferences {
+  preferredGroups?: Types.ObjectId[]; // Groups user prefers
+  directMessagesOnly?: boolean; // If true, user prefers private messages over groups
+}
+
+// ✅ User Interface
 export interface IUser extends Document {
   _id: Types.ObjectId;
   firstName?: string;
@@ -51,11 +57,16 @@ export interface IUser extends Document {
   next_billing_date?: Date;
   stripeCustomerId?: string;
 
+  // ✅ Chat Features
+  interests?: string[]; // User interests for chat recommendations
+  chatPreferences?: ChatPreferences; // Preferred chat settings
+  activeStatus: "online" | "offline"; // Track user online status
+
   comparePassword(candidatePassword: string): Promise<boolean>;
   generateResetToken(): string;
 }
 
-// Define User Schema
+// ✅ Define User Schema
 const UserSchema: Schema<IUser> = new Schema(
   {
     firstName: { type: String },
@@ -106,9 +117,23 @@ const UserSchema: Schema<IUser> = new Schema(
     streak: { type: Number, default: 0, min: 0 },
     lastGoalCompletedAt: { type: Date, default: null },
     achievements: [{ type: mongoose.Schema.Types.ObjectId, ref: "Achievement" }],
+
+    // ✅ Chat Features
+    interests: [{ type: String, trim: true }], // Store user-defined interests
+    chatPreferences: {
+      preferredGroups: [{ type: mongoose.Schema.Types.ObjectId, ref: "Chat" }],
+      directMessagesOnly: { type: Boolean, default: false },
+    },
+    activeStatus: { type: String, enum: ["online", "offline"], default: "offline" }, // Track user status
   },
   { timestamps: true }
 );
+
+// ✅ Indexes for Faster Querying
+UserSchema.index({ email: 1 }); // Optimize email lookups
+UserSchema.index({ username: 1 }); // Optimize username lookups
+UserSchema.index({ interests: 1 }); // Optimize chat recommendations
+UserSchema.index({ activeStatus: 1 }); // Optimize active user tracking
 
 // ✅ Password hashing & streak handling
 UserSchema.pre<IUser>("save", async function (next) {

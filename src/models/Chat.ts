@@ -3,19 +3,24 @@ import mongoose, { Schema } from "mongoose";
 import sanitize from "mongo-sanitize";
 import logger from "../utils/winstonLogger"; // Optional: for logging
 
-// Define TypeScript interface for Chat document
+// ✅ Define TypeScript interface for Chat document
 export interface IChat extends Document {
-  _id: mongoose.Types.ObjectId; // ✅ Explicitly define `_id` to fix `unknown` type errors
+  _id: mongoose.Types.ObjectId; // ✅ Explicitly define `_id`
   participants: mongoose.Types.ObjectId[]; // Supports multiple participants (private & group chats)
   messages: mongoose.Types.ObjectId[]; // Stores all messages in the chat
   chatType: "private" | "group"; // Determines if it's a private or group chat
   groupName?: string; // Only for group chats
+  chatAvatar?: string; // ✅ Avatar for group chats
   unreadMessages: { userId: mongoose.Types.ObjectId; count: number }[]; // ✅ Track unread messages
+  lastMessage?: mongoose.Types.ObjectId; // ✅ Store last message for quick previews
+  typingUsers: mongoose.Types.ObjectId[]; // ✅ Track users currently typing
+  isPinned: boolean; // ✅ Allows users to pin the chat
+  admins?: mongoose.Types.ObjectId[]; // ✅ Group chat admins
   createdAt: Date;
   updatedAt: Date;
 }
 
-// Define the Chat schema
+// ✅ Define the Chat schema
 const ChatSchema: Schema<IChat> = new Schema<IChat>(
   {
     participants: [
@@ -43,12 +48,17 @@ const ChatSchema: Schema<IChat> = new Schema<IChat>(
       maxlength: [100, "Group name cannot exceed 100 characters"],
       default: null, // Ensure groupName defaults to `null` for private chats
     },
+    chatAvatar: { type: String, default: null }, // ✅ Group chat avatar
     unreadMessages: [
       {
         userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
         count: { type: Number, default: 0 }, // ✅ Track unread messages per user
       },
     ],
+    lastMessage: { type: Schema.Types.ObjectId, ref: "Message" }, // ✅ Stores last message for chat preview
+    typingUsers: [{ type: Schema.Types.ObjectId, ref: "User" }], // ✅ Users currently typing
+    isPinned: { type: Boolean, default: false }, // ✅ Allows users to pin important chats
+    admins: [{ type: Schema.Types.ObjectId, ref: "User" }], // ✅ Defines group chat admins
   },
   {
     timestamps: true, // Automatically adds `createdAt` and `updatedAt`
@@ -59,6 +69,8 @@ const ChatSchema: Schema<IChat> = new Schema<IChat>(
 ChatSchema.index({ participants: 1, createdAt: -1 }); // Speed up user chat lookups
 ChatSchema.index({ groupName: 1 }, { sparse: true }); // Faster group lookups, avoids indexing null values
 ChatSchema.index({ "unreadMessages.userId": 1 }); // ✅ Optimize unread message tracking
+ChatSchema.index({ lastMessage: -1 }); // ✅ Fast retrieval of latest messages
+ChatSchema.index({ isPinned: 1 }); // Optimize pinned chats lookup
 
 // ✅ Pre-save hook to sanitize group name
 ChatSchema.pre<IChat>("save", function (next): void {
