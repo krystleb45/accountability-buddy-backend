@@ -2,16 +2,11 @@ import type { Request, Response } from "express";
 import User from "../models/User";
 import FriendRequest from "../models/FriendRequest";
 import Chat from "../models/Chat";
-import Notification from "../models/Notification"; // ✅ Import Notification model
+import Notification from "../models/Notification";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
 import logger from "../utils/winstonLogger";
 
-/**
- * @desc    Send a friend request
- * @route   POST /api/friends/request
- * @access  Private
- */
 export const sendFriendRequest = catchAsync(
   async (
     req: Request<{}, any, { recipientId: string }>,
@@ -54,7 +49,6 @@ export const sendFriendRequest = catchAsync(
       status: "pending",
     });
 
-    // ✅ Create a notification for the recipient
     await Notification.create({
       user: recipientId,
       message: `You received a friend request from ${senderId}`,
@@ -68,11 +62,6 @@ export const sendFriendRequest = catchAsync(
   }
 );
 
-/**
- * @desc    Accept a friend request
- * @route   POST /api/friends/accept
- * @access  Private
- */
 export const acceptFriendRequest = catchAsync(
   async (
     req: Request<{}, any, { requestId: string }>,
@@ -100,14 +89,12 @@ export const acceptFriendRequest = catchAsync(
     await User.findByIdAndUpdate(userId, { $push: { friends: senderId } });
     await User.findByIdAndUpdate(senderId, { $push: { friends: userId } });
 
-    // ✅ Create a private chat between the users
     await Chat.create({
       participants: [userId, senderId],
       chatType: "private",
       messages: [],
     });
 
-    // ✅ Send notification to both users
     await Notification.create([
       {
         user: senderId,
@@ -130,51 +117,34 @@ export const acceptFriendRequest = catchAsync(
   }
 );
 
-/**
- * @desc    Decline a friend request
- * @route   POST /api/friends/decline
- * @access  Private
- */
-export const declineFriendRequest = catchAsync(
-  async (
-    req: Request<{}, any, { requestId: string }>,
-    res: Response
-  ): Promise<void> => {
-    const userId = req.user?.id;
-    const { requestId } = req.body;
-
-    const friendRequest = await FriendRequest.findById(requestId);
-    if (!friendRequest) {
-      sendResponse(res, 404, false, "Friend request not found.");
-      return;
-    }
-
-    if (friendRequest.recipient.toString() !== userId) {
-      sendResponse(res, 403, false, "Unauthorized to decline this friend request.");
-      return;
-    }
-
-    await friendRequest.deleteOne();
-
-    // ✅ Send a notification to the sender
-    await Notification.create({
-      user: friendRequest.sender,
-      message: `${userId} declined your friend request.`,
-      type: "warning",
-      read: false,
-      link: "/friends",
-    });
-
-    logger.info(`Friend request declined by user: ${userId}`);
-    sendResponse(res, 200, true, "Friend request declined.");
+export const getFriendsList = catchAsync(async (req: Request, res: Response): Promise<void> => {
+  const userId = req.user?.id;
+  const user = await User.findById(userId).populate("friends", "username email profilePicture");
+  if (!user) {
+    sendResponse(res, 404, false, "User not found");
+    return;
   }
-);
+  sendResponse(res, 200, true, "Friends list retrieved successfully", { friends: user.friends });
+});
 
-/**
- * @desc    Remove a friend
- * @route   DELETE /api/friends/remove/:friendId
- * @access  Private
- */
+export const getPendingFriendRequests = catchAsync(async (req: Request, res: Response): Promise<void> => {
+  const userId = req.user?.id;
+  const requests = await FriendRequest.find({ recipient: userId, status: "pending" }).populate("sender", "username email profilePicture");
+  sendResponse(res, 200, true, "Pending friend requests retrieved successfully", { requests });
+});
+
+export const cancelFriendRequest = catchAsync(async (req: Request, res: Response): Promise<void> => {
+  const userId = req.user?.id;
+  const { requestId } = req.params;
+  const friendRequest = await FriendRequest.findOne({ _id: requestId, sender: userId });
+  if (!friendRequest) {
+    sendResponse(res, 404, false, "Friend request not found or not yours to cancel");
+    return;
+  }
+  await friendRequest.deleteOne();
+  sendResponse(res, 200, true, "Friend request canceled successfully");
+});
+
 export const removeFriend = catchAsync(
   async (req: Request<{ friendId: string }>, res: Response): Promise<void> => {
     const userId = req.user?.id;
@@ -198,7 +168,6 @@ export const removeFriend = catchAsync(
     await user.save();
     await friend.save();
 
-    // ✅ Send a notification to the removed friend
     await Notification.create({
       user: friendId,
       message: `${userId} removed you as a friend.`,
