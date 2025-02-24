@@ -3,7 +3,7 @@ import mongoose, { Schema } from "mongoose";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 
-// User Settings Interface
+// ✅ User Settings Interface
 export interface UserSettings {
   notifications?: {
     email?: boolean;
@@ -19,8 +19,8 @@ export interface UserSettings {
 
 // ✅ Chat Preferences Interface
 export interface ChatPreferences {
-  preferredGroups?: Types.ObjectId[]; // Groups user prefers
-  directMessagesOnly?: boolean; // If true, user prefers private messages over groups
+  preferredGroups?: Types.ObjectId[];
+  directMessagesOnly?: boolean;
 }
 
 // ✅ User Interface
@@ -39,6 +39,8 @@ export interface IUser extends Document {
   profilePicture?: string;
   friends: Types.ObjectId[];
   friendRequests: Types.ObjectId[];
+  followers: Types.ObjectId[];
+  following: Types.ObjectId[];
   points?: number;
   rewards: Types.ObjectId[];
   resetPasswordToken?: string;
@@ -48,19 +50,19 @@ export interface IUser extends Document {
   twoFactorSecret?: string;
   completedGoals?: number;
   streak?: number;
-  achievements?: mongoose.Types.ObjectId[];
+  achievements?: Types.ObjectId[];
   lastGoalCompletedAt?: Date;
-  
-  // ✅ Free Trial & Subscription Fields
   trial_start_date?: Date;
   subscription_status: "trial" | "active" | "expired";
   next_billing_date?: Date;
   stripeCustomerId?: string;
+  interests?: string[];
+  chatPreferences?: ChatPreferences;
+  activeStatus: "online" | "offline";
 
-  // ✅ Chat Features
-  interests?: string[]; // User interests for chat recommendations
-  chatPreferences?: ChatPreferences; // Preferred chat settings
-  activeStatus: "online" | "offline"; // Track user online status
+  // ✅ NEWLY ADDED: Pinned Goals & Featured Achievements
+  pinnedGoals: Types.ObjectId[];
+  featuredAchievements: Types.ObjectId[];
 
   comparePassword(candidatePassword: string): Promise<boolean>;
   generateResetToken(): string;
@@ -81,6 +83,11 @@ const UserSchema: Schema<IUser> = new Schema(
     profilePicture: { type: String },
     friends: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     friendRequests: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+
+    // ✅ Follow System Fields
+    followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+
     points: { type: Number, default: 0 },
     rewards: [{ type: mongoose.Schema.Types.ObjectId, ref: "Reward" }],
     resetPasswordToken: { type: String },
@@ -93,47 +100,36 @@ const UserSchema: Schema<IUser> = new Schema(
     subscription_status: { type: String, enum: ["trial", "active", "expired"], default: "trial" },
     next_billing_date: { type: Date, default: null },
 
-    // ✅ User Settings
-    settings: {
-      notifications: {
-        email: { type: Boolean, default: true },
-        sms: { type: Boolean, default: false },
-        push: { type: Boolean, default: true },
-        enableNotifications: { type: Boolean, default: true },
-      },
-      privacy: {
-        profileVisibility: {
-          type: String,
-          enum: ["public", "friends", "private"],
-          default: "public",
-        },
-        searchVisibility: { type: Boolean, default: true },
-      },
-    },
-    twoFactorSecret: { type: String },
-
     // ✅ Leaderboards & Achievements Fields
     completedGoals: { type: Number, default: 0, min: 0 },
     streak: { type: Number, default: 0, min: 0 },
     lastGoalCompletedAt: { type: Date, default: null },
     achievements: [{ type: mongoose.Schema.Types.ObjectId, ref: "Achievement" }],
 
+    // ✅ Pinned Goals & Featured Achievements Fields (Newly Added)
+    pinnedGoals: [{ type: mongoose.Schema.Types.ObjectId, ref: "Goal" }],
+    featuredAchievements: [{ type: mongoose.Schema.Types.ObjectId, ref: "Achievement" }],
+
     // ✅ Chat Features
-    interests: [{ type: String, trim: true }], // Store user-defined interests
+    interests: [{ type: String, trim: true }],
     chatPreferences: {
       preferredGroups: [{ type: mongoose.Schema.Types.ObjectId, ref: "Chat" }],
       directMessagesOnly: { type: Boolean, default: false },
     },
-    activeStatus: { type: String, enum: ["online", "offline"], default: "offline" }, // Track user status
+    activeStatus: { type: String, enum: ["online", "offline"], default: "offline" },
   },
   { timestamps: true }
 );
 
 // ✅ Indexes for Faster Querying
-UserSchema.index({ email: 1 }); // Optimize email lookups
-UserSchema.index({ username: 1 }); // Optimize username lookups
-UserSchema.index({ interests: 1 }); // Optimize chat recommendations
-UserSchema.index({ activeStatus: 1 }); // Optimize active user tracking
+UserSchema.index({ email: 1 });
+UserSchema.index({ username: 1 });
+UserSchema.index({ interests: 1 });
+UserSchema.index({ activeStatus: 1 });
+
+// ✅ Additional Indexes for Follow System
+UserSchema.index({ followers: 1 });
+UserSchema.index({ following: 1 });
 
 // ✅ Password hashing & streak handling
 UserSchema.pre<IUser>("save", async function (next) {
@@ -141,10 +137,7 @@ UserSchema.pre<IUser>("save", async function (next) {
   try {
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
-
-    // ✅ Ensure streak is always a positive number
     this.streak = Math.max(this.streak ?? 0, 0);
-
     next();
   } catch (error) {
     next(error as CallbackError);

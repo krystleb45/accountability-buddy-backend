@@ -2,12 +2,12 @@ import type { Router, Request, Response, NextFunction } from "express";
 import express from "express";
 import { check } from "express-validator";
 import * as goalController from "../controllers/GoalController";
+import * as userController from "../controllers/userController"; // Import for pinning goals
 import authMiddleware from "../middleware/authMiddleware";
 import checkSubscription from "../middleware/checkSubscription";
 import rateLimit from "express-rate-limit";
 import logger from "../utils/winstonLogger";
-import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust the path
-
+import handleValidationErrors from "../middleware/handleValidationErrors";
 
 const router: Router = express.Router();
 
@@ -19,8 +19,6 @@ const goalLimiter = rateLimit({
   max: 30, // Limit to 30 requests per minute per IP
   message: "Too many requests, please try again later.",
 });
-
-
 
 /**
  * @route   POST /goal/create
@@ -43,9 +41,9 @@ router.post(
       await goalController.createGoal(req as any, res, next);
     } catch (error) {
       logger.error(`Error creating goal: ${(error as Error).message}`, { error });
-      next(error); // Pass error to middleware
+      next(error);
     }
-  },
+  }
 );
 
 /**
@@ -56,21 +54,16 @@ router.post(
 router.put(
   "/:goalId/progress",
   authMiddleware,
-  [
-    check("progress", "Progress must be between 0 and 100").isInt({
-      min: 0,
-      max: 100,
-    }),
-  ],
+  [check("progress", "Progress must be between 0 and 100").isInt({ min: 0, max: 100 })],
   handleValidationErrors,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       await goalController.updateGoalProgress(req as any, res, next);
     } catch (error) {
       logger.error(`Error updating goal progress: ${(error as Error).message}`, { error });
-      next(error); // Forward error to middleware
+      next(error);
     }
-  },
+  }
 );
 
 /**
@@ -86,9 +79,9 @@ router.put(
       await goalController.completeGoal(req as any, res, next);
     } catch (error) {
       logger.error(`Error completing goal: ${(error as Error).message}`, { error });
-      next(error); // Pass error to middleware
+      next(error);
     }
-  },
+  }
 );
 
 /**
@@ -104,9 +97,9 @@ router.get(
       await goalController.getUserGoals(req as any, res, next);
     } catch (error) {
       logger.error(`Error fetching user goals: ${(error as Error).message}`, { error });
-      next(error); // Forward error to middleware
+      next(error);
     }
-  },
+  }
 );
 
 /**
@@ -123,9 +116,9 @@ router.get(
       await goalController.getAnalytics(req as any, res, next);
     } catch (error) {
       logger.error(`Error fetching analytics: ${(error as Error).message}`, { error });
-      next(error); // Forward error to middleware
+      next(error);
     }
-  },
+  }
 );
 
 /**
@@ -148,9 +141,9 @@ router.post(
       await goalController.setReminder(req as any, res, next);
     } catch (error) {
       logger.error(`Error setting reminder: ${(error as Error).message}`, { error });
-      next(error); // Forward error to middleware
+      next(error);
     }
-  },
+  }
 );
 
 /**
@@ -165,9 +158,89 @@ router.get(
       await goalController.getPublicGoals(req, res, next);
     } catch (error) {
       logger.error(`Error fetching public goals: ${(error as Error).message}`, { error });
-      next(error); // Forward error to middleware
+      next(error);
     }
-  },
+  }
+);
+
+/**
+ * @route   POST /goal/:goalId/pin
+ * @desc    Pin a goal to the user's profile
+ * @access  Private
+ */
+router.post(
+  "/:goalId/pin",
+  authMiddleware,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      await userController.pinGoal(req as any, res, next);
+    } catch (error) {
+      logger.error(`Error pinning goal: ${(error as Error).message}`, { error });
+      next(error);
+    }
+  }
+);
+
+/**
+ * @route   DELETE /goal/:goalId/unpin
+ * @desc    Unpin a goal from the user's profile
+ * @access  Private
+ */
+router.delete(
+  "/:goalId/unpin",
+  authMiddleware,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      await userController.unpinGoal(req as any, res, next);
+    } catch (error) {
+      logger.error(`Error unpinning goal: ${(error as Error).message}`, { error });
+      next(error);
+    }
+  }
+);
+
+/**
+ * @route   POST /goal/feature-achievement
+ * @desc    Feature an achievement on the user's profile
+ * @access  Private
+ */
+router.post(
+  "/feature-achievement",
+  authMiddleware,
+  [
+    check("achievementId", "Achievement ID is required").notEmpty().isMongoId(),
+  ],
+  handleValidationErrors,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      await userController.featureAchievement(req as any, res, next);
+    } catch (error) {
+      logger.error(`Error featuring achievement: ${(error as Error).message}`, { error });
+      next(error);
+    }
+  }
+);
+
+/**
+ * @route   DELETE /goal/unfeature-achievement
+ * @desc    Unfeature an achievement from the user's profile
+ * @access  Private
+ */
+router.delete(
+  "/unfeature-achievement",
+  authMiddleware,
+  [
+    check("achievementId", "Achievement ID is required").notEmpty().isMongoId(),
+  ],
+  handleValidationErrors,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      await userController.unfeatureAchievement(req as any, res, next);
+    } catch (error) {
+      logger.error(`Error unfeaturing achievement: ${(error as Error).message}`, { error });
+      next(error);
+    }
+  }
 );
 
 export default router;

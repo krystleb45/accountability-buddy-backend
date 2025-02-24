@@ -30,6 +30,8 @@ import friendsRoutes from "../routes/friends";
 import blogRoutes from "../routes/blog";
 import booksRoutes from "../routes/books";
 import notificationsRoutes from "../routes/notifications";
+import followRoutes from "../routes/follow";
+
 
 // Load environment variables
 dotenv.config();
@@ -66,6 +68,8 @@ app.use("/api/friends", friendsRoutes);
 app.use("/api/blog", blogRoutes);
 app.use("/api/books", booksRoutes);
 app.use("/api/notifications", notificationsRoutes);
+app.use("/api/follow", followRoutes); // ✅ Follow System Route
+
 
 // Error Handling Middleware
 app.use(errorHandler);

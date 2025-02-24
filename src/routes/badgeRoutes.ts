@@ -6,25 +6,24 @@ import * as badgeController from "../controllers/BadgeController";
 import authMiddleware from "../middleware/authMiddleware";
 import { roleBasedAccessControl } from "../middleware/roleBasedAccessControl";
 import logger from "../utils/winstonLogger";
-import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust the path
-
+import handleValidationErrors from "../middleware/handleValidationErrors";
 
 const router: Router = express.Router();
 
-// Middleware to ensure only admins can access specific routes
+// ✅ Middleware to ensure only admins can access specific routes
 const adminMiddleware = roleBasedAccessControl(["admin"]);
 
-// Rate limiter to prevent abuse of badge routes
+// ✅ Rate limiter to prevent abuse of badge routes
 const badgeRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // Limit each IP to 100 requests per window
   message: "Too many requests, please try again later.",
 });
 
-// Apply rate limiter to all badge routes
+// ✅ Apply rate limiter to all badge routes
 router.use(badgeRateLimiter);
 
-// Middleware for input validation
+// ✅ Middleware for input validation
 const validateBadgeData = [
   check("userId").optional().isMongoId().withMessage("Invalid User ID"),
   check("badgeType").notEmpty().withMessage("Badge type is required"),
@@ -38,24 +37,15 @@ const validateBadgeData = [
     .withMessage("Increment must be a positive integer"),
 ];
 
-
 /**
  * Utility function to handle route errors
  */
 const handleRouteErrors = (
-  handler: (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ) => Promise<void>,
+  handler: (req: Request, res: Response, next: NextFunction) => void
 ) => {
-  return async (
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> => {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      await handler(req, res, next);
+      handler(req, res, next);
     } catch (error) {
       logger.error(`Error in badge route: ${(error as Error).message}`);
       next(error);
@@ -64,92 +54,70 @@ const handleRouteErrors = (
 };
 
 /**
- * @route   GET /badges
+ * @route   GET /api/badges
  * @desc    Get all badges for the logged-in user
  * @access  Private
  */
 router.get(
-  "/badges",
+  "/",
   authMiddleware,
-  handleRouteErrors(
-    async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-      await badgeController.getUserBadges(req, res, next); // Pass all 3 arguments
-    },
-  ),
+  handleRouteErrors(badgeController.getUserBadges as (req: Request, res: Response, next: NextFunction) => Promise<void>)
 );
 
-
 /**
- * @route   GET /badges/showcase
+ * @route   GET /api/badges/showcase
  * @desc    Get showcased badges for the logged-in user
  * @access  Private
  */
 router.get(
-  "/badges/showcase",
+  "/showcase",
   authMiddleware,
-  handleRouteErrors(
-    async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-      await badgeController.getUserBadgeShowcase(req as any, res, next); // Pass all 3 arguments
-    },
-  ),
+  handleRouteErrors(badgeController.getUserBadgeShowcase)
 );
 
-
 /**
- * @route   POST /badges/award
+ * @route   POST /api/badges/award
  * @desc    Award a badge to a user
  * @access  Private (Admin only)
  */
 router.post(
-  "/badges/award",
+  "/award",
   [authMiddleware, adminMiddleware, ...validateBadgeData, handleValidationErrors],
-  handleRouteErrors(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    await badgeController.awardBadge(req, res, next);
-  }),
+  handleRouteErrors(badgeController.awardBadge)
 );
 
-
 /**
- * @route   POST /badges/progress/update
+ * @route   POST /api/badges/progress/update
  * @desc    Update badge progress for the logged-in user
  * @access  Private
  */
 router.post(
-  "/badges/progress/update",
-  [authMiddleware, ...validateBadgeData, handleValidationErrors], // Spread validation
-  handleRouteErrors(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    await badgeController.updateBadgeProgress(req, res, next); // Pass full req, res, next
-  }),
+  "/progress/update",
+  [authMiddleware, ...validateBadgeData, handleValidationErrors],
+  handleRouteErrors(badgeController.updateBadgeProgress)
 );
 
-
 /**
- * @route   POST /badges/upgrade
+ * @route   POST /api/badges/upgrade
  * @desc    Upgrade a badge level for the logged-in user
  * @access  Private
  */
 router.post(
-  "/badges/upgrade",
-  [authMiddleware, ...validateBadgeData, handleValidationErrors], // Spread validateBadgeData
-  handleRouteErrors(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    await badgeController.upgradeBadgeLevel(req as any, res, next); // Pass req, res, next directly
-  }),
+  "/upgrade",
+  [authMiddleware, ...validateBadgeData, handleValidationErrors],
+  handleRouteErrors(badgeController.upgradeBadgeLevel)
 );
 
-
-
 /**
- * @route   DELETE /badges/expired/remove
+ * @route   DELETE /api/badges/expired/remove
  * @desc    Remove expired badges for a user
  * @access  Private (Admin only)
  */
 router.delete(
-  "/badges/expired/remove",
+  "/expired/remove",
   [authMiddleware, adminMiddleware],
-  handleRouteErrors(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    await badgeController.removeExpiredBadges(req, res, next); // Pass req, res, and next
-  }),
+  handleRouteErrors(badgeController.removeExpiredBadges)
 );
 
-
+// ✅ Export the router
 export default router;

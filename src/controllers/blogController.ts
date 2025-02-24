@@ -102,3 +102,4 @@ export const addComment = catchAsync(
     sendResponse(res, 201, true, "Comment added successfully", { post });
   }
 );
+

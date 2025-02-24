@@ -1,7 +1,8 @@
 import type { Document, Model } from "mongoose";
 import mongoose, { Schema } from "mongoose";
+import logger from "../utils/winstonLogger"; // ✅ Import logger
 
-// Define Badge Level and Type enums
+// ✅ Define Badge Levels & Types
 export type BadgeLevel = "Bronze" | "Silver" | "Gold";
 export type BadgeType =
   | "goal_completed"
@@ -11,7 +12,7 @@ export type BadgeType =
   | "time_based"
   | "event_badge";
 
-// BadgeProgress interface
+// ✅ BadgeProgress Interface
 export interface IBadgeProgress extends Document {
   user: mongoose.Types.ObjectId;
   badgeType: BadgeType;
@@ -22,31 +23,14 @@ export interface IBadgeProgress extends Document {
   level: BadgeLevel;
 }
 
-// BadgeProgress model interface
-export interface BadgeProgressModel extends Model<IBadgeProgress> {
-  updateProgress(
-    userId: mongoose.Types.ObjectId,
-    badgeType: BadgeType,
-    increment: number
-  ): Promise<IBadgeProgress>;
-  getRemainingProgress(progress: number, goal: number): number;
-  resetProgress(
-    userId: mongoose.Types.ObjectId,
-    badgeType: BadgeType
-  ): Promise<IBadgeProgress | null>;
-  upgradeBadgeLevel(
-    userId: mongoose.Types.ObjectId,
-    badgeType: BadgeType
-  ): Promise<IBadgeProgress | null>;
-}
-
-// Define the BadgeProgress schema
-const BadgeProgressSchema = new Schema<IBadgeProgress, BadgeProgressModel>(
+// ✅ Define BadgeProgress Schema (WITHOUT STATIC METHODS)
+const BadgeProgressSchema = new Schema<IBadgeProgress>(
   {
     user: {
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      index: true, // ✅ Optimize queries
     },
     badgeType: {
       type: String,
@@ -59,6 +43,7 @@ const BadgeProgressSchema = new Schema<IBadgeProgress, BadgeProgressModel>(
         "time_based",
         "event_badge",
       ],
+      index: true, // ✅ Optimize searches by badge type
     },
     progress: {
       type: Number,
@@ -86,49 +71,53 @@ const BadgeProgressSchema = new Schema<IBadgeProgress, BadgeProgressModel>(
   },
   {
     timestamps: true,
-  },
+  }
 );
 
-// Index to optimize lookup by user and badgeType
+// ✅ Index for Faster Queries
 BadgeProgressSchema.index({ user: 1, badgeType: 1 }, { unique: true });
 
-// Static method: Update progress
+// ✅ Define BadgeProgress Model Interface
+export interface BadgeProgressModel extends Model<IBadgeProgress> {
+  updateProgress(userId: mongoose.Types.ObjectId, badgeType: BadgeType, increment: number): Promise<IBadgeProgress>;
+  getRemainingProgress(progress: number, goal: number): number;
+  resetProgress(userId: mongoose.Types.ObjectId, badgeType: BadgeType): Promise<IBadgeProgress | null>;
+  upgradeBadgeLevel(userId: mongoose.Types.ObjectId, badgeType: BadgeType): Promise<IBadgeProgress | null>;
+}
+
+// ✅ Attach Static Methods AFTER Schema Definition
+
+// Update Progress
 BadgeProgressSchema.statics.updateProgress = async function (
   userId: mongoose.Types.ObjectId,
   badgeType: BadgeType,
-  increment: number,
+  increment: number
 ): Promise<IBadgeProgress> {
   const progress = await this.findOne({ user: userId, badgeType });
-  if (!progress) {
-    throw new Error("Badge progress not found");
-  }
+  if (!progress) throw new Error("Badge progress not found");
 
   progress.progress += increment;
 
-  // Check if the goal has been reached
+  // ✅ If goal reached, set milestone
   if (progress.progress >= progress.goal) {
     progress.progress = progress.goal;
     progress.milestoneAchieved = true;
   }
 
   progress.lastUpdated = new Date();
-
   await progress.save();
   return progress;
 };
 
-// Static method: Calculate remaining progress
-BadgeProgressSchema.statics.getRemainingProgress = function (
-  progress: number,
-  goal: number,
-): number {
+// Get Remaining Progress
+BadgeProgressSchema.statics.getRemainingProgress = function (progress: number, goal: number): number {
   return Math.max(goal - progress, 0);
 };
 
-// Static method: Reset progress
+// Reset Progress
 BadgeProgressSchema.statics.resetProgress = async function (
   userId: mongoose.Types.ObjectId,
-  badgeType: BadgeType,
+  badgeType: BadgeType
 ): Promise<IBadgeProgress | null> {
   const progress = await this.findOne({ user: userId, badgeType });
   if (!progress) return null;
@@ -136,15 +125,14 @@ BadgeProgressSchema.statics.resetProgress = async function (
   progress.progress = 0;
   progress.milestoneAchieved = false;
   progress.lastUpdated = new Date();
-
   await progress.save();
   return progress;
 };
 
-// Static method: Upgrade badge level
+// Upgrade Badge Level
 BadgeProgressSchema.statics.upgradeBadgeLevel = async function (
   userId: mongoose.Types.ObjectId,
-  badgeType: BadgeType,
+  badgeType: BadgeType
 ): Promise<IBadgeProgress | null> {
   const progress = await this.findOne({ user: userId, badgeType });
   if (!progress) return null;
@@ -153,29 +141,26 @@ BadgeProgressSchema.statics.upgradeBadgeLevel = async function (
   const currentLevelIndex = levels.indexOf(progress.level);
 
   if (currentLevelIndex < levels.length - 1) {
-    progress.level = levels[currentLevelIndex + 1];
-    progress.progress = 0; // Reset progress for the new level
-    progress.goal *= 2; // Example: Double the goal for the next level
+    progress.level = levels[currentLevelIndex + 1]; // ✅ Move to next level
+    progress.progress = 0; // ✅ Reset progress
+    progress.goal *= 2; // ✅ Increase difficulty
     progress.milestoneAchieved = false;
     progress.lastUpdated = new Date();
 
     await progress.save();
   }
-
   return progress;
 };
 
-// Pre-save hook: Validate progress
+// ✅ Pre-save Hook: Validate Progress
 BadgeProgressSchema.pre<IBadgeProgress>("save", function (next) {
   if (this.progress > this.goal) {
-    this.progress = this.goal; // Cap progress at the goal
+    this.progress = this.goal; // ✅ Cap progress at the goal
   }
   next();
 });
 
-import logger from "../utils/winstonLogger"; // Adjust the path to your logger utility
-
-// Post-save hook: Log updates
+// ✅ Post-save Hook: Log Badge Progress Updates
 BadgeProgressSchema.post<IBadgeProgress>("save", function (doc) {
   logger.info({
     message: "Badge progress updated",
@@ -186,11 +171,6 @@ BadgeProgressSchema.post<IBadgeProgress>("save", function (doc) {
   });
 });
 
-
-// Export the model
-const BadgeProgress = mongoose.model<IBadgeProgress, BadgeProgressModel>(
-  "BadgeProgress",
-  BadgeProgressSchema,
-);
-
+// ✅ Create & Export BadgeProgress Model
+const BadgeProgress = mongoose.model<IBadgeProgress, BadgeProgressModel>("BadgeProgress", BadgeProgressSchema);
 export default BadgeProgress;

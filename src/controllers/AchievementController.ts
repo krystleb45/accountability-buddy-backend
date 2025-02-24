@@ -13,11 +13,13 @@ import { IUser } from "../models/User";
  */
 export const getAllAchievements = catchAsync(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    const userId = req.user?.id;
+    const userIdString = req.user?.id;
 
-    if (!userId) {
-      return next(createError("Unauthorized access", 401));
+    if (!mongoose.isValidObjectId(userIdString)) {
+      return next(createError("Invalid User ID format.", 400));
     }
+
+    const userId = new mongoose.Types.ObjectId(userIdString);
 
     const achievements = await Achievement.find({ user: userId });
 
@@ -47,7 +49,6 @@ export const checkStreakAchievements = async (user: IUser): Promise<void> => {
   }
 };
 
-
 /**
  * @desc Get a single achievement by ID
  * @route GET /api/achievements/:id
@@ -57,7 +58,7 @@ export const getAchievementById = catchAsync(
   async (req: Request<{ id: string }>, res: Response, next: NextFunction): Promise<void> => {
     const { id } = req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!mongoose.isValidObjectId(id)) {
       return next(createError("Invalid achievement ID", 400));
     }
 
@@ -82,10 +83,10 @@ export const addAchievement = catchAsync(
     next: NextFunction
   ): Promise<void> => {
     const { name, description, requirements } = req.body;
-    const userId = req.user?.id;
+    const userIdString = req.user?.id;
 
-    if (!userId) {
-      return next(createError("Unauthorized access", 401));
+    if (!mongoose.isValidObjectId(userIdString)) {
+      return next(createError("Invalid User ID format.", 400));
     }
 
     if (!name || !description || !requirements) {
@@ -112,7 +113,7 @@ export const updateAchievement = catchAsync(
     const { id } = req.params;
     const updates = req.body;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!mongoose.isValidObjectId(id)) {
       return next(createError("Invalid achievement ID", 400));
     }
 
@@ -137,7 +138,7 @@ export const deleteAchievement = catchAsync(
   async (req: Request<{ id: string }>, res: Response, next: NextFunction): Promise<void> => {
     const { id } = req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!mongoose.isValidObjectId(id)) {
       return next(createError("Invalid achievement ID", 400));
     }
 

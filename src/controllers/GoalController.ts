@@ -1,11 +1,8 @@
 import type { Request, Response, NextFunction } from "express";
 import Goal from "../models/Goal";
-import User, { IUser } from "../models/User";
-import Achievement from "../models/Achievement";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
 import { createError } from "../middleware/errorHandler";
-import { Types } from "mongoose";
 
 // Define reusable types
 type GoalParams = { goalId: string };
@@ -26,18 +23,70 @@ interface RequestWithUser extends Request {
 }
 
 /**
+ * @desc    Create a new goal
+ * @route   POST /api/goals
+ * @access  Private
+ */
+export const createGoal = catchAsync(
+  async (req: Request<{}, {}, CreateGoalBody> & RequestWithUser, res: Response, next: NextFunction): Promise<void> => {
+    const { title, description, dueDate } = req.body;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return next(createError("Unauthorized access", 401));
+    }
+
+    if (!title || !dueDate) {
+      return next(createError("Title and due date are required", 400));
+    }
+
+    if (new Date(dueDate) <= new Date()) {
+      return next(createError("Due date must be in the future", 400));
+    }
+
+    const newGoal = await Goal.create({
+      title,
+      description,
+      dueDate,
+      user: userId,
+    });
+
+    sendResponse(res, 201, true, "Goal created successfully", { goal: newGoal });
+  }
+);
+
+/**
+ * @desc    Get user goals
+ * @route   GET /api/goals
+ * @access  Private
+ */
+export const getUserGoals = catchAsync(
+  async (req: RequestWithUser, res: Response, next: NextFunction): Promise<void> => {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return next(createError("Unauthorized access", 401));
+    }
+
+    const goals = await Goal.find({ user: userId }).sort({ createdAt: -1 });
+
+    sendResponse(res, 200, true, "User goals fetched successfully", { goals });
+  }
+);
+
+/**
  * @desc    Update a goal
  * @route   PUT /api/goals/:goalId
  * @access  Private
  */
-export const updateGoal = catchAsync(
+export const updateGoalProgress = catchAsync(
   async (
     req: Request<GoalParams, {}, UpdateGoalBody> & RequestWithUser,
     res: Response,
     next: NextFunction
   ): Promise<void> => {
     const { goalId } = req.params;
-    const updates = req.body;
+    const { progress } = req.body;
     const userId = req.user?.id;
 
     if (!userId) {
@@ -50,74 +99,26 @@ export const updateGoal = catchAsync(
       return next(createError("Goal not found or access denied", 404));
     }
 
-    Object.assign(goal, updates);
+    if (progress !== undefined) {
+      goal.progress = Math.max(0, Math.min(100, progress));
+      if (goal.progress === 100) {
+        goal.status = "completed";
+        goal.completedAt = new Date();
+      }
+    }
+
     await goal.save();
 
-    sendResponse(res, 200, true, "Goal updated successfully", { goal });
+    sendResponse(res, 200, true, "Goal progress updated successfully", { goal });
   }
 );
-
-/**
- * @desc    Get public goals
- * @route   GET /api/goals/public
- * @access  Public
- */
-export const getPublicGoals = catchAsync(
-  async (
-    req: Request<{}, {}, {}, QueryWithPagination>,
-    res: Response,
-    _next: NextFunction
-  ): Promise<void> => {
-    const page = parseInt(req.query.page || "1", 10);
-    const limit = parseInt(req.query.limit || "10", 10);
-
-    const publicGoals = await Goal.find({ isPublic: true })
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit);
-
-    const totalGoals = await Goal.countDocuments({ isPublic: true });
-
-    sendResponse(res, 200, true, "Public goals fetched successfully", {
-      publicGoals,
-      pagination: {
-        currentPage: page,
-        totalPages: Math.ceil(totalGoals / limit),
-        totalGoals,
-      },
-    });
-  }
-);
-
-/**
- * @desc Check if user qualifies for a new streak achievement
- * @param user - The user object
- */
-const checkStreakAchievements = async (user: IUser): Promise<void> => {
-  const streakAchievements = await Achievement.find({ name: /streak/i });
-
-  for (const achievement of streakAchievements) {
-    user.achievements = user.achievements ?? [];
-
-    const achievementId = new Types.ObjectId(achievement._id as string);
-    if (
-      !user.achievements.includes(achievementId) &&
-      user.streak !== null &&
-      user.streak !== undefined &&
-      user.streak >= achievement.requirements
-    ) {
-      user.achievements.push(achievementId);
-      await user.save();
-    }
-  }
-};
 
 /**
  * @desc    Mark a goal as completed
  * @route   PATCH /api/goals/:goalId/complete
  * @access  Private
  */
-export const markGoalAsCompleted = catchAsync(
+export const completeGoal = catchAsync(
   async (req: Request<GoalParams> & RequestWithUser, res: Response, next: NextFunction): Promise<void> => {
     const { goalId } = req.params;
     const userId = req.user?.id;
@@ -136,28 +137,30 @@ export const markGoalAsCompleted = catchAsync(
     goal.completedAt = new Date();
     await goal.save();
 
-    // ✅ Fetch user and update streak
-    const user = await User.findById(userId);
-    if (user) {
-      const lastCompleted = user.lastGoalCompletedAt ? new Date(user.lastGoalCompletedAt) : null;
-      const now = new Date();
-      const oneDay = 1000 * 60 * 60 * 24;
+    sendResponse(res, 200, true, "Goal marked as completed successfully", { goal });
+  }
+);
 
-      if (lastCompleted && now.getTime() - lastCompleted.getTime() <= oneDay) {
-        user.streak = (user.streak ?? 0) + 1;
-      } else {
-        user.streak = 1;
-      }
+/**
+ * @desc    Get analytics for goals
+ * @route   GET /api/goals/analytics
+ * @access  Private
+ */
+export const getAnalytics = catchAsync(
+  async (req: RequestWithUser, res: Response, next: NextFunction): Promise<void> => {
+    const userId = req.user?.id;
 
-      user.completedGoals = (user.completedGoals ?? 0) + 1;
-      user.lastGoalCompletedAt = now;
-      await user.save();
-
-      // ✅ Check for Streak Achievements
-      await checkStreakAchievements(user);
+    if (!userId) {
+      return next(createError("Unauthorized access", 401));
     }
 
-    sendResponse(res, 200, true, "Goal marked as completed successfully", { goal });
+    const totalGoals = await Goal.countDocuments({ user: userId });
+    const completedGoals = await Goal.countDocuments({ user: userId, status: "completed" });
+
+    sendResponse(res, 200, true, "Goal analytics retrieved successfully", {
+      totalGoals,
+      completedGoals,
+    });
   }
 );
 
@@ -203,40 +206,6 @@ export const setReminder = catchAsync(
 );
 
 /**
- * @desc    Get leaderboard of top goal achievers
- * @route   GET /api/leaderboard
- * @access  Public
- */
-export const getLeaderboard = catchAsync(
-  async (_req: Request, res: Response): Promise<void> => {
-    const topUsers = await User.find()
-      .sort({ completedGoals: -1 })
-      .limit(10)
-      .select("username profilePicture completedGoals");
-
-    sendResponse(res, 200, true, "Leaderboard retrieved successfully", { topUsers });
-  }
-);
-
-/**
- * @desc    Get user goals
- * @route   GET /api/goals
- * @access  Private
- */
-export const getUserGoals = catchAsync(
-  async (req: RequestWithUser, res: Response, next: NextFunction): Promise<void> => {
-    const userId = req.user?.id;
-
-    if (!userId) {
-      return next(createError("Unauthorized access", 401));
-    }
-
-    const goals = await Goal.find({ user: userId }).sort({ createdAt: -1 });
-
-    sendResponse(res, 200, true, "User goals fetched successfully", { goals });
-  }
-);
-/**
  * @desc    Delete a goal
  * @route   DELETE /api/goals/:goalId
  * @access  Private
@@ -259,72 +228,37 @@ export const deleteGoal = catchAsync(
     sendResponse(res, 200, true, "Goal deleted successfully");
   }
 );
+
 /**
- * @desc    Create a new goal
- * @route   POST /api/goals
- * @access  Private
+ * @desc    Get public goals
+ * @route   GET /api/goals/public
+ * @access  Public
  */
-export const createGoal = catchAsync(
-  async (req: Request<{}, {}, CreateGoalBody> & RequestWithUser, res: Response, next: NextFunction): Promise<void> => {
-    const { title, description, dueDate } = req.body;
-    const userId = req.user?.id;
+export const getPublicGoals = catchAsync(
+  async (
+    req: Request<{}, {}, {}, QueryWithPagination>,
+    res: Response,
+    _next: NextFunction
+  ): Promise<void> => {
+    const page = parseInt(req.query.page || "1", 10);
+    const limit = parseInt(req.query.limit || "10", 10);
 
-    if (!userId) {
-      return next(createError("Unauthorized access", 401));
-    }
+    const publicGoals = await Goal.find({ isPublic: true })
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
 
-    if (!title || !dueDate) {
-      return next(createError("Title and due date are required", 400));
-    }
-
-    if (new Date(dueDate) <= new Date()) {
-      return next(createError("Due date must be in the future", 400));
-    }
-
-    const newGoal = await Goal.create({
-      title,
-      description,
-      dueDate,
-      user: userId,
-    });
-
-    sendResponse(res, 201, true, "Goal created successfully", { goal: newGoal });
+    sendResponse(res, 200, true, "Public goals fetched successfully", { publicGoals });
   }
 );
-/**
- * @desc    Get streak analytics for a user
- * @route   GET /api/goals/streak
- * @access  Private
- */
-export const getStreakAnalytics = catchAsync(
-  async (req: RequestWithUser, res: Response, next: NextFunction): Promise<void> => {
-    const userId = req.user?.id;
 
-    if (!userId) {
-      return next(createError("Unauthorized access", 401));
-    }
-
-    const user = await User.findById(userId).select("streak lastGoalCompletedAt achievements");
-
-    if (!user) {
-      return next(createError("User not found", 404));
-    }
-
-    sendResponse(res, 200, true, "Streak analytics fetched successfully", {
-      streak: user.streak,
-      lastGoalCompletedAt: user.lastGoalCompletedAt,
-      achievements: user.achievements,
-    });
-  }
-);
 export default {
   createGoal,
   getUserGoals,
-  updateGoal,
-  deleteGoal,
-  markGoalAsCompleted,
-  getPublicGoals,
+  updateGoalProgress,
+  completeGoal,
+  getAnalytics,
   setReminder,
-  getLeaderboard,
-  getStreakAnalytics,
+  deleteGoal,
+  getPublicGoals,
 };

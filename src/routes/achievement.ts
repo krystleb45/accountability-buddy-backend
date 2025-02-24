@@ -2,12 +2,13 @@ import type { Router, Request, Response, NextFunction } from "express";
 import express from "express";
 import rateLimit from "express-rate-limit";
 import authMiddleware from "../middleware/authMiddleware";
-import * as AchievementController from "../controllers/AchievementController";
+import * as AchievementController from "../controllers/AchievementController"; // ✅ Fixed import typo
+import mongoose from "mongoose";
 
 // Explicitly define the router type
 const router: Router = express.Router();
 
-// Configure rate limiter for request throttling
+// ✅ Configure rate limiter for request throttling
 const rateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // Max 100 requests per window
@@ -17,7 +18,7 @@ const rateLimiter = rateLimit({
   },
 });
 
-// Middleware for validating required fields in the request body
+// ✅ Middleware for validating required fields in the request body
 const validateBody =
   (fields: string[]) =>
     (req: Request, res: Response, next: NextFunction): void => {
@@ -39,40 +40,13 @@ const validateBody =
  * @route GET /api/achievements
  * @access Private
  */
-router.get(
-  "/",
-  authMiddleware, // Use authMiddleware to validate authentication
-  async (
-    req: Request, // Start with generic Request
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> => {
-    try {
-      // Explicitly assert the type as AuthenticatedRequest
-      const authReq = req as Request;
-
-      const userId = authReq.user?.id; // Safe access after type assertion
-
-      if (!userId) {
-        res.status(400).json({
-          success: false,
-          message: "User ID is required.",
-        });
-        return;
-      }
-
-      // Fetch achievements
-      const achievements = await AchievementController.getAllAchievements(userId);
-
-      res.status(200).json({
-        success: true,
-        data: achievements,
-      });
-    } catch (error) {
-      next(error); // Delegate errors to middleware
-    }
-  },
-);
+router.get("/", authMiddleware, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    await AchievementController.getAllAchievements(req, res, next);
+  } catch (error) {
+    next(error); // Delegate errors to middleware
+  }
+});
 
 /**
  * @desc Add a new achievement
@@ -83,87 +57,55 @@ router.post(
   "/add",
   authMiddleware,
   rateLimiter,
-  validateBody(["title", "description"]),
-  async (
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> => {
+  validateBody(["name", "description", "requirements"]),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const authReq = req as Request; // Explicit type assertion
-      const userId = authReq.user?.id;
-
-      if (!userId) {
-        res.status(400).json({
-          success: false,
-          message: "User ID is required.",
-        });
-        return;
-      }
-
-      const achievementData = req.body;
-
-      const newAchievement = await AchievementController.addAchievement(
-        userId,
-        achievementData,
-      );
-
-      res.status(201).json({
-        success: true,
-        message: "Achievement added successfully.",
-        data: newAchievement,
-      });
+      await AchievementController.addAchievement(req, res, next);
     } catch (error) {
       next(error);
     }
-  },
+  }
 );
 
 /**
  * @desc Delete an achievement by ID
- * @route DELETE /api/achievements/delete
+ * @route DELETE /api/achievements/:id
  * @access Private
  */
 router.delete(
-  "/delete",
+  "/:id",
   authMiddleware,
-  validateBody(["achievementId"]),
-  async (
-    req: Request, // Keep it as Express default Request type
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> => {
+  async (req: Request<{ id: string }>, res: Response, next: NextFunction): Promise<void> => {
     try {
-      // Explicitly cast req to AuthenticatedRequest
-      //const authReq = req as AuthenticatedRequest;
+      const { id } = req.params;
 
-      //const userId = authReq.user?.id; // Safe access after type assertion
-
-      // Extract required fields
-      const { achievementId } = req.body;
-
-      // Perform deletion
-      const result = await AchievementController.deleteAchievement(achievementId);
-
-      if (!result) {
-        res.status(404).json({
+      if (!mongoose.isValidObjectId(id)) {
+        res.status(400).json({
           success: false,
-          message: "Achievement not found.",
+          message: "Invalid achievement ID format.",
         });
         return;
       }
 
-      res.status(200).json({
-        success: true,
-        message: "Achievement deleted successfully.",
-      });
+      await AchievementController.deleteAchievement(req, res, next);
     } catch (error) {
-      next(error); // Pass error to middleware for handling
+      next(error);
     }
-  },
+  }
 );
 
+/**
+ * @desc Get leaderboard achievements (Admin only)
+ * @route GET /api/achievements/leaderboard
+ * @access Private/Admin
+ */
+router.get("/leaderboard", authMiddleware, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    await AchievementController.getLeaderboardAchievements(req, res, next);
+  } catch (error) {
+    next(error);
+  }
+});
 
-
-// Export the router
+// ✅ Export the router
 export default router;

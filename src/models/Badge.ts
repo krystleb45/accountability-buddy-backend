@@ -1,7 +1,8 @@
 import type { Document, Model } from "mongoose";
 import mongoose, { Schema } from "mongoose";
+import logger from "../utils/winstonLogger"; // ✅ Import logger
 
-// Define badge levels and types
+// ✅ Define Badge Levels & Types
 export type BadgeLevel = "Bronze" | "Silver" | "Gold";
 export type BadgeType =
   | "goal_completed"
@@ -11,7 +12,7 @@ export type BadgeType =
   | "time_based"
   | "event_badge";
 
-// Badge interface
+// ✅ Badge Interface
 export interface IBadge extends Document {
   user: mongoose.Types.ObjectId;
   badgeType: BadgeType;
@@ -26,20 +27,14 @@ export interface IBadge extends Document {
   pointsRewarded: number;
 }
 
-// Badge model interface
-export interface BadgeModel extends Model<IBadge> {
-  getNextLevel(currentLevel: BadgeLevel): BadgeLevel;
-  isExpired(expiresAt?: Date): boolean;
-  awardPointsForBadge(badgeType: BadgeType): number;
-}
-
-// Define Badge schema
-const BadgeSchema = new Schema<IBadge, BadgeModel>(
+// ✅ Define Badge Schema (WITHOUT STATIC METHODS)
+const BadgeSchema = new Schema<IBadge>(
   {
     user: {
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      index: true, // ✅ Faster user-based lookups
     },
     badgeType: {
       type: String,
@@ -52,6 +47,7 @@ const BadgeSchema = new Schema<IBadge, BadgeModel>(
         "event_badge",
       ],
       required: true,
+      index: true, // ✅ Optimize searches by badge type
     },
     description: {
       type: String,
@@ -87,32 +83,33 @@ const BadgeSchema = new Schema<IBadge, BadgeModel>(
     },
     pointsRewarded: {
       type: Number,
-      default: 0,
+      default: 0, // ✅ Set after schema definition
     },
   },
   {
-    timestamps: true,
-  },
+    timestamps: true, // ✅ Automatically adds createdAt & updatedAt
+  }
 );
 
-// Static method: Get the next badge level
-BadgeSchema.statics.getNextLevel = function (
-  currentLevel: BadgeLevel,
-): BadgeLevel {
+// ✅ Badge Model Interface (Defined AFTER Schema)
+export interface BadgeModel extends Model<IBadge> {
+  getNextLevel(currentLevel: BadgeLevel): BadgeLevel;
+  isExpired(expiresAt?: Date): boolean;
+  awardPointsForBadge(badgeType: BadgeType): number;
+}
+
+// ✅ Attach Static Methods AFTER Schema Definition
+BadgeSchema.statics.getNextLevel = function (currentLevel: BadgeLevel): BadgeLevel {
   const levels: BadgeLevel[] = ["Bronze", "Silver", "Gold"];
   const currentIndex = levels.indexOf(currentLevel);
-  return currentIndex < levels.length - 1 ? levels[currentIndex + 1] : currentLevel;
+  return levels[currentIndex + 1] || currentLevel; // Keep at Gold if maxed out
 };
 
-// Static method: Check if badge is expired
 BadgeSchema.statics.isExpired = function (expiresAt?: Date): boolean {
-  return !!expiresAt && expiresAt < new Date();
+  return Boolean(expiresAt && expiresAt < new Date());
 };
 
-// Static method: Award points for badges
-BadgeSchema.statics.awardPointsForBadge = function (
-  badgeType: BadgeType,
-): number {
+BadgeSchema.statics.awardPointsForBadge = function (badgeType: BadgeType): number {
   const pointsMapping: Record<BadgeType, number> = {
     goal_completed: 50,
     helper: 30,
@@ -124,28 +121,24 @@ BadgeSchema.statics.awardPointsForBadge = function (
   return pointsMapping[badgeType] || 0;
 };
 
-// Pre-save hook: Validate progress and handle level up
+// ✅ Pre-save Hook: Handle Level Up Mechanism
 BadgeSchema.pre<IBadge>("save", function (next) {
   if (this.progress >= this.goal) {
-    const nextLevel = (this.constructor as BadgeModel).getNextLevel(this.level);
-    if (nextLevel) {
-      this.level = nextLevel; // Assign the next level
-      this.progress = 0; // Reset progress after leveling up
-    }
+    this.level = (Badge as BadgeModel).getNextLevel(this.level);
+    this.progress = 0; // ✅ Reset progress after leveling up
   }
   next();
 });
 
-import logger from "../utils/winstonLogger"; // Replace this path with the correct logger utility
-
-// Post-save hook: Log badge creation or updates
+// ✅ Post-save Hook: Log Badge Creation or Updates
 BadgeSchema.post<IBadge>("save", function (doc) {
-  logger.info(
-    `Badge ${doc.badgeType} at ${doc.level} level awarded to user ${doc.user}`,
-  );
+  try {
+    logger.info(`Badge ${doc.badgeType} (${doc.level}) awarded to user ${doc.user}`);
+  } catch (error) {
+    logger.error(`Error logging badge: ${(error as Error).message}`);
+  }
 });
 
-
-// Export the Badge model
+// ✅ Create & Export Badge Model AFTER Schema is Complete
 const Badge = mongoose.model<IBadge, BadgeModel>("Badge", BadgeSchema);
 export default Badge;
