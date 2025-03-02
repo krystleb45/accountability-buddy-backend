@@ -1,6 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import logger from "../utils/winstonLogger";
-
+import { logger } from "../utils/winstonLogger";
 /**
  * Middleware for logging all incoming requests with additional context.
  * Logs request details at the start and response details upon completion.

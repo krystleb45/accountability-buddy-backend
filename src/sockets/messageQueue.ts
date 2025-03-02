@@ -1,16 +1,15 @@
-import type { Connection, Channel, ConsumeMessage } from "amqplib";
+import type { Channel, ConsumeMessage, ChannelModel } from "amqplib";
 import amqp from "amqplib"; // RabbitMQ library for message queuing
-import logger from "../utils/winstonLogger"; // Winston logger for logging
+import { logger } from "../utils/winstonLogger";
 
 // RabbitMQ configuration (can be replaced with Redis if preferred)
 const RABBITMQ_URL = process.env.RABBITMQ_URL || "amqp://localhost";
 const QUEUE_NAME = process.env.MESSAGE_QUEUE || "chat_messages";
 
 interface QueueConnection {
-  connection: Connection;
+  connection: ChannelModel;
   channel: Channel;
 }
-
 /**
  * @desc    Initializes a connection to the message queue (RabbitMQ).
  * @returns Promise<QueueConnection> - Returns the connection and channel objects.

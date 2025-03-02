@@ -4,8 +4,7 @@ import xssClean from "xss-clean";
 import cors from "cors"; // Import cors
 import * as express from "express";
 import type { Application, Request, Response, NextFunction } from "express";
-import logger from "../utils/winstonLogger";
-
+import { logger } from "../utils/winstonLogger";
 const parseAllowedOrigins = (): string[] => {
   const origins = process.env.ALLOWED_ORIGINS || "http://localhost:3000";
   return origins.split(",").map((origin) => origin.trim());

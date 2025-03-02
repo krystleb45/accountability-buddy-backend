@@ -4,7 +4,7 @@ import { check, validationResult } from "express-validator";
 import rateLimit from "express-rate-limit";
 import authMiddleware from "../middleware/authMiddleware";
 import { roleBasedAccessControl } from "../middleware/roleBasedAccessControl";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 import * as AdminController from "../controllers/AdminController";
 import * as AnalyticsController from "../controllers/AnalyticsController";
 

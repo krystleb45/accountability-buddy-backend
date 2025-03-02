@@ -5,8 +5,7 @@ import sanitize from "mongo-sanitize";
 import rateLimit from "express-rate-limit";
 import authMiddleware from "../middleware/authMiddleware"; // Correct middleware import path
 import * as sessionController from "../controllers/SessionController"; // Ensure named import for controller methods
-import logger from "../utils/winstonLogger"; // Logger utility
-import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust the path
+import { logger } from "../utils/winstonLogger";import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust the path
 
 
 const router: Router = express.Router();

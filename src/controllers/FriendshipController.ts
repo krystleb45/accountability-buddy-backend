@@ -5,7 +5,7 @@ import Chat from "../models/Chat";
 import Notification from "../models/Notification";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 
 export const sendFriendRequest = catchAsync(
   async (

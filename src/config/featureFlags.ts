@@ -1,7 +1,6 @@
 import fs from "fs";
 import path from "path";
-import logger from "../utils/winstonLogger"; // Adjust the path as needed
-
+import { logger } from "../utils/winstonLogger";
 /**
  * Feature flags allow for toggling features on/off dynamically.
  * This module supports environment-based and runtime overrides.

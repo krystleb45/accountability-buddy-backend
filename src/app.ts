@@ -16,7 +16,7 @@ import userRoutes from "./routes/user";
 import newsletterRoutes from "./routes/newsletter";
 import paymentRoutes from "./routes/payment";
 import { errorHandler } from "./middleware/errorHandler";
-import logger from "./utils/winstonLogger";
+import { logger } from "../src/utils/winstonLogger";
 
 // Load environment variables
 dotenv.config();

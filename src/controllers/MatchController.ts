@@ -4,7 +4,7 @@ import { Match } from "../models/Match";
 import User from "../models/User";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 
 /**
  * @desc Create a new match

@@ -7,7 +7,7 @@ import Stripe from "stripe";
 
 // Initialize Stripe with the latest API version
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
-  apiVersion: "2024-12-18.acacia", // Use the latest supported version
+  apiVersion: "2025-02-24.acacia", // Update to the expected version
 });
 
 /**

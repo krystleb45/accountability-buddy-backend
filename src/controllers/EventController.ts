@@ -4,7 +4,7 @@ import type { IEvent } from "../models/Event";
 import Event from "../models/Event"; // Import IEvent with participants
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 
 /**
  * @desc    Join an event

@@ -1,7 +1,7 @@
 import type { Server, Socket } from "socket.io";
 import redisClient from "../config/redisClient";
 import User from "../models/User";
-import logger from "../utils/winstonLogger"; // Winston logger
+import { logger } from "../utils/winstonLogger";
 
 // Redis key prefix for online users
 const ONLINE_USERS_KEY = "online_users";

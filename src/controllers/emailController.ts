@@ -4,7 +4,7 @@ import type { Request, Response } from "express";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
 import sanitize from "mongo-sanitize";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 
 // Define transporter with correct typing
 const transporter = nodemailer.createTransport({

@@ -4,109 +4,68 @@ import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
 import { createError } from "../middleware/errorHandler";
 
-// Define reusable types
-type GoalParams = { goalId: string };
-type CreateGoalBody = { title: string; description?: string; dueDate: string };
-type UpdateGoalBody = { title?: string; description?: string; dueDate?: string; progress?: number };
-type ReminderBody = { goalId: string; message: string; remindAt: string };
-type QueryWithPagination = { page?: string; limit?: string };
-
-// Extend the request type to include the user property
-interface RequestWithUser extends Request {
+// ✅ Extend Request Type for User
+interface RequestWithUser<T = {}, U = {}> extends Request<U, {}, T> {
   user?: {
     id: string;
     email?: string;
     role: "user" | "admin" | "moderator";
     isAdmin?: boolean;
-    password(currentPassword: any, password: any): unknown;
   };
 }
 
 /**
+ * @desc    Get all goals (Admin Only)
+ * @route   GET /api/goals
+ * @access  Private (Admin)
+ */
+export const getAllGoals = catchAsync(
+  async (req: RequestWithUser, res: Response, next: NextFunction): Promise<void> => {
+    if (!req.user?.isAdmin) return next(createError("Access denied. Admins only.", 403));
+
+    const goals = await Goal.find().sort({ createdAt: -1 });
+
+    sendResponse(res, 200, true, "All goals fetched successfully", { goals });
+  }
+);
+
+/**
  * @desc    Create a new goal
- * @route   POST /api/goals
- * @access  Private
+ * @route   POST /api/goals/create
+ * @access  Private (Requires Subscription)
  */
 export const createGoal = catchAsync(
-  async (req: Request<{}, {}, CreateGoalBody> & RequestWithUser, res: Response, next: NextFunction): Promise<void> => {
+  async (req: RequestWithUser<{ title: string; description: string; dueDate?: string }>, res: Response, next: NextFunction): Promise<void> => {
     const { title, description, dueDate } = req.body;
     const userId = req.user?.id;
 
-    if (!userId) {
-      return next(createError("Unauthorized access", 401));
-    }
+    if (!title || !description) return next(createError("Title and description are required", 400));
+    if (!userId) return next(createError("Unauthorized access", 401));
 
-    if (!title || !dueDate) {
-      return next(createError("Title and due date are required", 400));
-    }
-
-    if (new Date(dueDate) <= new Date()) {
-      return next(createError("Due date must be in the future", 400));
-    }
-
-    const newGoal = await Goal.create({
-      title,
-      description,
-      dueDate,
-      user: userId,
-    });
+    const newGoal = await Goal.create({ title, description, dueDate, user: userId });
 
     sendResponse(res, 201, true, "Goal created successfully", { goal: newGoal });
   }
 );
 
 /**
- * @desc    Get user goals
- * @route   GET /api/goals
- * @access  Private
- */
-export const getUserGoals = catchAsync(
-  async (req: RequestWithUser, res: Response, next: NextFunction): Promise<void> => {
-    const userId = req.user?.id;
-
-    if (!userId) {
-      return next(createError("Unauthorized access", 401));
-    }
-
-    const goals = await Goal.find({ user: userId }).sort({ createdAt: -1 });
-
-    sendResponse(res, 200, true, "User goals fetched successfully", { goals });
-  }
-);
-
-/**
- * @desc    Update a goal
- * @route   PUT /api/goals/:goalId
+ * @desc    Update goal progress
+ * @route   PUT /api/goals/:goalId/progress
  * @access  Private
  */
 export const updateGoalProgress = catchAsync(
-  async (
-    req: Request<GoalParams, {}, UpdateGoalBody> & RequestWithUser,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
+  async (req: RequestWithUser<{ progress: number }, { goalId: string }>, res: Response, next: NextFunction): Promise<void> => {
     const { goalId } = req.params;
     const { progress } = req.body;
     const userId = req.user?.id;
 
-    if (!userId) {
-      return next(createError("Unauthorized access", 401));
-    }
+    if (!goalId || progress == null) return next(createError("Goal ID and progress are required", 400));
+    if (!userId) return next(createError("Unauthorized access", 401));
 
     const goal = await Goal.findOne({ _id: goalId, user: userId });
+    if (!goal) return next(createError("Goal not found or not owned by user", 404));
 
-    if (!goal) {
-      return next(createError("Goal not found or access denied", 404));
-    }
-
-    if (progress !== undefined) {
-      goal.progress = Math.max(0, Math.min(100, progress));
-      if (goal.progress === 100) {
-        goal.status = "completed";
-        goal.completedAt = new Date();
-      }
-    }
-
+    goal.progress = progress;
     await goal.save();
 
     sendResponse(res, 200, true, "Goal progress updated successfully", { goal });
@@ -114,118 +73,40 @@ export const updateGoalProgress = catchAsync(
 );
 
 /**
- * @desc    Mark a goal as completed
- * @route   PATCH /api/goals/:goalId/complete
+ * @desc    Mark a goal as complete
+ * @route   PUT /api/goals/:goalId/complete
  * @access  Private
  */
 export const completeGoal = catchAsync(
-  async (req: Request<GoalParams> & RequestWithUser, res: Response, next: NextFunction): Promise<void> => {
+  async (req: RequestWithUser<{}, { goalId: string }>, res: Response, next: NextFunction): Promise<void> => {
     const { goalId } = req.params;
     const userId = req.user?.id;
 
-    if (!userId) {
-      return next(createError("Unauthorized access", 401));
-    }
+    if (!goalId) return next(createError("Goal ID is required", 400));
+    if (!userId) return next(createError("Unauthorized access", 401));
 
     const goal = await Goal.findOne({ _id: goalId, user: userId });
+    if (!goal) return next(createError("Goal not found or not owned by user", 404));
 
-    if (!goal) {
-      return next(createError("Goal not found or access denied", 404));
-    }
+    goal.completedAt = new Date();    await goal.save();
 
-    goal.status = "completed";
-    goal.completedAt = new Date();
-    await goal.save();
-
-    sendResponse(res, 200, true, "Goal marked as completed successfully", { goal });
+    sendResponse(res, 200, true, "Goal marked as complete", { goal });
   }
 );
 
 /**
- * @desc    Get analytics for goals
- * @route   GET /api/goals/analytics
+ * @desc    Get user's personal goals
+ * @route   GET /api/goals/my-goals
  * @access  Private
  */
-export const getAnalytics = catchAsync(
+export const getUserGoals = catchAsync(
   async (req: RequestWithUser, res: Response, next: NextFunction): Promise<void> => {
     const userId = req.user?.id;
+    if (!userId) return next(createError("Unauthorized access", 401));
 
-    if (!userId) {
-      return next(createError("Unauthorized access", 401));
-    }
+    const userGoals = await Goal.find({ user: userId }).sort({ createdAt: -1 });
 
-    const totalGoals = await Goal.countDocuments({ user: userId });
-    const completedGoals = await Goal.countDocuments({ user: userId, status: "completed" });
-
-    sendResponse(res, 200, true, "Goal analytics retrieved successfully", {
-      totalGoals,
-      completedGoals,
-    });
-  }
-);
-
-/**
- * @desc    Set a reminder for a goal
- * @route   POST /goal/reminders
- * @access  Private
- */
-export const setReminder = catchAsync(
-  async (
-    req: Request<{}, {}, ReminderBody> & RequestWithUser,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
-    const { goalId, message, remindAt } = req.body;
-    const userId = req.user?.id;
-
-    if (!userId) {
-      return next(createError("Unauthorized access", 401));
-    }
-
-    if (!message || !remindAt) {
-      return next(createError("Message and reminder time are required", 400));
-    }
-
-    const goal = await Goal.findOne({ _id: goalId, user: userId });
-
-    if (!goal) {
-      return next(createError("Goal not found or access denied", 404));
-    }
-
-    goal.reminders = goal.reminders || [];
-    goal.reminders.push({
-      message,
-      remindAt,
-      status: "pending",
-    });
-
-    await goal.save();
-
-    sendResponse(res, 200, true, "Reminder set successfully", { goal });
-  }
-);
-
-/**
- * @desc    Delete a goal
- * @route   DELETE /api/goals/:goalId
- * @access  Private
- */
-export const deleteGoal = catchAsync(
-  async (req: Request<GoalParams> & RequestWithUser, res: Response, next: NextFunction): Promise<void> => {
-    const { goalId } = req.params;
-    const userId = req.user?.id;
-
-    if (!userId) {
-      return next(createError("Unauthorized access", 401));
-    }
-
-    const goal = await Goal.findOneAndDelete({ _id: goalId, user: userId });
-
-    if (!goal) {
-      return next(createError("Goal not found or access denied", 404));
-    }
-
-    sendResponse(res, 200, true, "Goal deleted successfully");
+    sendResponse(res, 200, true, "User goals fetched successfully", { goals: userGoals });
   }
 );
 
@@ -235,30 +116,19 @@ export const deleteGoal = catchAsync(
  * @access  Public
  */
 export const getPublicGoals = catchAsync(
-  async (
-    req: Request<{}, {}, {}, QueryWithPagination>,
-    res: Response,
-    _next: NextFunction
-  ): Promise<void> => {
-    const page = parseInt(req.query.page || "1", 10);
-    const limit = parseInt(req.query.limit || "10", 10);
-
-    const publicGoals = await Goal.find({ isPublic: true })
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit);
+  async (_req: Request, res: Response): Promise<void> => {
+    const publicGoals = await Goal.find({ isPublic: true }).sort({ createdAt: -1 });
 
     sendResponse(res, 200, true, "Public goals fetched successfully", { publicGoals });
   }
 );
 
+// ✅ Export all necessary functions for `goal.ts` router
 export default {
+  getAllGoals,
   createGoal,
-  getUserGoals,
   updateGoalProgress,
   completeGoal,
-  getAnalytics,
-  setReminder,
-  deleteGoal,
+  getUserGoals,
   getPublicGoals,
 };

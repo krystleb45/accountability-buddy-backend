@@ -2,7 +2,7 @@ import type { Server, Socket } from "socket.io";
 import Chat from "../models/Chat"; // Chat model for storing messages
 import Group from "../models/Group"; // Group model for managing groups
 import User from "../models/User"; // User model for user details
-import logger from "../utils/winstonLogger"; // Logger utility
+import { logger } from "../utils/winstonLogger";
 
 interface JoinRoomData {
   roomId: string;
@@ -132,7 +132,7 @@ const chatSocket = (io: Server, socket: Socket): void => {
       });
   
       io.to(roomId).emit("newMessage", {
-        message: newMessage.message,
+        message: newMessage.messages,
         sender: { id: user._id, username: user.username },
         roomId,
         createdAt: newMessage.createdAt,

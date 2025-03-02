@@ -1,7 +1,6 @@
 import nodemailer from "nodemailer";
 import { google } from "googleapis";
-import logger from "../utils/winstonLogger"; // Adjust the path as needed
-
+import { logger } from "../utils/winstonLogger";
 // OAuth2 Client Setup
 const oAuth2Client = new google.auth.OAuth2(
   process.env.EMAIL_CLIENT_ID,

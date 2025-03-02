@@ -3,7 +3,7 @@ import Leaderboard from "../models/Leaderboard"; // ✅ Ensure this matches your
 import Goal from "../models/Goal";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 
 // Define an authenticated request type
 interface AuthenticatedRequest extends Request {

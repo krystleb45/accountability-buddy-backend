@@ -2,7 +2,7 @@
 import mongoose from "mongoose";
 import User from "../models/User";
 import dotenv from "dotenv";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 
 dotenv.config();
 

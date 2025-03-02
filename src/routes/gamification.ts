@@ -4,7 +4,7 @@ import { check, query } from "express-validator";
 import Gamification from "../models/Gamification"; // Corrected model import path
 import authMiddleware from "../middleware/authMiddleware"; // Corrected middleware import path
 import rateLimit from "express-rate-limit";
-import logger from "../utils/winstonLogger"; // Added logger utility
+import { logger } from "../utils/winstonLogger";
 import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust the path
 
 

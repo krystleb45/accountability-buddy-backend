@@ -2,8 +2,7 @@ import type { Router, Request, Response, NextFunction } from "express";
 import express from "express";
 import authMiddleware from "../middleware/authMiddleware"; // Corrected middleware import path
 import * as HistoryController from "../controllers/HistoryController"; // Corrected controller import path
-import logger from "../utils/winstonLogger"; // Added logger utility
-
+import { logger } from "../utils/winstonLogger";
 const router: Router = express.Router();
 
 /**

@@ -1,6 +1,5 @@
 import type { Request, Response, NextFunction } from "express-serve-static-core";
-import logger from "../utils/winstonLogger";
-
+import { logger } from "../utils/winstonLogger";
 /**
  * Middleware to measure and log the response time for requests.
  * Adds an `X-Response-Time` header to the response and logs the duration.

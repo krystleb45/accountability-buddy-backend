@@ -1,4 +1,4 @@
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 
 interface Metadata {
   [key: string]: unknown;

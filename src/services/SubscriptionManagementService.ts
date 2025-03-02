@@ -1,11 +1,11 @@
 import Stripe from "stripe";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 import User from "../models/User";
 import Subscription from "../models/Subscription"; // Assume a Subscription model exists
 import { CustomError } from "./errorHandler";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
-  apiVersion: "2024-12-18.acacia", // Update to match the required version
+  apiVersion: "2025-02-24.acacia", // Update to match the required version
 });
   
 
@@ -25,7 +25,7 @@ const SubscriptionManagementService = {
       if (!user.stripeCustomerId) {
         const customer = await stripe.customers.create({
           email: user.email,
-          name: user.name,
+          name: user.get("name"), // Assuming the 'name' field is stored in the MongoDB document
         });
         user.stripeCustomerId = customer.id;
         await user.save();

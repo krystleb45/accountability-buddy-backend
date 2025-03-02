@@ -4,7 +4,7 @@ import { check } from "express-validator";
 import * as goalMessageController from "../controllers/GoalMessageController"; // Controller import
 import authMiddleware from "../middleware/authMiddleware"; // Auth middleware
 import rateLimit from "express-rate-limit";
-import logger from "../utils/winstonLogger"; // Logger utility
+import { logger } from "../utils/winstonLogger";
 import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust the path
 
 

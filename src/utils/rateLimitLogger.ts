@@ -1,4 +1,4 @@
-import logger from "./winstonLogger"; // Replace with your logger utility
+import { logger } from "../utils/winstonLogger";
 import type { Request, Response, NextFunction } from "express";
 
 /**

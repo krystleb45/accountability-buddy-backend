@@ -1,7 +1,6 @@
 import csrf from "csurf";
 import type { Request, Response, NextFunction } from "express-serve-static-core";
-import logger from "../utils/winstonLogger";
-
+import { logger } from "../utils/winstonLogger";
 /**
  * Initialize CSRF protection with cookie-based tokens.
  * Protects against Cross-Site Request Forgery (CSRF) attacks.

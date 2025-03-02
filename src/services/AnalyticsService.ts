@@ -1,7 +1,7 @@
 import Goal from "../models/Goal";
 import Challenge from "../models/Challenge";
 import ActivityLog from "../models/Activity";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 
 /**
  * Utility function to log and handle errors.

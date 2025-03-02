@@ -1,128 +1,66 @@
 import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import User from "../models/User";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger"; // ✅ Logging for debugging
 
-// Extend Request to include the user object
-export interface AuthenticatedRequest<
-  Params = {},
-  ResBody = any,
-  ReqBody = {},
-  ReqQuery = {}
-> extends Request<Params, ResBody, ReqBody, ReqQuery> {
-  user?: {
-    id: string;
-    email?: string;
-    role: "user" | "admin" | "moderator";
-    isAdmin?: boolean;
-    subscription_status?: "trial" | "active" | "expired";
-  };
+/**
+ * Extend Express Request type to include `user`
+ */
+declare module "express-serve-static-core" {
+  interface Request {
+    user?: {
+      id: string;
+      role: "user" | "admin" | "moderator";
+    };
+  }
 }
 
-// ✅ Middleware to check authentication and subscription status
-const authMiddleware = async (
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
+/**
+ * ✅ Middleware to verify authentication and attach user data
+ */
+const authMiddleware = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      res.status(401).json({
-        success: false,
-        message: "Authorization denied. No valid token provided.",
-      });
+      logger.warn("❌ authMiddleware: No valid authorization token provided.");
+      res.status(401).json({ success: false, message: "Unauthorized: No token provided." });
       return;
     }
 
     const token = authHeader.split(" ")[1];
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET || "default_secret"
-    ) as { id: string; role: "user" | "admin" | "moderator" };
 
-    if (!decoded.id || !decoded.role) {
-      res.status(401).json({
-        success: false,
-        message: "Authorization denied. Invalid token payload.",
-      });
+    let decoded: { id: string; role: "user" | "admin" | "moderator" };
+
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET || "default_secret") as {
+        id: string;
+        role: "user" | "admin" | "moderator";
+      };
+    } catch (error) {
+      logger.error(`❌ authMiddleware: JWT verification failed - ${(error as Error).message}`);
+      res.status(401).json({ success: false, message: "Unauthorized: Invalid token." });
       return;
     }
 
-    // ✅ Find user and check subscription status
-    const user = await User.findById(decoded.id).select(
-      "id email role trial_start_date subscription_status next_billing_date"
-    );
+    // ✅ Find user in database
+    const user = await User.findById(decoded.id).select("id role");
 
     if (!user) {
-      res.status(401).json({
-        success: false,
-        message: "Authorization denied. User does not exist.",
-      });
+      logger.warn(`❌ authMiddleware: User not found. Token ID: ${decoded.id}`);
+      res.status(401).json({ success: false, message: "Unauthorized: User not found." });
       return;
-    }
-
-    // ✅ Check if trial has expired
-    if (user.subscription_status === "trial" && user.trial_start_date) {
-      const trialEndDate = new Date(user.trial_start_date);
-      trialEndDate.setDate(trialEndDate.getDate() + 7);
-
-      if (new Date() > trialEndDate) {
-        user.subscription_status = "expired"; // ✅ Mark trial as expired
-        await user.save();
-      }
     }
 
     // ✅ Attach user data to the request
-    req.user = {
-      id: user.id,
-      email: user.email,
-      role: user.role as "user" | "admin" | "moderator",
-      isAdmin: user.role === "admin",
-      subscription_status: user.subscription_status, // ✅ Include subscription status
-    };
+    req.user = { id: user.id, role: user.role as "user" | "admin" | "moderator" };
 
-    next();
+    logger.info(`✅ authMiddleware: User ${user.id} authenticated successfully.`);
+    next(); // ✅ Proceed to next middleware
   } catch (error) {
-    if (error instanceof jwt.JsonWebTokenError) {
-      res.status(401).json({
-        success: false,
-        message: "Authorization denied. Invalid token.",
-      });
-      return;
-    } else {
-      logger.error("Authentication error:", error);
-      res.status(500).json({
-        success: false,
-        message: "Internal server error during authentication.",
-      });
-      return;
-    }
+    logger.error(`❌ authMiddleware: Unexpected error - ${(error as Error).message}`);
+    res.status(500).json({ success: false, message: "Internal server error during authentication." });
   }
-};
-
-// ✅ Middleware to restrict access to subscribed users only
-export const requireSubscription = async (
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  if (!req.user) {
-    res.status(401).json({ success: false, message: "Unauthorized access." });
-    return;
-  }
-
-  // ✅ Check if subscription is expired
-  if (req.user.subscription_status === "expired") {
-    res.status(403).json({
-      success: false,
-      message: "Your free trial has expired. Please subscribe to continue.",
-    });
-    return;
-  }
-
-  next();
 };
 
 export default authMiddleware;

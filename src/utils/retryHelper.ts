@@ -1,4 +1,4 @@
-import logger from "./winstonLogger"; // Replace with your logger utility
+import { logger } from "../utils/winstonLogger";
 
 /**
  * @desc Utility to retry asynchronous operations with configurable options.

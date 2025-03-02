@@ -1,14 +1,22 @@
-import AWS from "aws-sdk";
+import { 
+  S3Client, 
+  PutObjectCommand, 
+  DeleteObjectCommand, 
+  GetObjectCommand, 
+  ObjectCannedACL 
+} from "@aws-sdk/client-s3";
 import { v4 as uuidv4 } from "uuid";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
-AWS.config.update({
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+// ✅ Initialize S3 Client with Environment Credentials
+const s3 = new S3Client({
   region: process.env.AWS_REGION || "us-east-1",
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+  },
 });
-
-const s3 = new AWS.S3();
 
 interface File {
   buffer: Buffer;
@@ -18,7 +26,7 @@ interface File {
 
 const FileUploadService = {
   /**
-   * Upload a file to S3
+   * ✅ Upload a file to S3
    * @param file - File object (e.g., from Multer)
    * @returns Upload result containing URL and key
    */
@@ -35,33 +43,33 @@ const FileUploadService = {
         throw new Error("S3_BUCKET environment variable is not defined");
       }
 
-      const params: AWS.S3.PutObjectRequest = {
+      const uploadParams = {
         Bucket: bucketName,
         Key: uniqueFileName,
         Body: file.buffer,
         ContentType: file.mimetype,
-        ACL: "private", // Adjust based on your needs (e.g., 'public-read' for public files)
+        ACL: ObjectCannedACL.private, // ✅ FIX: Use the enum instead of a string
         ContentDisposition: "inline",
       };
 
-      const data = await s3.upload(params).promise();
+      await s3.send(new PutObjectCommand(uploadParams));
 
-      logger.info(`File uploaded to S3: ${data.Location}`);
+      logger.info(`✅ File uploaded to S3: ${uniqueFileName}`);
 
       return {
         success: true,
-        url: data.Location,
-        key: data.Key,
+        url: `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${uniqueFileName}`,
+        key: uniqueFileName,
       };
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      logger.error(`Error uploading file to S3: ${errorMessage}`);
+      logger.error(`❌ Error uploading file to S3: ${errorMessage}`);
       throw new Error("File upload failed");
     }
   },
 
   /**
-   * Delete a file from S3
+   * ✅ Delete a file from S3
    * @param fileKey - S3 key of the file to delete
    * @returns Result of file deletion
    */
@@ -77,30 +85,30 @@ const FileUploadService = {
         throw new Error("S3_BUCKET environment variable is not defined");
       }
 
-      const params: AWS.S3.DeleteObjectRequest = {
+      const deleteParams = {
         Bucket: bucketName,
         Key: fileKey,
       };
 
-      await s3.deleteObject(params).promise();
+      await s3.send(new DeleteObjectCommand(deleteParams));
 
-      logger.info(`File deleted from S3: ${fileKey}`);
+      logger.info(`✅ File deleted from S3: ${fileKey}`);
 
       return { success: true, message: "File deleted successfully" };
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      logger.error(`Error deleting file from S3: ${errorMessage}`);
+      logger.error(`❌ Error deleting file from S3: ${errorMessage}`);
       throw new Error("File deletion failed");
     }
   },
 
   /**
-   * Generate a signed URL for accessing files securely
+   * ✅ Generate a signed URL for accessing files securely
    * @param fileKey - S3 key of the file
    * @param expires - Expiration time for the signed URL in seconds
    * @returns Signed URL
    */
-  generateSignedUrl: (fileKey: string, expires: number = 60 * 5): string => {
+  generateSignedUrl: async (fileKey: string, expires: number = 60 * 5): Promise<string> => {
     try {
       if (!fileKey) {
         throw new Error("File key is required to generate a signed URL");
@@ -112,20 +120,19 @@ const FileUploadService = {
         throw new Error("S3_BUCKET environment variable is not defined");
       }
 
-      const params: AWS.S3.GetObjectRequest & { Expires: number } = {
+      const command = new GetObjectCommand({
         Bucket: bucketName,
         Key: fileKey,
-        Expires: expires,
-      };
+      });
 
-      const signedUrl = s3.getSignedUrl("getObject", params);
+      const signedUrl = await getSignedUrl(s3, command, { expiresIn: expires });
 
-      logger.info(`Signed URL generated for file: ${fileKey}`);
+      logger.info(`✅ Signed URL generated for file: ${fileKey}`);
 
       return signedUrl;
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      logger.error(`Error generating signed URL for file: ${errorMessage}`);
+      logger.error(`❌ Error generating signed URL for file: ${errorMessage}`);
       throw new Error("Failed to generate signed URL");
     }
   },

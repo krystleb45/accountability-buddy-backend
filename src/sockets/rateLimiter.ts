@@ -1,6 +1,6 @@
 import type { Socket } from "socket.io";
 import redisClient from "../config/redisClient"; // Redis client for rate limiter
-import logger from "../utils/winstonLogger"; // Logger for rate limiting events
+import { logger } from "../utils/winstonLogger";
 
 /**
  * @desc    Creates a rate limiter middleware for WebSocket events.

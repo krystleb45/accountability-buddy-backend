@@ -1,6 +1,6 @@
 import type { Document, Model } from "mongoose";
 import mongoose, { Schema } from "mongoose";
-import logger from "../utils/winstonLogger"; // ✅ Import logger
+import { logger } from "../utils/winstonLogger";
 
 // ✅ Define Badge Levels & Types
 export type BadgeLevel = "Bronze" | "Silver" | "Gold";

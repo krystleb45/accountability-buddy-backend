@@ -1,6 +1,6 @@
 import Joi from "joi";
 import type { Request, Response, NextFunction } from "express";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 
 export const ValidationService = {
   /**

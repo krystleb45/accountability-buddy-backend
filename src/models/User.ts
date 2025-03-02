@@ -3,7 +3,9 @@ import mongoose, { Schema } from "mongoose";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 
-// ✅ User Settings Interface
+/**
+ * ✅ User Settings Interface
+ */
 export interface UserSettings {
   notifications?: {
     email?: boolean;
@@ -17,18 +19,21 @@ export interface UserSettings {
   };
 }
 
-// ✅ Chat Preferences Interface
+/**
+ * ✅ Chat Preferences Interface
+ */
 export interface ChatPreferences {
   preferredGroups?: Types.ObjectId[];
   directMessagesOnly?: boolean;
 }
 
-// ✅ User Interface
+/**
+ * ✅ User Interface
+ */
 export interface IUser extends Document {
   _id: Types.ObjectId;
   firstName?: string;
   lastName?: string;
-  name?: string;
   username: string;
   email: string;
   password: string;
@@ -60,7 +65,7 @@ export interface IUser extends Document {
   chatPreferences?: ChatPreferences;
   activeStatus: "online" | "offline";
 
-  // ✅ NEWLY ADDED: Pinned Goals & Featured Achievements
+  // ✅ Newly Added: Pinned Goals & Featured Achievements
   pinnedGoals: Types.ObjectId[];
   featuredAchievements: Types.ObjectId[];
 
@@ -68,7 +73,9 @@ export interface IUser extends Document {
   generateResetToken(): string;
 }
 
-// ✅ Define User Schema
+/**
+ * ✅ Define User Schema
+ */
 const UserSchema: Schema<IUser> = new Schema(
   {
     firstName: { type: String },
@@ -95,9 +102,13 @@ const UserSchema: Schema<IUser> = new Schema(
     subscriptions: [{ type: mongoose.Schema.Types.ObjectId, ref: "Subscription" }],
     stripeCustomerId: { type: String },
 
-    // ✅ Free Trial & Subscription Tracking
+    // ✅ Subscription Tracking (Single-Tier Plan)
     trial_start_date: { type: Date, default: null },
-    subscription_status: { type: String, enum: ["trial", "active", "expired"], default: "trial" },
+    subscription_status: { 
+      type: String, 
+      enum: ["trial", "active", "expired"], 
+      default: "trial",
+    },
     next_billing_date: { type: Date, default: null },
 
     // ✅ Leaderboards & Achievements Fields
@@ -106,7 +117,7 @@ const UserSchema: Schema<IUser> = new Schema(
     lastGoalCompletedAt: { type: Date, default: null },
     achievements: [{ type: mongoose.Schema.Types.ObjectId, ref: "Achievement" }],
 
-    // ✅ Pinned Goals & Featured Achievements Fields (Newly Added)
+    // ✅ Pinned Goals & Featured Achievements Fields
     pinnedGoals: [{ type: mongoose.Schema.Types.ObjectId, ref: "Goal" }],
     featuredAchievements: [{ type: mongoose.Schema.Types.ObjectId, ref: "Achievement" }],
 
@@ -121,7 +132,9 @@ const UserSchema: Schema<IUser> = new Schema(
   { timestamps: true }
 );
 
-// ✅ Indexes for Faster Querying
+/**
+ * ✅ Indexes for Faster Querying
+ */
 UserSchema.index({ email: 1 });
 UserSchema.index({ username: 1 });
 UserSchema.index({ interests: 1 });
@@ -131,7 +144,9 @@ UserSchema.index({ activeStatus: 1 });
 UserSchema.index({ followers: 1 });
 UserSchema.index({ following: 1 });
 
-// ✅ Password hashing & streak handling
+/**
+ * ✅ Password hashing & streak handling
+ */
 UserSchema.pre<IUser>("save", async function (next) {
   if (!this.isModified("password")) return next();
   try {
@@ -144,14 +159,16 @@ UserSchema.pre<IUser>("save", async function (next) {
   }
 });
 
-// ✅ Compare Password
-UserSchema.methods.comparePassword = async function (
-  candidatePassword: string
-): Promise<boolean> {
+/**
+ * ✅ Compare Password
+ */
+UserSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
   return bcrypt.compare(candidatePassword, this.password);
 };
 
-// ✅ Generate Reset Token
+/**
+ * ✅ Generate Reset Token
+ */
 UserSchema.methods.generateResetToken = function (): string {
   const resetToken = crypto.randomBytes(20).toString("hex");
   this.resetPasswordToken = crypto.createHash("sha256").update(resetToken).digest("hex");
@@ -159,6 +176,8 @@ UserSchema.methods.generateResetToken = function (): string {
   return resetToken;
 };
 
-// ✅ Export User Model
+/**
+ * ✅ Export User Model
+ */
 const User: Model<IUser> = mongoose.model<IUser>("User", UserSchema);
 export default User;

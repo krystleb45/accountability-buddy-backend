@@ -4,7 +4,7 @@ import type { RedisReply } from "rate-limit-redis";
 import RedisStore from "rate-limit-redis";
 import redisClient from "../config/redisClient"; // Ensure this points to your Redis client configuration
 import type { Request, Response } from "express";
-import logger from "./winstonLogger"; // Replace with your logger utility
+import { logger } from "../utils/winstonLogger";
 
 
 /**

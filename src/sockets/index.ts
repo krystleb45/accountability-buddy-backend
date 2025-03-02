@@ -4,7 +4,7 @@ import { Server } from "socket.io";
 import chatSocket from "./chat"; // Chat event handlers
 import Notification from "../models/Notification"; // Notification model for real-time notifications
 import AuthService from "../services/AuthService"; // Import AuthService for JWT verification
-import logger from "../utils/winstonLogger"; // Logger for socket events
+import { logger } from "../utils/winstonLogger";
 
 interface DecodedToken {
   user: {

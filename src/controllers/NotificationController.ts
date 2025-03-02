@@ -3,7 +3,7 @@ import Notification from "../models/Notification"; // Adjusted import
 import User from "../models/User";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 
 // Sanitize input utility
 const sanitizeInput = (input: any): any => {

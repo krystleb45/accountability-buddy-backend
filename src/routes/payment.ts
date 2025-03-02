@@ -4,8 +4,7 @@ import Stripe from "stripe";
 import bodyParser from "body-parser";
 import rateLimit from "express-rate-limit";
 import authMiddleware from "../middleware/authMiddleware";
-import logger from "../utils/winstonLogger";
-
+import { logger } from "../utils/winstonLogger";
 const router: Router = express.Router();
 
 // Ensure Stripe secret key is defined
@@ -14,7 +13,7 @@ if (!process.env.STRIPE_SECRET_KEY) {
 }
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: "2024-12-18.acacia", // Use the version shown in error or the installed Stripe package
+  apiVersion: "2025-02-24.acacia",
 });
 
 

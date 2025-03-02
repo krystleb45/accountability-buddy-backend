@@ -3,7 +3,7 @@ import type { Request, Response, NextFunction } from "express";
 import FeedPost from "../models/FeedPost";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 
 // Define reusable request types
 type CreatePostBody = {

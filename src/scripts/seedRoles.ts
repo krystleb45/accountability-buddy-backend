@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import Role from "../models/Role";
 import dotenv from "dotenv";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 
 dotenv.config();
 

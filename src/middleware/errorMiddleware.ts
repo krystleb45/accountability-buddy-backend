@@ -1,6 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import logger from "../utils/winstonLogger";
-
+import { logger } from "../utils/winstonLogger";
 interface CustomError extends Error {
   status?: number;
   details?: any;

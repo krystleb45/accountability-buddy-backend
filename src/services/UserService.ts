@@ -1,7 +1,7 @@
 import type { FilterQuery } from "mongoose";
 import type { IUser } from "../models/User";
 import User from "../models/User";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 import { CustomError } from "./errorHandler";
 import bcrypt from "bcryptjs"; // For password hashing
 

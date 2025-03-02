@@ -3,8 +3,7 @@ import express from "express";
 import { check, validationResult } from "express-validator";
 import authMiddleware from "../middleware/authMiddleware";
 import sanitize from "mongo-sanitize";
-import logger from "../utils/winstonLogger";
-import {
+import { logger } from "../utils/winstonLogger";import {
   createTask,
   updateTask,
   deleteTask,

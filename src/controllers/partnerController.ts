@@ -3,7 +3,7 @@ import Notification from "../models/Notification"; // Ensure this matches your m
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
 import sanitize from "mongo-sanitize";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 
 /**
  * @desc Notify a partner about a goal milestone

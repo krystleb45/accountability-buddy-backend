@@ -5,8 +5,7 @@ import multer from "multer";
 import * as fileUploadController from "../controllers/FileUploadController"; // Corrected controller import path
 import authMiddleware from "../middleware/authMiddleware"; // Corrected middleware import path
 import rateLimit from "express-rate-limit";
-import logger from "../utils/winstonLogger"; // Added logger utility
-
+import { logger } from "../utils/winstonLogger";
 const router: Router = express.Router();
 
 /**

@@ -5,7 +5,7 @@ import Goal from "../models/Goal";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
 import { createError } from "../middleware/errorHandler";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 
 // Define reusable types for request parameters and bodies
 type GoalParams = { goalId: string };

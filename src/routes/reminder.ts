@@ -5,8 +5,7 @@ import authMiddleware from "../middleware/authMiddleware"; // Correct middleware
 import checkSubscription from "../middleware/checkSubscription"; // Correct middleware path
 import { validateReminder } from "../validators/reminderValidation"; // Correct validator path
 import * as customReminderController from "../controllers/customReminderController"; // Correct controller path
-import logger from "../utils/winstonLogger"; // Logger utility
-import type { ParsedQs } from "qs";
+import { logger } from "../utils/winstonLogger";import type { ParsedQs } from "qs";
 
 const router: Router = express.Router();
 

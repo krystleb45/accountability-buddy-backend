@@ -1,4 +1,4 @@
-import type { Router, Request, Response, NextFunction } from "express";
+import type { Router, Request, Response, NextFunction,} from "express";
 import express from "express";
 import { check } from "express-validator";
 import sanitize from "mongo-sanitize";
@@ -9,7 +9,7 @@ import * as groupController from "../controllers/groupController";
 import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust the path
 
 
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 
 const router: Router = express.Router();
 

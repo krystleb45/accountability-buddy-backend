@@ -1,7 +1,7 @@
 import type { Document, Model } from "mongoose";
 import mongoose, { Schema } from "mongoose";
 import sanitize from "mongo-sanitize";
-import logger from "../utils/winstonLogger"; // Optional: for logging
+import { logger } from "../utils/winstonLogger";
 
 // ✅ Define TypeScript interface for Chat document
 export interface IChat extends Document {

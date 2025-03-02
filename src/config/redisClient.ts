@@ -1,7 +1,6 @@
 import type { RedisClientType } from "@redis/client";
 import { createClient } from "@redis/client";
-import logger from "../utils/winstonLogger"; // Adjust the path if needed
-
+import { logger } from "../utils/winstonLogger";
 // Define Redis configuration
 const redisConfig = {
   socket: {

@@ -5,8 +5,7 @@ import authMiddleware from "../middleware/authMiddleware"; // Correct middleware
 import { roleBasedAccessControl } from "../middleware/roleBasedAccessControl"; // Corrected RBAC middleware import path
 import * as RewardController from "../controllers/RewardController"; // Corrected controller import path
 import rateLimit from "express-rate-limit";
-import logger from "../utils/winstonLogger"; // Logger utility
-import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust the path
+import { logger } from "../utils/winstonLogger";import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust the path
 
 
 const router: Router = express.Router();

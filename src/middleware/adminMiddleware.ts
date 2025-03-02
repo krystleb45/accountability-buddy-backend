@@ -3,8 +3,7 @@ import type {  Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import sanitize from "mongo-sanitize";
 import User from "../models/User";
-import logger from "../utils/winstonLogger";
-import type { AuthenticatedRequest } from "../types/AuthenticatedRequest"; // Ensure proper import
+import { logger } from "../utils/winstonLogger";import type { AuthenticatedRequest } from "../types/AuthenticatedRequest"; // Ensure proper import
 
 const adminMiddleware = async (
   req: AuthenticatedRequest, // Explicitly use AuthenticatedRequest

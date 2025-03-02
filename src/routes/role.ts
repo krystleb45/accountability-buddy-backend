@@ -5,8 +5,7 @@ import Role from "../models/Role"; // Corrected model import path
 import { roleBasedAccessControl } from "../middleware/roleBasedAccessControl"; // Corrected middleware import path
 import authMiddleware from "../middleware/authMiddleware"; // Corrected middleware import path
 import rateLimit from "express-rate-limit";
-import logger from "../utils/winstonLogger"; // Logger utility
-
+import { logger } from "../utils/winstonLogger";
 const router: Router = express.Router();
 
 /**

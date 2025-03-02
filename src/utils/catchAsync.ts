@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
-import logger from "./winstonLogger"; // Replace with your logger utility if using a different one
+import { logger } from "../utils/winstonLogger";
+
 
 /**
  * @desc    A higher-order function to wrap asynchronous route handlers for error management.

@@ -3,8 +3,7 @@ import session from "express-session";
 import connectRedis from "connect-redis";
 import { createClient } from "redis";
 import type { Request, Response, NextFunction } from "express";
-import logger from "../utils/winstonLogger";
-
+import { logger } from "../utils/winstonLogger";
 // Create Redis client
 const redisClient = createClient({
   url: process.env.REDIS_URL || `redis://${process.env.REDIS_HOST}:${process.env.REDIS_PORT}`,

@@ -1,6 +1,6 @@
 import type { Server, Socket } from "socket.io";
 import Room from "../models/Room"; // Room model for database operations
-import logger from "../utils/winstonLogger"; // Logger for tracking room events
+import { logger } from "../utils/winstonLogger";
 
 interface RoomData {
   roomId?: string;

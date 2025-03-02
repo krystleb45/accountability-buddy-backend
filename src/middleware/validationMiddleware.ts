@@ -1,8 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import type { ValidationChain } from "express-validator";
 import { validationResult } from "express-validator";
-import logger from "../utils/winstonLogger";
-
+import { logger } from "../utils/winstonLogger";
 /**
  * Middleware for handling request validation
  * @param {ValidationChain[]} validations - Array of validation chains to run before proceeding

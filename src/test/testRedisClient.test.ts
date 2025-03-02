@@ -1,5 +1,5 @@
 import { createClient } from "@redis/client";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 
 describe("Redis Client Tests", () => {
   it("should connect to Redis and respond to PING", async () => {

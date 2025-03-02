@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import logger from "./winstonLogger"; // Replace with your logger utility
+import { logger } from "../utils/winstonLogger";
 
 /**
  * @desc Custom Error Class to handle error responses in a structured way.

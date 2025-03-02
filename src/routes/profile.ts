@@ -3,8 +3,7 @@ import express from "express";
 import { check } from "express-validator";
 import authMiddleware from "../middleware/authMiddleware"; // Corrected middleware import path
 import * as ProfileController from "../controllers/ProfileController"; // Corrected controller import path
-import logger from "../utils/winstonLogger"; // Import logger utility
-import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust the path
+import { logger } from "../utils/winstonLogger";import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust the path
 
 
 const router: Router = express.Router();

@@ -3,8 +3,7 @@ import express from "express";
 import rateLimit from "express-rate-limit";
 import authMiddleware from "../middleware/authMiddleware"; // Middleware path
 import * as MilestoneController from "../controllers/MilestoneController"; // Controller path
-import logger from "../utils/winstonLogger"; // Logger utility
-import { check } from "express-validator";
+import { logger } from "../utils/winstonLogger";import { check } from "express-validator";
 import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust the path
 
 

@@ -1,7 +1,7 @@
 import type { Document, CallbackError } from "mongoose";
 import mongoose, { Schema } from "mongoose";
 import validator from "validator";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 
 export interface IAuditTrail extends Document {
   userId?: mongoose.Types.ObjectId;

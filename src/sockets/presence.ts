@@ -1,6 +1,6 @@
 import type { Server, Socket } from "socket.io";
 import redisClient from "../config/redisClient";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 
 const PRESENCE_KEY_PREFIX = "user_presence:";
 

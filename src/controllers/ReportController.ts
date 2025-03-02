@@ -1,6 +1,5 @@
 import Report from "../models/Report"; // Assuming you have a Report model
-import logger from "../utils/winstonLogger"; // Logger for logging events
-
+import { logger } from "../utils/winstonLogger";
 /**
  * @desc    Create a new report
  * @param   userId - ID of the user creating the report

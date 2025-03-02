@@ -1,32 +1,31 @@
-import type { Logger } from "winston";
-import { createLogger, format, transports } from "winston";
+import { createLogger, format, transports, Logger } from "winston";
 import * as path from "path";
 import * as fs from "fs";
 import "winston-daily-rotate-file";
 
-// Define log directory and level
+// ✅ Define log directory and level
 const logDir = process.env.LOG_DIR || "logs";
 const logLevel = process.env.LOG_LEVEL || "info";
 
-// Ensure log directory exists
+// ✅ Ensure log directory exists
 if (!fs.existsSync(logDir)) {
   fs.mkdirSync(logDir, { recursive: true });
 }
 
-// Define log format
+// ✅ Define log format
 const customLogFormat = format.printf(({ timestamp, level, message, stack }) => {
   return stack
     ? `${timestamp} [${level}]: ${message} - ${stack}` // Log stack trace if present
     : `${timestamp} [${level}]: ${message}`;
 });
 
-// Create the logger instance
+// ✅ Create the logger instance
 const logger: Logger = createLogger({
   level: logLevel,
   format: format.combine(
     format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }), // Standardized timestamp
     format.errors({ stack: true }), // Capture stack trace
-    customLogFormat,
+    customLogFormat
   ),
   transports: [
     // Daily rotating error logs
@@ -49,44 +48,42 @@ const logger: Logger = createLogger({
   ],
 });
 
-// Add custom `logStructured` method
-logger.logStructured = (infoObject: object): Logger => {
-  logger.info(infoObject); // Log the structured object
-  return logger;
+// ✅ Add `logStructured` function separately
+const logStructured = (infoObject: object): void => {
+  logger.info(JSON.stringify(infoObject, null, 2));
 };
 
-
-// Add console transport for development environments
+// ✅ Add console transport for development environments
 if (process.env.NODE_ENV !== "production") {
   logger.add(
     new transports.Console({
       format: format.combine(
         format.colorize(),
         format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
-        format.simple(),
+        format.simple()
       ),
-    }),
+    })
   );
 }
 
-// Handle uncaught exceptions and rejections
+// ✅ Handle uncaught exceptions and rejections
 logger.exceptions.handle(
-  new transports.File({ filename: path.join(logDir, "exceptions.log") }),
+  new transports.File({ filename: path.join(logDir, "exceptions.log") })
 );
 
 logger.rejections.handle(
-  new transports.File({ filename: path.join(logDir, "rejections.log") }),
+  new transports.File({ filename: path.join(logDir, "rejections.log") })
 );
 
-// Handle logger errors
+// ✅ Handle logger errors
 logger.on("error", (err) => {
-   
-  console.error("Logger error:", err);
+  logger.error("Logger error:", err);
 });
 
-// Flush logs before exiting
+// ✅ Flush logs before exiting
 process.on("exit", () => {
+  logger.info("Logger shutdown.");
   logger.end();
 });
 
-export default logger;
+export { logger, logStructured };

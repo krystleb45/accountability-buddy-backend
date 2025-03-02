@@ -3,8 +3,7 @@ import express from "express";
 import authMiddleware from "../middleware/authMiddleware"; // Correct middleware import path
 import * as TrackerController from "../controllers/TrackerController"; // Correct controller import path
 import rateLimit from "express-rate-limit";
-import logger from "../utils/winstonLogger"; // Logging utility
-
+import { logger } from "../utils/winstonLogger";
 const router: Router = express.Router();
 
 /**

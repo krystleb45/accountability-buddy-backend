@@ -2,8 +2,7 @@ import type { Router, Request, Response, NextFunction } from "express";
 import express from "express";
 import { signupNewsletter } from "../controllers/NewsletterController"; // Corrected controller import path
 import rateLimit from "express-rate-limit";
-import logger from "../utils/winstonLogger"; // Corrected logger import path
-
+import { logger } from "../utils/winstonLogger";
 
 const router: Router = express.Router();
 

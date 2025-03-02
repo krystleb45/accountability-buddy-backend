@@ -4,7 +4,7 @@ import { check, validationResult } from "express-validator";
 
 import { login, register, refreshToken } from "../../src/controllers/authController";
 import rateLimit from "express-rate-limit";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 
 const router: Router = express.Router();
 

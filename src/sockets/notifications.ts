@@ -1,7 +1,7 @@
 import type { Server, Socket } from "socket.io";
 import type { NotificationDocument } from "../models/Notification";
 import Notification from "../models/Notification";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 
 /**
  * @desc    Handles socket events related to notifications.

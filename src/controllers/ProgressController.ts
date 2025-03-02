@@ -3,7 +3,7 @@ import Goal from "../models/Goal"; // Ensure Goal model exists
 import AccountabilityPartnership from "../models/AccountabilityPartnership"; // Ensure Partnership model exists
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
-import logger from "../utils/winstonLogger"; // Centralized logger
+import { logger } from "../utils/winstonLogger";
 
 /**
  * @desc Get Progress Dashboard

@@ -1,14 +1,19 @@
 import type { Request, Response, NextFunction } from "express";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 
-// Define the available languages
+// ✅ Extend Express Request to Include `lang`
+interface RequestWithLang extends Request {
+  lang?: string;
+}
+
+// ✅ Define available languages
 const availableLanguages = ["en", "de", "es", "fr", "jp"];
 
 /**
  * Middleware to switch language based on user preference.
  * Checks `Accept-Language` header, cookies, or query parameters for language selection.
  */
-const languageSwitcher = (req: Request, res: Response, next: NextFunction): void => {
+const languageSwitcher = (req: RequestWithLang, res: Response, next: NextFunction): void => {
   try {
     let lang: string | undefined =
       req.headers["accept-language"] ||

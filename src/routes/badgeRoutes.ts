@@ -5,7 +5,7 @@ import rateLimit from "express-rate-limit";
 import * as badgeController from "../controllers/BadgeController";
 import authMiddleware from "../middleware/authMiddleware";
 import { roleBasedAccessControl } from "../middleware/roleBasedAccessControl";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 import handleValidationErrors from "../middleware/handleValidationErrors";
 
 const router: Router = express.Router();

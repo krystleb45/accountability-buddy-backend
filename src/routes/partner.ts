@@ -4,8 +4,7 @@ import { check } from "express-validator";
 import rateLimit from "express-rate-limit";
 import authMiddleware from "../middleware/authMiddleware";
 import * as partnerController from "../controllers/partnerController";
-import logger from "../utils/winstonLogger"; // Use your logger here
-import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust the path
+import { logger } from "../utils/winstonLogger";import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust the path
 
 
 const router: Router = express.Router();

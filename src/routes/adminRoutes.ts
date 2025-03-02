@@ -7,7 +7,7 @@ import type {
 } from "express";
 import express from "express";
 import { check, validationResult } from "express-validator";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 import {
   getAllUsers,
   updateUserRole,

@@ -1,10 +1,21 @@
-import type { Request, Response } from "express";
+import type { Request, Response, NextFunction } from "express";
 import mongoose from "mongoose";
 import Group, { IGroup } from "../models/Group";
 import Notification from "../models/Notification"; // ✅ Import Notification model
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
 import { createError } from "../middleware/errorHandler";
+
+// ✅ Extend request type for user authentication
+interface RequestWithUser<T = {}, U = {}> extends Request<U, {}, T> {
+  user?: {
+    id: string;
+    email?: string;
+    role: "user" | "admin" | "moderator";
+    isAdmin?: boolean;
+    subscription_status?: "trial" | "active" | "expired";
+  };
+}
 
 /**
  * @desc Create a new group
@@ -13,7 +24,7 @@ import { createError } from "../middleware/errorHandler";
  */
 export const createGroup = catchAsync(
   async (
-    req: Request<{}, any, { name: string; members: string[] }>,
+    req: RequestWithUser<{ name: string; members: string[] }>,
     res: Response
   ): Promise<void> => {
     const { name, members } = req.body;
@@ -43,9 +54,28 @@ export const createGroup = catchAsync(
     }));
     await Notification.insertMany(notifications);
 
-    sendResponse(res, 201, true, "Group created successfully", { 
-      group: { ...newGroup.toObject(), _id: newGroup._id.toHexString() } 
+    sendResponse(res, 201, true, "Group created successfully", {
+      group: { ...newGroup.toObject(), _id: newGroup._id.toHexString() },
     });
+  }
+);
+
+/**
+ * @desc Get user groups
+ * @route GET /api/groups/my-groups
+ * @access Private
+ */
+export const getUserGroups = catchAsync(
+  async (req: RequestWithUser, res: Response, next: NextFunction): Promise<void> => {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return next(createError("Unauthorized access", 401));
+    }
+
+    const groups = await Group.find({ members: userId }).sort({ createdAt: -1 });
+
+    sendResponse(res, 200, true, "User groups fetched successfully", { groups });
   }
 );
 
@@ -55,10 +85,7 @@ export const createGroup = catchAsync(
  * @access Private
  */
 export const joinGroup = catchAsync(
-  async (
-    req: Request<{}, any, { groupId: string }>,
-    res: Response
-  ): Promise<void> => {
+  async (req: RequestWithUser<{ groupId: string }>, res: Response): Promise<void> => {
     const { groupId } = req.body;
     const userId = req.user?.id;
 
@@ -92,8 +119,8 @@ export const joinGroup = catchAsync(
     }));
     await Notification.insertMany(notifications);
 
-    sendResponse(res, 200, true, "Joined the group successfully", { 
-      group: { ...group.toObject(), _id: group._id.toHexString() } 
+    sendResponse(res, 200, true, "Joined the group successfully", {
+      group: { ...group.toObject(), _id: group._id.toHexString() },
     });
   }
 );
@@ -104,10 +131,7 @@ export const joinGroup = catchAsync(
  * @access Private
  */
 export const leaveGroup = catchAsync(
-  async (
-    req: Request<{}, any, { groupId: string }>,
-    res: Response
-  ): Promise<void> => {
+  async (req: RequestWithUser<{ groupId: string }>, res: Response): Promise<void> => {
     const { groupId } = req.body;
     const userId = req.user?.id;
 
@@ -138,8 +162,8 @@ export const leaveGroup = catchAsync(
     }));
     await Notification.insertMany(notifications);
 
-    sendResponse(res, 200, true, "Left the group successfully", { 
-      group: { ...group.toObject(), _id: group._id.toHexString() } 
+    sendResponse(res, 200, true, "Left the group successfully", {
+      group: { ...group.toObject(), _id: group._id.toHexString() },
     });
   }
 );
@@ -150,8 +174,8 @@ export const leaveGroup = catchAsync(
  * @access Private
  */
 export const deleteGroup = catchAsync(
-  async (req: Request<{ groupId: string }>, res: Response): Promise<void> => {
-    const { groupId } = req.params;
+  async (req: RequestWithUser<{ groupId: string }>, res: Response): Promise<void> => {
+    const { groupId } = req.params as { groupId: string };
     const userId = req.user?.id;
 
     if (!mongoose.Types.ObjectId.isValid(groupId)) {
@@ -185,3 +209,12 @@ export const deleteGroup = catchAsync(
     sendResponse(res, 200, true, "Group deleted successfully");
   }
 );
+
+// ✅ Export all controllers properly
+export default {
+  createGroup,
+  getUserGroups,
+  joinGroup,
+  leaveGroup,
+  deleteGroup,
+};

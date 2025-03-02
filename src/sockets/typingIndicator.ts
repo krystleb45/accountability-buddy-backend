@@ -1,5 +1,5 @@
 import type { Server, Socket } from "socket.io";
-import logger from "../utils/winstonLogger"; // Import your logger utility
+import { logger } from "../utils/winstonLogger";
 
 interface TypingData {
   roomId: string;

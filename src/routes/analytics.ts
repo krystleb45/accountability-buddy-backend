@@ -3,7 +3,7 @@ import express from "express";
 import { check, query, validationResult } from "express-validator";
 import goalAnalyticsController from "../controllers/goalAnalyticsController";
 import authMiddleware from "../middleware/authMiddleware";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 
 const router: Router = express.Router();
 

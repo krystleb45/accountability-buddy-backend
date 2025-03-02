@@ -1,7 +1,6 @@
 import type { Request, Response, NextFunction } from "express-serve-static-core";
 import webPush from "web-push";
-import logger from "../utils/winstonLogger"; // Replace with your logger utility
-
+import { logger } from "../utils/winstonLogger";
 // Validate and configure VAPID keys
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;

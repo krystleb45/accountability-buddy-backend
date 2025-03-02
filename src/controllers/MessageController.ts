@@ -3,7 +3,7 @@ import { PrivateMessage } from "../models/PrivateMessage";
 import User from "../models/User"; // Ensure User is properly exported
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 
 // Sanitize input utility
 const sanitizeInput = (input: string): string => {

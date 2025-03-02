@@ -4,8 +4,7 @@ import rateLimit from "express-rate-limit";
 import authMiddleware from "../middleware/authMiddleware"; // ✅ Removed unused import
 import * as subscriptionController from "../controllers/subscriptionController";
 import { createTrialSubscription, cancelSubscription } from "../utils/stripe";
-import logger from "../utils/winstonLogger";
-
+import { logger } from "../utils/winstonLogger";
 const router: Router = express.Router();
 
 /**

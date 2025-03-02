@@ -2,8 +2,7 @@ import type { Options } from "swagger-jsdoc";
 import swaggerJSDoc from "swagger-jsdoc";
 import swaggerUi from "swagger-ui-express";
 import type { Application } from "express";
-import logger from "../utils/winstonLogger"; // Adjust the path as needed
-
+import { logger } from "../utils/winstonLogger";
 // Swagger options with TypeScript typing
 const swaggerOptions: Options = {
   definition: {

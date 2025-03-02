@@ -3,7 +3,7 @@ import { Integration } from "../models/Integration";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
 import sanitize from "mongo-sanitize";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 import { createError } from "../middleware/errorHandler";
 
 /**

@@ -7,17 +7,21 @@ import type { Socket } from "socket.io";
 import { Server } from "socket.io";
 import dotenv from "dotenv";
 import cron from "node-cron";
+import cors from "cors";
 
-// Utilities
-import logger from "../utils/winstonLogger";
+// ✅ Load Environment Variables
+dotenv.config();
+
+// ✅ Utilities
+import { logger } from "../utils/winstonLogger";
 import ReminderService from "../services/ReminderService";
 import setupSwagger from "./swaggerConfig";
 
-// Middleware
+// ✅ Middleware
 import { errorHandler } from "../middleware/errorHandler";
 import { applySecurityMiddlewares } from "./securityConfig";
 
-// Routes
+// ✅ Routes
 import authRoutes from "../routes/auth";
 import userRoutes from "../routes/user";
 import groupRoutes from "../routes/group";
@@ -32,30 +36,55 @@ import booksRoutes from "../routes/books";
 import notificationsRoutes from "../routes/notifications";
 import followRoutes from "../routes/follow";
 
+// ✅ Stripe Webhook Handler (Requires Raw Body Parsing)
+import { handleStripeWebhook } from "../controllers/paymentController";
 
-// Load environment variables
-dotenv.config();
-
-// Ensure required environment variables are set
-const requiredEnv = ["MONGO_URI", "PORT"];
+// ✅ Validate Required Environment Variables
+const requiredEnv = ["MONGO_URI", "PORT", "STRIPE_WEBHOOK_SECRET"];
 requiredEnv.forEach((env) => {
   if (!process.env[env]) {
-    logger.error(`Missing required environment variable: ${env}`);
+    logger.error(`❌ Missing required environment variable: ${env}`);
     process.exit(1);
   }
 });
 
-// Initialize Express App
+// ✅ Initialize Express App
 const app: Application = express();
 const httpServer = createServer(app);
 
-// Apply Security Middleware (Helmet, CORS, Rate Limiting, XSS Protection, etc.)
+// ✅ Apply Security Middleware
 applySecurityMiddlewares(app);
 
-// Additional Middleware
+// ✅ Apply CORS Middleware
+app.use(
+  cors({
+    origin: process.env.ALLOWED_ORIGINS?.split(",") || ["http://localhost:3000"],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+  })
+);
+
+// ✅ Middleware to Store Raw Body for Stripe Webhooks
+app.use((req, res, next) => {
+  if (req.originalUrl === "/api/payments/webhook") {
+    express.raw({ type: "application/json" })(req, res, (err) => {
+      if (err) {
+        res.status(400).send("Invalid request body");
+        return;
+      }
+      (req as any).rawBody = req.body; // ✅ Store raw body before parsing
+      next();
+    });
+  } else {
+    express.json()(req, res, next);
+  }
+});
+
+// ✅ Apply Additional Middleware
 app.use(compression());
 
-// API Routes
+// ✅ API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/groups", groupRoutes);
@@ -68,21 +97,23 @@ app.use("/api/friends", friendsRoutes);
 app.use("/api/blog", blogRoutes);
 app.use("/api/books", booksRoutes);
 app.use("/api/notifications", notificationsRoutes);
-app.use("/api/follow", followRoutes); // ✅ Follow System Route
+app.use("/api/follow", followRoutes);
 
+// ✅ Stripe Webhook Route (Requires **Raw Body Parsing**)
+app.post("/api/payments/webhook", express.raw({ type: "application/json" }), handleStripeWebhook);
 
-// Error Handling Middleware
+// ✅ Global Error Handling Middleware
 app.use(errorHandler);
 
-// MongoDB Connection
+// ✅ MongoDB Connection
 mongoose
   .connect(process.env.MONGO_URI as string, {
     serverSelectionTimeoutMS: 5000,
     maxPoolSize: 10,
   })
-  .then(() => logger.info("MongoDB connected"))
+  .then(() => logger.info("✅ MongoDB connected successfully"))
   .catch((error: Error) => {
-    logger.error(`MongoDB connection error: ${error.message}`);
+    logger.error(`❌ MongoDB Connection Error: ${error.message}`);
     process.exit(1);
   });
 
@@ -107,7 +138,6 @@ io.on("connection", (socket: Socket): void => {
   logger.info(`WebSocket connected: ${socket.id}`);
 
   try {
-    // ✅ Real-time Friend Requests
     socket.on("sendFriendRequest", ({ senderId, recipientId }) => {
       io.to(recipientId).emit("friendRequest", { senderId });
     });
@@ -116,42 +146,14 @@ io.on("connection", (socket: Socket): void => {
       io.to(senderId).emit("friendAccepted", { recipientId });
     });
 
-    // ✅ Real-time Chat Messages
     socket.on("chatMessage", ({ message, groupId, senderId }) => {
       io.to(groupId).emit("message", { message, senderId });
     });
 
-    // ✅ Read Receipts (Mark messages as read)
     socket.on("markMessagesAsRead", ({ chatId, userId }) => {
       io.to(chatId).emit("messagesRead", { chatId, userId });
     });
 
-    // ✅ Reactions (Send Message Reactions)
-    socket.on("addReaction", ({ messageId, reaction, userId }) => {
-      io.to(messageId).emit("reactionAdded", { messageId, reaction, userId });
-    });
-
-    // ✅ Join Chat Room (for group messages)
-    socket.on("joinGroup", async (groupId) => {
-      try {
-        await socket.join(groupId);
-        logger.info(`User joined group: ${groupId}`);
-      } catch (error) {
-        logger.error(`Error joining group ${groupId}: ${(error as Error).message}`);
-      }
-    });
-
-    // ✅ Leave Chat Room
-    socket.on("leaveGroup", async (groupId) => {
-      try {
-        await socket.leave(groupId);
-        logger.info(`User left group: ${groupId}`);
-      } catch (error) {
-        logger.error(`Error leaving group ${groupId}: ${(error as Error).message}`);
-      }
-    });
-
-    // ✅ Handle User Disconnection
     socket.on("disconnect", (): void => {
       logger.info(`WebSocket disconnected: ${socket.id}`);
     });
@@ -160,15 +162,15 @@ io.on("connection", (socket: Socket): void => {
   }
 });
 
-// Graceful Shutdown
+// ✅ Graceful Shutdown
 const shutdown = async (): Promise<void> => {
   try {
-    logger.info("Graceful shutdown initiated...");
+    logger.info("🚀 Graceful shutdown initiated...");
     await mongoose.connection.close();
-    logger.info("MongoDB connection closed");
+    logger.info("✅ MongoDB connection closed.");
     process.exit(0);
   } catch (error) {
-    logger.error(`Error during shutdown: ${error}`);
+    logger.error(`❌ Error during shutdown: ${error}`);
     process.exit(1);
   }
 };
@@ -178,31 +180,29 @@ process.on("SIGINT", shutdown);
 
 // ✅ Scheduled Tasks (Runs Every Minute)
 cron.schedule("* * * * *", async (): Promise<void> => {
-  logger.info("Checking for reminders...");
+  logger.info("🔔 Checking for reminders...");
   try {
     await ReminderService.checkReminders();
   } catch (err) {
-    logger.error(`Error during reminder check: ${(err as Error).message}`);
+    logger.error(`❌ Error during reminder check: ${(err as Error).message}`);
   }
 });
 
 // ✅ Unhandled Errors & Exceptions
 process.on("unhandledRejection", (reason: unknown, promise: Promise<unknown>): void => {
-  logger.error(`Unhandled Rejection at: ${promise}, reason: ${String(reason)}`);
+  logger.error(`❌ Unhandled Rejection at: ${promise}, reason: ${String(reason)}`);
   void shutdown();
 });
 
 process.on("uncaughtException", (error: Error): void => {
-  logger.error(`Uncaught Exception: ${error.message}`);
+  logger.error(`❌ Uncaught Exception: ${error.message}`);
   void shutdown();
 });
 
 // ✅ Start the Server
 const PORT = parseInt(process.env.PORT || "5000", 10);
 httpServer.listen(PORT, (): void => {
-  logger.info(
-    `Server running in ${process.env.NODE_ENV || "development"} mode on port ${PORT}`,
-  );
+  logger.info(`🚀 Server running in ${process.env.NODE_ENV || "development"} mode on port ${PORT}`);
 });
 
 // ✅ Initialize Swagger UI

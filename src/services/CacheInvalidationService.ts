@@ -1,5 +1,5 @@
 import redisClient from "../config/redisClient"; // Redis client setup
-import logger from "../utils/winstonLogger"; // For logging events
+import { logger } from "../utils/winstonLogger";
 
 export const CacheInvalidationService = {
   /**

@@ -1,6 +1,5 @@
 import type { Request, Response } from "express-serve-static-core";
-import logger from "../utils/winstonLogger";
-
+import { logger } from "../utils/winstonLogger";
 /**
  * Middleware for handling 404 (Not Found) errors.
  * This middleware is executed when no other route matches the request.

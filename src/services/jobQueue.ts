@@ -1,6 +1,6 @@
 import Queue from "bull";
 import { sendEmail } from "./emailProcessor";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 
 const redisConfig = {
   host: process.env.REDIS_HOST || "127.0.0.1",

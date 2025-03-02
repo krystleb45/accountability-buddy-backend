@@ -2,7 +2,8 @@
 import mongoose from "mongoose";
 import AuditLog from "../models/AuditLog";
 import dotenv from "dotenv";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
+
 
 dotenv.config();
 

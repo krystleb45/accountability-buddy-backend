@@ -1,72 +1,72 @@
-import type { ConnectOptions } from "mongoose";
-import mongoose from "mongoose";
-import config from "./config";
-import winston from "../utils/winstonLogger";
+import mongoose, { ConnectOptions } from "mongoose";
+import dotenv from "dotenv";
+import { logger } from "../utils/winstonLogger"; // ✅ Correct import for logger
+
+dotenv.config();
 
 /**
- * Connect to MongoDB with enhanced error handling and logging.
+ * ✅ Connect to MongoDB with enhanced error handling and logging.
  */
 const connectDB = async (): Promise<void> => {
+  const mongoURI = process.env.MONGO_URI;
+
+  if (!mongoURI) {
+    logger.error("❌ MONGO_URI is not defined in the environment variables.");
+    process.exit(1);
+  }
+
   const options: ConnectOptions = {
-    autoIndex: false,
-    serverSelectionTimeoutMS: 5000,
-    socketTimeoutMS: 45000,
-    maxPoolSize: 10,
+    autoIndex: false, // 🚀 Improves performance by preventing auto-creation of indexes
+    serverSelectionTimeoutMS: 5000, // ⏳ Timeout for MongoDB server selection
+    socketTimeoutMS: 45000, // 🔄 Timeout for MongoDB socket operations
+    maxPoolSize: 10, // 🔄 Limits the number of concurrent connections
   };
 
   try {
-    const conn = await mongoose.connect(config.MONGO_URI, options);
-    winston.info(`MongoDB Connected: ${conn.connection.host}`);
+    const conn = await mongoose.connect(mongoURI, options);
+    logger.info(`✅ MongoDB Connected: ${conn.connection.host}`);
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    winston.error(`MongoDB Connection Error: ${errorMessage}`);
+    logger.error(`❌ MongoDB Connection Error: ${(error as Error).message}`);
 
-    if (config.NODE_ENV === "production") {
-      winston.error("Exiting process due to MongoDB connection failure.");
-      process.exit(1); // Exit immediately for production errors
+    if (process.env.NODE_ENV === "production") {
+      logger.error("🚨 Exiting process due to MongoDB connection failure.");
+      process.exit(1);
     } else {
-      winston.warn("Retrying MongoDB connection in development mode...");
-      setTimeout(() => {
-        void connectDB();
-      }, 5000);
+      logger.warn("🔄 Retrying MongoDB connection in development mode...");
+      setTimeout(connectDB, 5000); // 🔄 Automatically retry connection in 5 seconds
     }
   }
 
-  // Event handlers for monitoring connection state
+  // ✅ MongoDB Connection Event Listeners
   mongoose.connection.on("disconnected", () => {
-    winston.warn("MongoDB disconnected. Attempting to reconnect...");
-    if (config.NODE_ENV === "development") {
-      setTimeout(() => {
-        void connectDB();
-      }, 5000);
-    }
+    logger.warn("⚠️ MongoDB disconnected. Attempting to reconnect...");
+    setTimeout(connectDB, 5000);
   });
 
   mongoose.connection.on("reconnected", () => {
-    winston.info("MongoDB reconnected successfully.");
+    logger.info("✅ MongoDB reconnected successfully.");
   });
 
   mongoose.connection.on("error", (err: Error) => {
-    winston.error(`MongoDB Connection Error: ${err.message}`);
+    logger.error(`❌ MongoDB Error: ${err.message}`);
   });
 };
 
 /**
- * Gracefully handle process termination signals to close MongoDB connection.
+ * ✅ Graceful shutdown for MongoDB connection
  */
 const handleShutdown = async (): Promise<void> => {
   try {
     await mongoose.connection.close();
-    winston.info("MongoDB connection closed due to application shutdown.");
-    process.exit(0); // Explicitly exit after clean shutdown
+    logger.info("🛑 MongoDB connection closed due to application shutdown.");
+    process.exit(0);
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    winston.error(`Error during MongoDB shutdown: ${errorMessage}`);
-    process.exit(1); // Exit with failure if shutdown fails
+    logger.error(`❌ Error during MongoDB shutdown: ${(error as Error).message}`);
+    process.exit(1);
   }
 };
 
-// Handle termination signals
+// ✅ Handle process termination gracefully
 process.on("SIGINT", handleShutdown);
 process.on("SIGTERM", handleShutdown);
 

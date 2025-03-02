@@ -1,5 +1,5 @@
 import AuditLog from "../models/AuditLog"; // Import the AuditLog model
-import logger from "../utils/winstonLogger"; // Import Winston logger
+import { logger } from "../utils/winstonLogger";
 import type { Document } from "mongoose"; // Import Mongoose Document type
 
 interface AuditLogData {

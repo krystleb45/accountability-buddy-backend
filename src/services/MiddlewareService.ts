@@ -3,7 +3,7 @@ import type { JwtPayload } from "jsonwebtoken";
 import jwt from "jsonwebtoken";
 import { CustomError } from "../services/errorHandler"; // Centralized error handling
 import User from "../models/User"; // User model for authorization
-import logger from "../utils/winstonLogger"; // Logger utility
+import { logger } from "../utils/winstonLogger";
 
 export const MiddlewareService = {
   /**

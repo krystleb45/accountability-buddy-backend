@@ -1,6 +1,6 @@
 import type { TransportOptions, SendMailOptions } from "nodemailer";
 import nodemailer from "nodemailer";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 
 // Configure email transporter
 const transporter = nodemailer.createTransport({

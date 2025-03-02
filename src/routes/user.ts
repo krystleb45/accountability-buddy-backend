@@ -11,12 +11,10 @@ import {
   pinGoal,
   unpinGoal,
   getPinnedGoals,
-  featureAchievement,
-  unfeatureAchievement,
   getFeaturedAchievements,
+ 
 } from "../controllers/userController";
-import logger from "../utils/winstonLogger";
-
+import { logger } from "../utils/winstonLogger";
 // Initialize router
 const router: Router = express.Router();
 
@@ -119,14 +117,14 @@ router.get("/pinned-goals", authMiddleware, getPinnedGoals);
  * ✅ @desc    Feature an achievement for the user
  * ✅ @access  Private
  */
-router.post("/feature-achievement", authMiddleware, featureAchievement);
+router.post("/feature-achievement", authMiddleware, getFeaturedAchievements);
 
 /**
  * ✅ @route   DELETE /user/unfeature-achievement
  * ✅ @desc    Unfeature an achievement for the user
  * ✅ @access  Private
  */
-router.delete("/unfeature-achievement", authMiddleware, unfeatureAchievement);
+router.delete("/unfeature-achievement", authMiddleware, getFeaturedAchievements);
 
 /**
  * ✅ @route   GET /user/featured-achievements

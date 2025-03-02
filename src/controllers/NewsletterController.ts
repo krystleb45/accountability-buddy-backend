@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import crypto from "crypto";
 import Newsletter from "../models/Newsletter"; // Assuming Newsletter model exists
-import logger from "../utils/winstonLogger"; // Logger utility
+import { logger } from "../utils/winstonLogger";
 import sendResponse from "../utils/sendResponse"; // Response utility
 import catchAsync from "../utils/catchAsync"; // Async error handler
 

@@ -4,7 +4,7 @@ import { check } from "express-validator";
 import * as feedbackController from "../controllers/FeedbackController";
 import authMiddleware from "../middleware/authMiddleware";
 import rateLimit from "express-rate-limit";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust the path
 
 

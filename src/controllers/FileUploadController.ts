@@ -5,7 +5,7 @@ import { execSync } from "child_process";
 import type { Request, Response, NextFunction } from "express";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
-import logger from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 
 
 // Custom input sanitization function
