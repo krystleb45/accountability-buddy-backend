@@ -7,6 +7,9 @@ import sendEmail from "../utils/sendEmail";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
 import rateLimit from "express-rate-limit";
+import ms from "ms";
+import type { StringValue } from "ms";
+
 
 // Rate limiter for login attempts
 export const loginRateLimiter = rateLimit({
@@ -39,13 +42,13 @@ export const login = catchAsync(
     }
 
     const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET as string, {
-      expiresIn: process.env.JWT_EXPIRES_IN || "1h",
+      expiresIn: ms(process.env.JWT_EXPIRES_IN as StringValue || "1h"),
     });
-
+    
     const refreshToken = jwt.sign(
       { id: user.id },
       process.env.JWT_REFRESH_SECRET as string,
-      { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "7d" },
+      { expiresIn: ms(process.env.JWT_REFRESH_EXPIRES_IN as StringValue || "7d") }
     );
 
     sendResponse(res, 200, true, "Login successful", { token, refreshToken });

@@ -9,8 +9,8 @@ const router: Router = Router();
 
 // ✅ Rate limiter to prevent spam
 const chatLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 60, // Max requests per minute
+  windowMs: 60 * 1000,
+  max: 60,
   message: "Too many requests from this IP, please try again later.",
 });
 
@@ -18,7 +18,7 @@ router.use(chatLimiter);
 
 /**
  * @route   POST /chat/send
- * @desc    Send a message in a chat (group or private)
+ * @desc    Send a message in a group chat
  * @access  Private
  */
 router.post(
@@ -29,12 +29,12 @@ router.post(
     check("chatId", "Invalid chat ID").isMongoId(),
     handleValidationErrors,
   ],
-  chatController.sendMessage
+  chatController.editMessage // ✅ Using function reference instead of async
 );
 
 /**
  * @route   POST /chat/private/:friendId
- * @desc    Send a private message to a user
+ * @desc    Send a private message
  * @access  Private
  */
 router.post(
@@ -46,65 +46,13 @@ router.post(
 
 /**
  * @route   GET /chat/private/:friendId
- * @desc    Retrieve private chat history
+ * @desc    Get private chat history
  * @access  Private
  */
 router.get(
   "/private/:friendId",
   authMiddleware,
   chatController.getPrivateChats
-);
-
-/**
- * @route   GET /chat/history/:chatId
- * @desc    Retrieve full chat history (private or group)
- * @access  Private
- */
-router.get(
-  "/history/:chatId",
-  authMiddleware,
-  chatController.getChatHistory
-);
-
-/**
- * @route   POST /chat/message/:messageId/edit
- * @desc    Edit a message
- * @access  Private
- */
-router.post(
-  "/message/:messageId/edit",
-  authMiddleware,
-  [
-    check("newText", "New message text cannot be empty").notEmpty(),
-    handleValidationErrors,
-  ],
-  chatController.editMessage
-);
-
-/**
- * @route   DELETE /chat/message/:messageId/delete
- * @desc    Soft delete a message (Marks as 'deleted')
- * @access  Private
- */
-router.delete(
-  "/message/:messageId/delete",
-  authMiddleware,
-  chatController.deleteMessage
-);
-
-/**
- * @route   POST /chat/message/:messageId/reaction
- * @desc    React to a message
- * @access  Private
- */
-router.post(
-  "/message/:messageId/reaction",
-  authMiddleware,
-  [
-    check("reaction", "Reaction must be an emoji").notEmpty(),
-    handleValidationErrors,
-  ],
-  chatController.addReaction
 );
 
 export default router;

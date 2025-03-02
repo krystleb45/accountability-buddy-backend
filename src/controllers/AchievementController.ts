@@ -160,7 +160,7 @@ export const deleteAchievement = catchAsync(
  */
 export const getLeaderboardAchievements = catchAsync(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    if (!req.user?.isAdmin) {
+    if (req.user?.role !== "admin") {
       return next(createError("Access denied", 403));
     }
 

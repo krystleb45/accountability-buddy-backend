@@ -1,12 +1,20 @@
-import type { Response, NextFunction, Router } from "express";
+import type { Response, NextFunction, Router, Request } from "express";
 import express from "express";
 import APIKey from "../models/APIKey";
-import type { AuthenticatedRequest } from "../middleware/authMiddleware";
 import authMiddleware from "../middleware/authMiddleware";
 import { roleBasedAccessControl } from "../middleware/roleBasedAccessControl";
 import { logger } from "../utils/winstonLogger";
 
 const router: Router = express.Router();
+
+// ✅ Define `AuthenticatedRequest` locally (no need to import it)
+type AuthenticatedRequest = Request & {
+  user?: {
+    email?: string;
+    id: string;
+    role: "user" | "admin" | "moderator";
+  };
+};
 
 // Middleware to ensure only admins can manage API keys
 const isAdmin = roleBasedAccessControl(["admin"]);

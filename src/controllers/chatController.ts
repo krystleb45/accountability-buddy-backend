@@ -1,129 +1,27 @@
-import type { Response } from "express";
+import type { Request, Response } from "express";
 import mongoose from "mongoose";
 import catchAsync from "../utils/catchAsync";
 import Chat from "../models/Chat";
-import Message from "../models/Message";
+import Message, { IMessage } from "../models/Message";
 import Notification from "../models/Notification";
 import sendResponse from "../utils/sendResponse";
-import type { AuthenticatedRequest } from "../middleware/authMiddleware";
 
 /**
- * @desc Add a reaction to a message
- * @route POST /chat/message/:messageId/reaction
- * @access Private
+ * ✅ Define `AuthenticatedRequest` locally (no need to import it)
  */
-export const addReaction = catchAsync(async (
-  req: AuthenticatedRequest<{ messageId: string }, {}, { reaction: string }>,
-  res: Response
-): Promise<void> => {
-  const { messageId } = req.params;
-  const { reaction } = req.body;
-  const userId = req.user?.id;
+type AuthenticatedRequest<
+  P = Record<string, any>,
+  ResBody = any,
+  ReqBody = any,
+  Query = any
+> = Request<P, ResBody, ReqBody, Query> & {
+  user?: {
+    email?: string;
+    id: string;
+    role: "user" | "admin" | "moderator";
+  };
+};
 
-  // ✅ Define allowed reactions
-  const validReactions = ["👍", "❤️", "😂", "😮", "😢", "😡"];
-
-  if (!validReactions.includes(reaction)) {
-    sendResponse(res, 400, false, "Invalid reaction");
-    return;
-  }
-
-  const message = await Message.findById(messageId);
-  if (!message) {
-    sendResponse(res, 404, false, "Message not found");
-    return;
-  }
-
-  // ✅ Remove existing reaction from user (if any)
-  message.reactions = message.reactions.filter((r) => r.userId.toString() !== userId);
-
-  // ✅ Add new reaction
-  message.reactions.push({
-    userId: new mongoose.Types.ObjectId(userId),
-    emoji: reaction,
-  });
-
-  await message.save();
-
-  // ✅ Create a notification for the reaction
-  await Notification.create({
-    user: message.senderId,
-    message: `Someone reacted to your message: ${reaction}`,
-    type: "message",
-    read: false,
-    link: `/chat/${message.chatId}`,
-  });
-
-  sendResponse(res, 200, true, "Reaction added successfully.", {
-    messageId,
-    reaction,
-    status: "added",
-  });
-
-  // ✅ Emit socket event for real-time updates
-  global.io.to(message.chatId.toString()).emit("reactionAdded", { messageId, reaction, userId });
-});
-
-/**
- * @desc Send a message (private or group chat)
- * @route POST /chat/send
- * @access Private
- */
-export const sendMessage = catchAsync(async (
-  req: AuthenticatedRequest<{ chatId: string }, {}, { message: string }>,
-  res: Response
-): Promise<void> => {
-  const { chatId } = req.params;
-  const { message } = req.body;
-  const senderId = req.user?.id;
-
-  if (!mongoose.Types.ObjectId.isValid(chatId)) {
-    sendResponse(res, 400, false, "Invalid chat ID.");
-    return;
-  }
-
-  if (!message.trim()) {
-    sendResponse(res, 400, false, "Message cannot be empty.");
-    return;
-  }
-
-  const chat = await Chat.findById(chatId);
-  if (!chat) {
-    sendResponse(res, 404, false, "Chat not found.");
-    return;
-  }
-
-  const newMessage = await Message.create({
-    chatId: chat._id,
-    senderId: new mongoose.Types.ObjectId(senderId),
-    text: message,
-    messageType: chat.chatType,
-    timestamp: new Date(),
-    status: "sent",
-  });
-
-  const messageId = newMessage._id as mongoose.Types.ObjectId;
-
-  chat.messages.push(messageId);
-  await chat.save();
-
-  // ✅ Emit socket event for real-time updates
-  global.io.to(chatId).emit("newMessage", {
-    chatId: chat._id.toString(),
-    message: {
-      ...newMessage.toObject(),
-      _id: messageId.toString(),
-    },
-  });
-
-  sendResponse(res, 201, true, "Message sent successfully.", {
-    chatId: chat._id.toString(),
-    message: {
-      ...newMessage.toObject(),
-      _id: messageId.toString(),
-    },
-  });
-});
 
 /**
  * @desc Retrieve private chat history between two users
@@ -158,35 +56,7 @@ export const getPrivateChats = catchAsync(async (
       _id: msg._id.toString(),
     })),
   });
-});
-
-/**
- * @desc Get full chat history (group or private)
- * @route GET /chat/history/:chatId
- * @access Private
- */
-export const getChatHistory = catchAsync(async (
-  req: AuthenticatedRequest<{ chatId: string }>,
-  res: Response
-): Promise<void> => {
-  const { chatId } = req.params;
-
-  if (!mongoose.Types.ObjectId.isValid(chatId)) {
-    sendResponse(res, 400, false, "Invalid chat ID.");
-    return;
-  }
-
-  const chat = await Chat.findById(chatId).populate("messages").lean();
-
-  if (!chat) {
-    sendResponse(res, 404, false, "Chat history not found.");
-    return;
-  }
-
-  sendResponse(res, 200, true, "Chat history retrieved successfully.", { chat });
-});
-
-
+}); 
 /**
  * @desc Send a private message to a friend
  * @route POST /chat/private/:friendId
@@ -218,7 +88,7 @@ export const sendPrivateMessage = catchAsync(async (
     });
   }
 
-  const newMessage = await Message.create({
+  const newMessage: IMessage = await Message.create({
     chatId: chat._id,
     senderId: senderObjectId,
     receiverId: receiverObjectId,
@@ -228,21 +98,11 @@ export const sendPrivateMessage = catchAsync(async (
     status: "sent",
   });
 
-  const messageId = newMessage._id as mongoose.Types.ObjectId;
-  chat.messages.push(messageId);
-  
-  // ✅ Update unread message count
-  chat.unreadMessages = chat.unreadMessages.map(unread =>
-    unread.userId.toString() === receiverObjectId.toString()
-      ? { ...unread, count: unread.count + 1 }
-      : unread
-  );
-
-  await chat.save();
+  chat.messages.push(newMessage._id as mongoose.Types.ObjectId);  await chat.save();
 
   await Notification.create({
     user: receiverObjectId,
-    message: `New message from ${senderId}`,
+    message: `New message from ${req.user?.email}`,
     type: "message",
     read: false,
     link: `/chat/private/${senderId}`,
@@ -250,86 +110,10 @@ export const sendPrivateMessage = catchAsync(async (
 
   sendResponse(res, 201, true, "Message sent successfully.", {
     chatId: chat._id.toString(),
-    message: {
-      ...newMessage.toObject(),
-      _id: messageId.toString(),
-    },
+    message: newMessage,
   });
 
   global.io.to(friendId).emit("newMessage", { chatId: chat._id.toString(), message: newMessage });
-});
-
-/**
- * @desc Mark messages as read
- * @route POST /chat/:chatId/read
- * @access Private
- */
-export const markMessagesAsRead = catchAsync(async (
-  req: AuthenticatedRequest<{ chatId: string }>,
-  res: Response
-): Promise<void> => {
-  const { chatId } = req.params;
-  const userId = req.user?.id;
-
-  await Message.updateMany(
-    { chatId, status: "sent", senderId: { $ne: userId } },
-    { $set: { status: "seen" } }
-  );
-
-  await Chat.updateOne(
-    { _id: chatId, "unreadMessages.userId": userId },
-    { $set: { "unreadMessages.$.count": 0 } }
-  );
-
-  sendResponse(res, 200, true, "Messages marked as read.");
-  global.io.to(chatId).emit("messagesRead", { chatId, userId });
-});
-
-/**
- * @desc Typing indicator
- * @route POST /chat/:chatId/typing
- * @access Private
- */
-export const typingIndicator = catchAsync(async (
-  req: AuthenticatedRequest<{ chatId: string }>,
-  res: Response
-): Promise<void> => {
-  const { chatId } = req.params;
-  const userId = req.user?.id;
-
-  global.io.to(chatId).emit("userTyping", { chatId, userId });
-  sendResponse(res, 200, true, "Typing indicator sent.");
-});
-
-/**
- * @desc Delete a message
- * @route DELETE /chat/message/:messageId
- * @access Private
- */
-export const deleteMessage = catchAsync(async (
-  req: AuthenticatedRequest<{ messageId: string }>,
-  res: Response
-): Promise<void> => {
-  const { messageId } = req.params;
-  const userId = req.user?.id;
-
-  const message = await Message.findById(messageId);
-  if (!message) {
-    sendResponse(res, 404, false, "Message not found.");
-    return;
-  }
-
-  if (message.senderId.toString() !== userId) {
-    sendResponse(res, 403, false, "You can only delete your own messages.");
-    return;
-  }
-
-  message.text = "This message has been deleted.";
-  message.status = "deleted";
-  await message.save();
-
-  sendResponse(res, 200, true, "Message deleted successfully.");
-  global.io.to(message.chatId.toString()).emit("messageDeleted", { messageId });
 });
 
 /**
@@ -367,4 +151,35 @@ export const editMessage = catchAsync(async (
 
   sendResponse(res, 200, true, "Message edited successfully.");
   global.io.to(message.chatId.toString()).emit("messageEdited", { messageId, newText });
+});
+
+/**
+ * @desc Delete a message
+ * @route DELETE /chat/message/:messageId
+ * @access Private
+ */
+export const deleteMessage = catchAsync(async (
+  req: AuthenticatedRequest<{ messageId: string }>,
+  res: Response
+): Promise<void> => {
+  const { messageId } = req.params;
+  const userId = req.user?.id;
+
+  const message = await Message.findById(messageId);
+  if (!message) {
+    sendResponse(res, 404, false, "Message not found.");
+    return;
+  }
+
+  if (message.senderId.toString() !== userId) {
+    sendResponse(res, 403, false, "You can only delete your own messages.");
+    return;
+  }
+
+  message.text = "This message has been deleted.";
+  message.status = "deleted";
+  await message.save();
+
+  sendResponse(res, 200, true, "Message deleted successfully.");
+  global.io.to(message.chatId.toString()).emit("messageDeleted", { messageId });
 });

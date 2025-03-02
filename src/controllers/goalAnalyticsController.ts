@@ -43,7 +43,7 @@ export const getGlobalGoalAnalytics = catchAsync(
     req: Request<{}, {}, {}, {}>,
     res: Response,
   ): Promise<void> => {
-    if (!req.user?.isAdmin) {
+    if (req.user?.role !== "admin") {
       throw createError("Access denied", 403);
     }
 
@@ -133,7 +133,7 @@ export const deleteGoalAnalytics = catchAsync(
     req: Request<{ goalId: string }>,
     res: Response,
   ): Promise<void> => {
-    if (!req.user?.isAdmin) {
+    if (req.user?.role !== "admin") {
       throw createError("Access denied", 403);
     }
 
@@ -165,7 +165,7 @@ export const getGoalAnalyticsByDateRange = catchAsync(
     res: Response,
     _next: NextFunction,
   ): Promise<void> => {
-    if (!req.user?.isAdmin) {
+    if (req.user?.role !== "admin") {
       throw createError("Access denied", 403);
     }
 

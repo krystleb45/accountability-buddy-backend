@@ -1,6 +1,17 @@
 import type { Request, Response, NextFunction, RequestHandler } from "express";
-import type { AuthenticatedRequest } from "../middleware/authMiddleware"; // Ensure this is correctly imported
 import { logger } from "../utils/winstonLogger";
+
+/**
+ * ✅ Define `AuthenticatedRequest` locally (no need to import it)
+ */
+type AuthenticatedRequest = Request & {
+  user?: {
+    email?: string;
+    id: string;
+    role: "user" | "admin" | "moderator";
+  };
+};
+
 /**
  * Middleware for Role-Based Access Control (RBAC)
  * @param allowedRoles - Array of roles authorized to access the route.

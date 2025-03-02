@@ -1,13 +1,21 @@
-import type { Response, NextFunction, Router } from "express";
+import type { Response, NextFunction, Router, Request } from "express";
 import express from "express";
 import { check, validationResult } from "express-validator";
 import AuditLog from "../models/AuditLog";
-import type { AuthenticatedRequest } from "../middleware/authMiddleware";
 import authMiddleware from "../middleware/authMiddleware";
 import { roleBasedAccessControl } from "../middleware/roleBasedAccessControl";
 import { logger } from "../utils/winstonLogger";
 
 const router: Router = express.Router();
+
+// ✅ Define `AuthenticatedRequest` locally (no need to import it)
+type AuthenticatedRequest = Request & {
+  user?: {
+    email?: string;
+    id: string;
+    role: "user" | "admin" | "moderator";
+  };
+};
 
 // Middleware for role-based access control
 const isAdmin = roleBasedAccessControl(["admin"]);

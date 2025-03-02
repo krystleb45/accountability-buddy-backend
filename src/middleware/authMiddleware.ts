@@ -4,11 +4,12 @@ import User from "../models/User";
 import { logger } from "../utils/winstonLogger"; // ✅ Logging for debugging
 
 /**
- * Extend Express Request type to include `user`
+ * ✅ Extend Express Request type to include `user` (NO explicit export needed)
  */
 declare module "express-serve-static-core" {
   interface Request {
     user?: {
+      email?: string;
       id: string;
       role: "user" | "admin" | "moderator";
     };
@@ -44,7 +45,7 @@ const authMiddleware = async (req: Request, res: Response, next: NextFunction): 
     }
 
     // ✅ Find user in database
-    const user = await User.findById(decoded.id).select("id role");
+    const user = await User.findById(decoded.id).select("id role email");
 
     if (!user) {
       logger.warn(`❌ authMiddleware: User not found. Token ID: ${decoded.id}`);
@@ -53,7 +54,7 @@ const authMiddleware = async (req: Request, res: Response, next: NextFunction): 
     }
 
     // ✅ Attach user data to the request
-    req.user = { id: user.id, role: user.role as "user" | "admin" | "moderator" };
+    req.user = { id: user.id, role: user.role as "user" | "admin" | "moderator", email: user.email };
 
     logger.info(`✅ authMiddleware: User ${user.id} authenticated successfully.`);
     next(); // ✅ Proceed to next middleware
@@ -63,4 +64,5 @@ const authMiddleware = async (req: Request, res: Response, next: NextFunction): 
   }
 };
 
+// ✅ Restore default export for compatibility with existing imports
 export default authMiddleware;
