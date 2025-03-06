@@ -1,7 +1,7 @@
 import type { Router, Response } from "express";
 import express from "express";
 import { check } from "express-validator";
-import authMiddleware from "../middleware/authMiddleware";
+import authMiddleware from "../middleware/authMiddleware"; // ✅ Ensure proper middleware import
 import rateLimit from "express-rate-limit";
 import {
   getUserProfile,
@@ -12,10 +12,12 @@ import {
   unpinGoal,
   getPinnedGoals,
   getFeaturedAchievements,
- 
+  featureAchievement, // ✅ Ensure this exists in userController.ts
+  unfeatureAchievement, // ✅ Ensure this exists in userController.ts
 } from "../controllers/userController";
 import { logger } from "../utils/winstonLogger";
-// Initialize router
+
+// ✅ Initialize router
 const router: Router = express.Router();
 
 // ✅ Rate limiter for sensitive operations
@@ -87,7 +89,6 @@ router.delete("/account", authMiddleware, sensitiveOperationLimiter, async (req,
     await deleteUserAccount(req, res, next);
   } catch (error) {
     handleError(error, res, "Error deleting user account");
-    next(error);
   }
 });
 
@@ -117,14 +118,14 @@ router.get("/pinned-goals", authMiddleware, getPinnedGoals);
  * ✅ @desc    Feature an achievement for the user
  * ✅ @access  Private
  */
-router.post("/feature-achievement", authMiddleware, getFeaturedAchievements);
+router.post("/feature-achievement", authMiddleware, featureAchievement);
 
 /**
  * ✅ @route   DELETE /user/unfeature-achievement
  * ✅ @desc    Unfeature an achievement for the user
  * ✅ @access  Private
  */
-router.delete("/unfeature-achievement", authMiddleware, getFeaturedAchievements);
+router.delete("/unfeature-achievement", authMiddleware, unfeatureAchievement);
 
 /**
  * ✅ @route   GET /user/featured-achievements

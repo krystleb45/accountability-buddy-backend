@@ -8,6 +8,7 @@ import { Server } from "socket.io";
 import dotenv from "dotenv";
 import cron from "node-cron";
 import cors from "cors";
+import fs from "fs";
 
 // ✅ Load Environment Variables
 dotenv.config();
@@ -21,9 +22,17 @@ import setupSwagger from "./swaggerConfig";
 import { errorHandler } from "../middleware/errorHandler";
 import { applySecurityMiddlewares } from "./securityConfig";
 
+// ✅ Ensure Uploads Directory Exists (For Profile & Cover Images)
+const uploadDirs = ["uploads/profile", "uploads/covers"];
+uploadDirs.forEach((dir) => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+});
+
 // ✅ Routes
 import authRoutes from "../routes/auth";
-import userRoutes from "../routes/user";
+import userRoutes from "../routes/user"; // ✅ Ensure it's properly imported
 import groupRoutes from "../routes/group";
 import chatRoutes from "../routes/chat";
 import paymentRoutes from "../routes/payment";
@@ -86,7 +95,7 @@ app.use(compression());
 
 // ✅ API Routes
 app.use("/api/auth", authRoutes);
-app.use("/api/users", userRoutes);
+app.use("/api/users", userRoutes); // ✅ Ensure this matches frontend API calls
 app.use("/api/groups", groupRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/payment", paymentRoutes);

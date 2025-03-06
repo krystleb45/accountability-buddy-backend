@@ -173,6 +173,78 @@ export const unpinGoal = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, 200, true, "Goal unpinned successfully.", { pinnedGoals: user.pinnedGoals });
 });
 
+
+
+/**
+ * ✅ @desc Feature an achievement for a user
+ * ✅ @route POST /api/user/feature-achievement
+ * ✅ @access Private
+ */
+export const featureAchievement = catchAsync(async (req: Request, res: Response) => {
+  if (!req.user) {
+    sendResponse(res, 401, false, "Unauthorized request.");
+    return;
+  }
+
+  const userId = req.user.id;
+  const { achievementId } = req.body;
+
+  if (!mongoose.isValidObjectId(achievementId)) {
+    sendResponse(res, 400, false, "Invalid Achievement ID format.");
+    return;
+  }
+
+  const user = await User.findById(userId);
+  if (!user) {
+    sendResponse(res, 404, false, "User not found.");
+    return;
+  }
+
+  if (user.featuredAchievements.includes(achievementId)) {
+    sendResponse(res, 400, false, "Achievement is already featured.");
+    return;
+  }
+
+  user.featuredAchievements.push(new mongoose.Types.ObjectId(achievementId));
+  await user.save();
+
+  sendResponse(res, 200, true, "Achievement featured successfully.", { featuredAchievements: user.featuredAchievements });
+});
+
+/**
+ * ✅ @desc Unfeature an achievement for a user
+ * ✅ @route DELETE /api/user/unfeature-achievement
+ * ✅ @access Private
+ */
+export const unfeatureAchievement = catchAsync(async (req: Request, res: Response) => {
+  if (!req.user) {
+    sendResponse(res, 401, false, "Unauthorized request.");
+    return;
+  }
+
+  const userId = req.user.id;
+  const { achievementId } = req.body;
+
+  if (!mongoose.isValidObjectId(achievementId)) {
+    sendResponse(res, 400, false, "Invalid Achievement ID format.");
+    return;
+  }
+
+  const user = await User.findById(userId);
+  if (!user) {
+    sendResponse(res, 404, false, "User not found.");
+    return;
+  }
+
+  user.featuredAchievements = user.featuredAchievements.filter(
+    (id) => id.toString() !== achievementId.toString()
+  );
+
+  await user.save();
+
+  sendResponse(res, 200, true, "Achievement unfeatured successfully.", { featuredAchievements: user.featuredAchievements });
+});
+
 /**
  * ✅ @desc Get all pinned goals for a user
  * ✅ @route GET /api/user/pinned-goals

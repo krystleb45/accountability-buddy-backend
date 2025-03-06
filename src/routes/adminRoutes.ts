@@ -113,7 +113,6 @@ router.delete(
       .status(200)
       .json({ success: true, msg: "User account deleted successfully" });
   },
-  
 );
 
 export default router;
