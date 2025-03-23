@@ -1,4 +1,4 @@
-import type { Router, Response, NextFunction, Request, RequestHandler } from "express";
+import type { Router, Response, NextFunction, RequestHandler, Request } from "express";
 import express from "express";
 import { check, validationResult } from "express-validator";
 import rateLimit from "express-rate-limit";
@@ -7,6 +7,7 @@ import { roleBasedAccessControl } from "../middleware/roleBasedAccessControl";
 import { logger } from "../utils/winstonLogger";
 import * as AdminController from "../controllers/AdminController";
 import * as AnalyticsController from "../controllers/AnalyticsController";
+import type { AuthenticatedRequest, AnalyticsRequestBody } from "../types/AuthenticatedRequest";
 
 // Explicitly define the router type
 const router: Router = express.Router();
@@ -28,12 +29,16 @@ const rateLimiter = rateLimit({
  * Unified Error Handler for Routes
  */
 const handleRouteErrors =
-  (handler: (req: Request, res: Response, next: NextFunction) => Promise<void>): RequestHandler =>
+  <T extends object>(
+    handler: (req: AuthenticatedRequest<{}, any, T>, res: Response, next: NextFunction) => Promise<void>
+  ): RequestHandler =>
     (req, res, next) => {
-      handler(req, res, next).catch((error) => {
-        logger.error(`Error occurred: ${(error as Error).message}`);
-        res.status(500).json({ success: false, message: "Internal server error" });
-      });
+      (handler as (req: Request, res: Response, next: NextFunction) => Promise<void>)
+      (req as unknown as AuthenticatedRequest<{}, any, T>, res, next)
+        .catch((error) => {
+          logger.error(`Error occurred: ${(error as Error).message}`);
+          res.status(500).json({ success: false, message: "Internal server error" });
+        });
     };
 
 /**
@@ -45,9 +50,9 @@ router.get(
   "/users",
   authMiddleware,
   isAdmin,
-  handleRouteErrors(async (req: Request, res: Response, next: NextFunction) => {
+  handleRouteErrors(async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     await AdminController.getUserAnalytics(req, res, next);
-  }),
+  })
 );
 
 /**
@@ -59,9 +64,9 @@ router.get(
   "/goals",
   authMiddleware,
   isAdmin,
-  handleRouteErrors(async (req: Request, res: Response, next: NextFunction) => {
+  handleRouteErrors(async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     await AnalyticsController.getGlobalAnalytics(req, res, next);
-  }),
+  })
 );
 
 /**
@@ -73,9 +78,9 @@ router.get(
   "/posts",
   authMiddleware,
   isAdmin,
-  handleRouteErrors(async (req: Request, res: Response, next: NextFunction) => {
+  handleRouteErrors(async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     await AnalyticsController.getGlobalAnalytics(req, res, next);
-  }),
+  })
 );
 
 /**
@@ -87,9 +92,9 @@ router.get(
   "/financial",
   authMiddleware,
   isAdmin,
-  handleRouteErrors(async (req: Request, res: Response, next: NextFunction) => {
+  handleRouteErrors(async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     await AdminController.getFinancialAnalytics(req, res, next);
-  }),
+  })
 );
 
 /**
@@ -107,17 +112,18 @@ router.post(
     check("endDate").notEmpty().withMessage("End date is required").isISO8601().withMessage("Invalid date format"),
     check("metric").notEmpty().withMessage("Metric is required").isString().withMessage("Metric must be a string"),
   ],
-  handleRouteErrors(async (req: Request, res: Response) => {
+  handleRouteErrors<AnalyticsRequestBody>(async (req: AuthenticatedRequest<{}, any, AnalyticsRequestBody>, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       res.status(400).json({ success: false, errors: errors.array() });
       return;
     }
-
-    const { startDate, endDate, metric } = req.body;
-    const analytics = await AnalyticsController.getCustomAnalytics(startDate, endDate, metric);
+  
+  
+    // ✅ Ensure `getCustomAnalytics` receives correctly typed values
+    const analytics = AnalyticsController.getCustomAnalytics(req, res, next);
     res.status(200).json({ success: true, data: analytics });
-  }),
+  })
 );
 
 export default router;

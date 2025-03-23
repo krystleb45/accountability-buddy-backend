@@ -17,6 +17,8 @@ import newsletterRoutes from "./routes/newsletter";
 import paymentRoutes from "./routes/payment";
 import { errorHandler } from "./middleware/errorHandler";
 import { logger } from "../src/utils/winstonLogger";
+import challengeRoutes from "./routes/challenge"; 
+
 
 // Load environment variables
 dotenv.config();
@@ -89,6 +91,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/newsletter", newsletterRoutes);
 app.use("/api/payments", paymentRoutes);
+app.use("/api/challenge", challengeRoutes); 
 
 // Health Check Endpoint
 app.get("/health", (_req: Request, res: Response) => {

@@ -1,30 +1,25 @@
-import type { Request, Response, NextFunction, RequestHandler } from "express";
+import type { RequestHandler } from "express";
 import { logger } from "../utils/winstonLogger";
-
-/**
- * ✅ Define `AuthenticatedRequest` locally (no need to import it)
- */
-type AuthenticatedRequest = Request & {
-  user?: {
-    email?: string;
-    id: string;
-    role: "user" | "admin" | "moderator";
-  };
-};
+import type { AuthenticatedRequest } from "../types/AuthenticatedRequest";
 
 /**
  * Middleware for Role-Based Access Control (RBAC)
  * @param allowedRoles - Array of roles authorized to access the route.
- * @returns RequestHandler middleware
  */
 export const roleBasedAccessControl = (allowedRoles: string[]): RequestHandler => {
-  return (req: Request, res: Response, next: NextFunction): void => {
-    try {
-      // Assert the request as AuthenticatedRequest
-      const authReq = req as AuthenticatedRequest;
+  return (req, res, next): void => {
+    const authReq = req as AuthenticatedRequest; // ✅ Fix: Explicitly cast `req` as `AuthenticatedRequest`
 
-      // Validate the user's role
-      if (!authReq.user || !authReq.user.role) {
+    try {
+      // ✅ Ensure `req.user` exists before checking role
+      if (!authReq.user) {
+        logger.warn("Access Denied: No user found in request.");
+        res.status(401).json({ success: false, message: "Unauthorized: No user found." });
+        return;
+      }
+
+      // ✅ Ensure `req.user.role` exists
+      if (!authReq.user.role) {
         logger.warn("Access Denied: No role assigned to the user.");
         res.status(403).json({
           success: false,
@@ -33,7 +28,7 @@ export const roleBasedAccessControl = (allowedRoles: string[]): RequestHandler =
         return;
       }
 
-      // Check if the user's role is authorized
+      // ✅ Check if the user's role is authorized
       if (!allowedRoles.includes(authReq.user.role)) {
         logger.warn(`Access Denied: Role '${authReq.user.role}' is not authorized.`);
         res.status(403).json({
@@ -43,10 +38,10 @@ export const roleBasedAccessControl = (allowedRoles: string[]): RequestHandler =
         return;
       }
 
-      // Proceed to the next middleware if authorized
+      // ✅ Proceed to the next middleware if authorized
       next();
     } catch (error: unknown) {
-      // Handle unexpected errors
+      // ✅ Handle unexpected errors
       const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
       logger.error(`RBAC Middleware Error: ${errorMessage}`);
       res.status(500).json({

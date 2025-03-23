@@ -1,4 +1,4 @@
-import type { Request, Response, NextFunction } from "express";
+import type { Request, Response } from "express";
 import mongoose from "mongoose";
 import Challenge from "../models/Challenge";
 import catchAsync from "../utils/catchAsync";
@@ -18,63 +18,58 @@ export const createChallenge = catchAsync(
       visibility?: string; 
       rewards?: string[]; 
       progressTracking?: boolean; 
-    }>, // Explicitly define the body type
+    }>,
     res: Response,
-    next: NextFunction,
   ): Promise<void> => {
-    try {
-      const {
-        title,
-        description,
-        goal,
-        endDate,
-        visibility,
-        rewards,
-        progressTracking,
-      } = sanitize(req.body);
+    const {
+      title,
+      description,
+      goal,
+      endDate,
+      visibility,
+      rewards,
+      progressTracking,
+    } = sanitize(req.body);
 
-      const userId = req.user?.id;
+    const userId = req.user?.id;
 
-      if (!userId) {
-        sendResponse(res, 400, false, "User ID is required");
-        return;
-      }
-
-      if (!title || !description || !goal || !endDate) {
-        sendResponse(
-          res,
-          400,
-          false,
-          "Title, description, goal, and end date are required",
-        );
-        return;
-      }
-
-      const parsedEndDate = new Date(endDate);
-      if (isNaN(parsedEndDate.getTime()) || parsedEndDate <= new Date()) {
-        sendResponse(res, 400, false, "End date must be a valid future date");
-        return;
-      }
-
-      const newChallenge = new Challenge({
-        title,
-        description,
-        goal,
-        endDate: parsedEndDate,
-        visibility: visibility || "public",
-        rewards,
-        progressTracking,
-        creator: new mongoose.Types.ObjectId(userId),
-      });
-
-      await newChallenge.save();
-
-      sendResponse(res, 201, true, "Challenge created successfully", {
-        challenge: newChallenge,
-      });
-    } catch (error) {
-      next(error);
+    if (!userId) {
+      sendResponse(res, 400, false, "User ID is required");
+      return;
     }
+
+    if (!title || !description || !goal || !endDate) {
+      sendResponse(
+        res,
+        400,
+        false,
+        "Title, description, goal, and end date are required",
+      );
+      return;
+    }
+
+    const parsedEndDate = new Date(endDate);
+    if (isNaN(parsedEndDate.getTime()) || parsedEndDate <= new Date()) {
+      sendResponse(res, 400, false, "End date must be a valid future date");
+      return;
+    }
+
+    const newChallenge = new Challenge({
+      title,
+      description,
+      goal,
+      endDate: parsedEndDate,
+      visibility: visibility || "public",
+      rewards,
+      progressTracking,
+      creator: new mongoose.Types.ObjectId(userId),
+    });
+
+    await newChallenge.save();
+
+    sendResponse(res, 201, true, "Challenge created successfully", {
+      challenge: newChallenge,
+    });
   },
 );
 
@@ -83,7 +78,7 @@ export const createChallenge = catchAsync(
  */
 export const getPublicChallenges = catchAsync(
   async (
-    _req: Request<{}, {}, {}, {}>, // Explicitly define empty types for params, body, query, and locals
+    _req: Request<{}, {}, {}, {}>,
     res: Response,
   ): Promise<void> => {
     const challenges = await Challenge.find({ visibility: "public" })
@@ -110,7 +105,7 @@ export const getPublicChallenges = catchAsync(
  */
 export const joinChallenge = catchAsync(
   async (
-    req: Request<{}, {}, { challengeId: string }>, // Explicitly define body type
+    req: Request<{}, {}, { challengeId: string }>,
     res: Response,
   ): Promise<void> => {
     const { challengeId } = sanitize(req.body);
@@ -162,7 +157,7 @@ export const joinChallenge = catchAsync(
  */
 export const leaveChallenge = catchAsync(
   async (
-    req: Request<{}, {}, { challengeId: string }>, // Explicitly define body type
+    req: Request<{}, {}, { challengeId: string }>,
     res: Response,
   ): Promise<void> => {
     const { challengeId } = sanitize(req.body);
@@ -203,6 +198,37 @@ export const leaveChallenge = catchAsync(
     await challenge.save();
 
     sendResponse(res, 200, true, "Left challenge successfully", {
+      challenge,
+    });
+  },
+);
+
+/**
+ * Get challenge by ID (for detail page)
+ */
+export const getChallengeById = catchAsync(
+  async (
+    req: Request<{ id: string }, {}, {}, {}>,
+    res: Response,
+  ): Promise<void> => {
+    const challengeId = req.params.id;
+
+    if (!mongoose.Types.ObjectId.isValid(challengeId)) {
+      sendResponse(res, 400, false, "Invalid challenge ID");
+      return;
+    }
+
+    const challenge = await Challenge.findById(challengeId)
+      .populate("creator", "username profilePicture")
+      .populate("participants.user", "username profilePicture")
+      .exec();
+
+    if (!challenge) {
+      sendResponse(res, 404, false, "Challenge not found");
+      return;
+    }
+
+    sendResponse(res, 200, true, "Challenge retrieved successfully", {
       challenge,
     });
   },

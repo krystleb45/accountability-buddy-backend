@@ -55,6 +55,8 @@ export interface IUser extends Document {
   twoFactorSecret?: string;
   completedGoals?: number;
   streak?: number;
+  streakCount?: number; // ✅ Added for gamification streak logic
+  badges?: Types.ObjectId[]; // ✅ Added to support awarded badge references
   achievements?: Types.ObjectId[];
   lastGoalCompletedAt?: Date;
   trial_start_date?: Date;
@@ -65,7 +67,7 @@ export interface IUser extends Document {
   chatPreferences?: ChatPreferences;
   activeStatus: "online" | "offline";
 
-  // ✅ Newly Added: Pinned Goals & Featured Achievements
+  // ✅ Pinned Goals & Featured Achievements
   pinnedGoals: Types.ObjectId[];
   featuredAchievements: Types.ObjectId[];
 
@@ -88,10 +90,9 @@ const UserSchema: Schema<IUser> = new Schema(
     isLocked: { type: Boolean, default: false },
     active: { type: Boolean, default: true },
     profilePicture: { type: String },
+
     friends: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     friendRequests: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-
-    // ✅ Follow System Fields
     followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
 
@@ -102,26 +103,21 @@ const UserSchema: Schema<IUser> = new Schema(
     subscriptions: [{ type: mongoose.Schema.Types.ObjectId, ref: "Subscription" }],
     stripeCustomerId: { type: String },
 
-    // ✅ Subscription Tracking (Single-Tier Plan)
     trial_start_date: { type: Date, default: null },
-    subscription_status: { 
-      type: String, 
-      enum: ["trial", "active", "expired"], 
-      default: "trial",
-    },
+    subscription_status: { type: String, enum: ["trial", "active", "expired"], default: "trial" },
     next_billing_date: { type: Date, default: null },
 
-    // ✅ Leaderboards & Achievements Fields
     completedGoals: { type: Number, default: 0, min: 0 },
     streak: { type: Number, default: 0, min: 0 },
+    streakCount: { type: Number, default: 0, min: 0 }, // ✅ NEW
     lastGoalCompletedAt: { type: Date, default: null },
-    achievements: [{ type: mongoose.Schema.Types.ObjectId, ref: "Achievement" }],
 
-    // ✅ Pinned Goals & Featured Achievements Fields
+    achievements: [{ type: mongoose.Schema.Types.ObjectId, ref: "Achievement" }],
+    badges: [{ type: mongoose.Schema.Types.ObjectId, ref: "Badge" }], // ✅ NEW
+
     pinnedGoals: [{ type: mongoose.Schema.Types.ObjectId, ref: "Goal" }],
     featuredAchievements: [{ type: mongoose.Schema.Types.ObjectId, ref: "Achievement" }],
 
-    // ✅ Chat Features
     interests: [{ type: String, trim: true }],
     chatPreferences: {
       preferredGroups: [{ type: mongoose.Schema.Types.ObjectId, ref: "Chat" }],
@@ -133,19 +129,17 @@ const UserSchema: Schema<IUser> = new Schema(
 );
 
 /**
- * ✅ Indexes for Faster Querying
+ * ✅ Indexes
  */
 UserSchema.index({ email: 1 });
 UserSchema.index({ username: 1 });
 UserSchema.index({ interests: 1 });
 UserSchema.index({ activeStatus: 1 });
-
-// ✅ Additional Indexes for Follow System
 UserSchema.index({ followers: 1 });
 UserSchema.index({ following: 1 });
 
 /**
- * ✅ Password hashing & streak handling
+ * ✅ Password hashing & streak fix
  */
 UserSchema.pre<IUser>("save", async function (next) {
   if (!this.isModified("password")) return next();
@@ -160,14 +154,14 @@ UserSchema.pre<IUser>("save", async function (next) {
 });
 
 /**
- * ✅ Compare Password
+ * ✅ Compare password method
  */
 UserSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
   return bcrypt.compare(candidatePassword, this.password);
 };
 
 /**
- * ✅ Generate Reset Token
+ * ✅ Generate password reset token
  */
 UserSchema.methods.generateResetToken = function (): string {
   const resetToken = crypto.randomBytes(20).toString("hex");
@@ -177,7 +171,7 @@ UserSchema.methods.generateResetToken = function (): string {
 };
 
 /**
- * ✅ Export User Model
+ * ✅ Export the model
  */
 const User: Model<IUser> = mongoose.model<IUser>("User", UserSchema);
 export default User;

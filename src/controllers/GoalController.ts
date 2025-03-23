@@ -1,8 +1,13 @@
 import type { Request, Response, NextFunction } from "express";
 import Goal from "../models/Goal";
+import User from "../models/User";
+import Badge from "../models/Badge";
+import { Types } from "mongoose";
+import type { IUser } from "../models/User";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
 import { createError } from "../middleware/errorHandler";
+import { checkStreakMilestone } from "../utils/streakUtils"; // ✅ NEW
 
 // ✅ Extend Request Type for User
 interface RequestWithUser<T = {}, U = {}> extends Request<U, {}, T> {
@@ -26,6 +31,26 @@ export const getAllGoals = catchAsync(
     const goals = await Goal.find().sort({ createdAt: -1 });
 
     sendResponse(res, 200, true, "All goals fetched successfully", { goals });
+  }
+);
+/**
+ * @desc    Get all goal completion dates for streak calendar
+ * @route   GET /api/goals/streak-dates
+ * @access  Private
+ */
+export const getStreakDates = catchAsync(
+  async (req: RequestWithUser, res: Response, next: NextFunction): Promise<void> => {
+    const userId = req.user?.id;
+    if (!userId) return next(createError("Unauthorized access", 401));
+
+    const completedGoals = await Goal.find({
+      user: userId,
+      completedAt: { $exists: true },
+    }).select("completedAt");
+
+    const dates = completedGoals.map(goal => goal.completedAt?.toISOString().split("T")[0]);
+
+    sendResponse(res, 200, true, "Goal streak dates fetched", { dates });
   }
 );
 
@@ -88,9 +113,45 @@ export const completeGoal = catchAsync(
     const goal = await Goal.findOne({ _id: goalId, user: userId });
     if (!goal) return next(createError("Goal not found or not owned by user", 404));
 
-    goal.completedAt = new Date();    await goal.save();
+    goal.completedAt = new Date();
+    await goal.save();
 
-    sendResponse(res, 200, true, "Goal marked as complete", { goal });
+    // 🔥 STREAK LOGIC & BONUS XP
+    const user = (await User.findById(userId)) as IUser;
+    if (!user) return next(createError("User not found", 404));
+
+    user.streakCount = (user.streakCount ?? 0) + 1;
+    const currentStreak = user.streakCount;
+
+    // ✅ Check milestone logic
+    const { badgeId, bonusXP } = checkStreakMilestone(currentStreak);
+
+    // ✅ Award milestone badge if not already owned
+    if (badgeId) {
+      const alreadyHasBadge = user.badges?.some(
+        (badgeEntry: Types.ObjectId | string) => badgeEntry.toString() === badgeId
+      );
+
+      if (!alreadyHasBadge) {
+        const badge = await Badge.findOne({ id: badgeId });
+        if (badge) {
+          user.badges = [...(user.badges ?? []), badge._id as Types.ObjectId];
+        }
+      }
+    }
+
+    // ✅ Award bonus XP if applicable
+    if (bonusXP > 0) {
+      user.points = (user.points ?? 0) + bonusXP;
+    }
+
+    await user.save();
+
+    sendResponse(res, 200, true, "Goal marked as complete", {
+      goal,
+      newStreak: currentStreak,
+      bonusXP,
+    });
   }
 );
 
@@ -131,4 +192,5 @@ export default {
   completeGoal,
   getUserGoals,
   getPublicGoals,
+  getStreakDates, // ✅ Add this here
 };

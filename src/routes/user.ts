@@ -16,6 +16,8 @@ import {
   unfeatureAchievement, // ✅ Ensure this exists in userController.ts
 } from "../controllers/userController";
 import { logger } from "../utils/winstonLogger";
+import { getLeaderboard } from "../controllers/LeaderboardController"; // ✅ New
+
 
 // ✅ Initialize router
 const router: Router = express.Router();
@@ -133,5 +135,12 @@ router.delete("/unfeature-achievement", authMiddleware, unfeatureAchievement);
  * ✅ @access  Private
  */
 router.get("/featured-achievements", authMiddleware, getFeaturedAchievements);
+
+/**
+ * ✅ @route   GET /user/leaderboard
+ * ✅ @desc    Get the top users for leaderboard display
+ * ✅ @access  Public
+ */
+router.get("/leaderboard", getLeaderboard);
 
 export default router;

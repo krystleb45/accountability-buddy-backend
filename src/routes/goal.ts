@@ -1,8 +1,8 @@
-import type { Router, Request, Response, NextFunction } from "express";
+import { Router } from "express";
 import express from "express";
 import authMiddleware from "../middleware/authMiddleware";
-import checkSubscription from "../middleware/checkSubscription"; // ✅ Ensure it's used correctly
-import { logger } from "../utils/winstonLogger"; 
+import checkSubscription from "../middleware/checkSubscription";
+import goalController from "../controllers/GoalController"; // ✅ Hooked in controller methods
 
 const router: Router = express.Router();
 
@@ -14,16 +14,30 @@ const router: Router = express.Router();
 router.post(
   "/create",
   authMiddleware,
-  checkSubscription("paid"), // ✅ Corrected usage (CALL the function)
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      logger.info(`✅ Goal created by user: ${req.user?.id}`);
-      res.status(201).json({ success: true, message: "Goal created successfully!" });
-    } catch (error) {
-      logger.error(`❌ Error creating goal: ${(error as Error).message}`);
-      next(error);
-    }
-  }
+  checkSubscription("paid"),
+  goalController.createGoal
+);
+
+/**
+ * @route   PUT /api/goals/:goalId/progress
+ * @desc    Update progress for a goal
+ * @access  Private
+ */
+router.put(
+  "/:goalId/progress",
+  authMiddleware,
+  goalController.updateGoalProgress
+);
+
+/**
+ * @route   PUT /api/goals/:goalId/complete
+ * @desc    Mark goal as complete (triggers streak logic)
+ * @access  Private
+ */
+router.put(
+  "/:goalId/complete",
+  authMiddleware,
+  goalController.completeGoal
 );
 
 /**
@@ -31,17 +45,20 @@ router.post(
  * @desc    Get public goals (Available to All Users)
  * @access  Public
  */
-router.get(
-  "/public",
-  async (_req: Request, res: Response, next: NextFunction) => {
-    try {
-      logger.info("✅ Public goals retrieved.");
-      res.status(200).json({ success: true, message: "Public goals retrieved!" });
-    } catch (error) {
-      logger.error(`❌ Error fetching public goals: ${(error as Error).message}`);
-      next(error);
-    }
-  }
-);
+router.get("/public", goalController.getPublicGoals);
+
+/**
+ * @route   GET /api/goals/my-goals
+ * @desc    Get logged-in user's goals
+ * @access  Private
+ */
+router.get("/my-goals", authMiddleware, goalController.getUserGoals);
+
+/**
+ * @route   GET /api/goals/streak-dates
+ * @desc    Get all goal completion dates for a user (for streak calendar heatmap)
+ * @access  Private
+ */
+router.get("/streak-dates", authMiddleware, goalController.getStreakDates);
 
 export default router;

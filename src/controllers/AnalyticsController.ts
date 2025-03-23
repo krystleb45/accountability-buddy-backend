@@ -1,17 +1,14 @@
-import type { Request, Response, NextFunction } from "express";
+import type { Response, NextFunction } from "express";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
 import { createError } from "../middleware/errorHandler";
+import type { AuthenticatedRequest, AnalyticsRequestBody } from "../types/AuthenticatedRequest";
 
 /**
  * Fetch user-specific analytics
  */
 export const getUserAnalytics = catchAsync(
-  async (
-    req: Request<{}, {}, {}, {}>, // Explicitly define generics for Request
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> => {
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = req.user?.id;
 
@@ -26,23 +23,18 @@ export const getUserAnalytics = catchAsync(
         pendingTasks: 15,
       };
 
-      sendResponse(res, 200, true, "User analytics fetched successfully", {
-        analytics,
-      });
+      sendResponse(res, 200, true, "User analytics fetched successfully", { analytics });
     } catch (error) {
       next(error);
     }
-  },
+  }
 );
 
 /**
  * Fetch global analytics
  */
 export const getGlobalAnalytics = catchAsync(
-  async (
-    _req: Request<{}, {}, {}, {}>, // Explicitly define generics for Request
-    res: Response,
-  ): Promise<void> => {
+  async (_req: AuthenticatedRequest, res: Response): Promise<void> => {
     // Placeholder logic for global analytics (replace with actual implementation)
     const analytics = {
       totalUsers: 500,
@@ -50,39 +42,45 @@ export const getGlobalAnalytics = catchAsync(
       totalTasks: 4000,
     };
 
-    sendResponse(res, 200, true, "Global analytics fetched successfully", {
-      analytics,
-    });
-  },
+    sendResponse(res, 200, true, "Global analytics fetched successfully", { analytics });
+  }
 );
 
 /**
- * Fetch custom analytics based on query
+ * Fetch custom analytics based on request body
  */
 export const getCustomAnalytics = catchAsync(
-  async (
-    req: Request<{}, {}, {}, { type?: string }>, // Explicitly define generics with query parameters
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> => {
+  async (req: AuthenticatedRequest<{}, any, AnalyticsRequestBody>, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { type } = req.query;
+      const { startDate, endDate, metric } = req.body;
 
-      if (!type || typeof type !== "string") {
-        return next(
-          createError("Invalid or missing query parameter 'type'", 400),
-        );
+      // Validate request body fields
+      if (!startDate || !endDate || !metric) {
+        return next(createError("Missing required fields: startDate, endDate, or metric", 400));
       }
 
-      // Placeholder for custom analytics based on type (replace with actual implementation)
-      const analytics =
-        type === "user" ? { userCount: 50 } : { taskCount: 200 };
+      // Ensure the values are valid date strings
+      if (isNaN(Date.parse(startDate)) || isNaN(Date.parse(endDate))) {
+        return next(createError("Invalid date format. Expected ISO 8601 format.", 400));
+      }
 
-      sendResponse(res, 200, true, "Custom analytics fetched successfully", {
-        analytics,
-      });
+      // Ensure metric is a valid string
+      if (typeof metric !== "string" || metric.trim().length === 0) {
+        return next(createError("Metric must be a non-empty string.", 400));
+      }
+
+      // Placeholder for custom analytics logic (replace with actual implementation)
+      const analytics = {
+        metric,
+        data: Math.floor(Math.random() * 1000), // Example: Randomly generated metric data
+        startDate,
+        endDate,
+      };
+
+      // Send response
+      sendResponse(res, 200, true, "Custom analytics fetched successfully", { analytics });
     } catch (error) {
       next(error);
     }
-  },
+  }
 );

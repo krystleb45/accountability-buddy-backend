@@ -1,9 +1,11 @@
 import type { Request, Response, NextFunction, Router } from "express";
 import express from "express";
 import { check, validationResult } from "express-validator";
+import rateLimit from "express-rate-limit";
 
 import { login, register, refreshToken } from "../../src/controllers/authController";
-import rateLimit from "express-rate-limit";
+import authMiddleware from "../middleware/authMiddleware";
+import type { AuthenticatedRequest } from "../types/AuthenticatedRequest";
 import { logger } from "../utils/winstonLogger";
 
 const router: Router = express.Router();
@@ -19,7 +21,7 @@ const authLimiter = rateLimit({
  * Utility function to handle errors consistently
  */
 const handleRouteErrors = (
-  handler: (req: Request, res: Response, next: NextFunction) => Promise<void>,
+  handler: (req: Request, res: Response, next: NextFunction) => Promise<void>
 ): ((req: Request, res: Response, next: NextFunction) => Promise<void>) => {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -47,14 +49,12 @@ router.post(
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       res.status(400).json({ errors: errors.array() });
-      return; // FIXED: Explicit return for void type
+      return;
     }
 
-    // Pass the entire req, res, and next to the controller function
-    await login(req, res, next); // FIXED: Now properly passes 3 arguments
-  }),
+    await login(req, res, next);
+  })
 );
-
 
 /**
  * @route   POST /auth/register
@@ -66,23 +66,19 @@ router.post(
   authLimiter,
   [
     check("email", "Valid email is required").isEmail(),
-    check("password", "Password must be at least 8 characters").isLength({
-      min: 8,
-    }),
+    check("password", "Password must be at least 8 characters").isLength({ min: 8 }),
     check("username", "Username is required").notEmpty(),
   ],
   handleRouteErrors(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       res.status(400).json({ errors: errors.array() });
-      return; // Explicit return to handle void type
+      return;
     }
 
-    // Call the register function with req, res, and next
-    await register(req, res, next); // FIXED: Pass req, res, and next instead of sanitizedBody
-  }),
+    await register(req, res, next);
+  })
 );
-
 
 /**
  * @route   POST /auth/refresh-token
@@ -95,13 +91,40 @@ router.post(
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       res.status(400).json({ errors: errors.array() });
-      return; // Explicit return for void type
+      return;
     }
 
-    // Call the refreshToken function with all required arguments
-    await refreshToken(req, res, next); // FIXED: Pass req, res, and next
-  }),
+    await refreshToken(req, res, next);
+  })
 );
 
+/**
+ * @route   GET /auth/me
+ * @desc    Get current authenticated user info
+ * @access  Private
+ */
+router.get(
+  "/me",
+  authMiddleware,
+  handleRouteErrors(async (req: Request, res: Response): Promise<void> => {
+    const typedReq = req as AuthenticatedRequest;
+
+    if (!typedReq.user) {
+      res.status(401).json({ success: false, message: "Unauthorized" });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        id: typedReq.user.id,
+        email: typedReq.user.email,
+        role: typedReq.user.role,
+        isAdmin: typedReq.user.isAdmin || false,
+        permissions: typedReq.user.permissions || [],
+      },
+    });
+  })
+);
 
 export default router;
