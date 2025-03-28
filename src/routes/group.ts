@@ -3,7 +3,7 @@ import express from "express";
 import { check } from "express-validator";
 import sanitize from "mongo-sanitize";
 import rateLimit from "express-rate-limit";
-import authMiddleware from "../middleware/authMiddleware";
+import authMiddleware from "../api/middleware/authMiddleware";
 import checkSubscription from "../middleware/checkSubscription";
 import * as groupController from "../controllers/groupController";
 import handleValidationErrors from "../middleware/handleValidationErrors";

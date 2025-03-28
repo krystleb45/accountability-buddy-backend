@@ -1,10 +1,10 @@
 import type { Request, Response } from "express";
 import mongoose from "mongoose";
-import catchAsync from "../utils/catchAsync";
 import Chat from "../models/Chat";
 import Message, { IMessage } from "../models/Message";
 import Notification from "../models/Notification";
-import sendResponse from "../utils/sendResponse";
+import catchAsync from "../api/utils/catchAsync";
+import sendResponse from "../api/utils/sendResponse";
 
 /**
  * ✅ Define `AuthenticatedRequest` locally (no need to import it)

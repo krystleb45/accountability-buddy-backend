@@ -1,7 +1,7 @@
 import Stripe from "stripe";
 import type { Request, Response } from "express";
-import catchAsync from "../utils/catchAsync";
-import sendResponse from "../utils/sendResponse";
+import catchAsync from "../api/utils/catchAsync";
+import sendResponse from "../api/utils/sendResponse";
 import LoggingService from "../services/LoggingService";
 
 // ✅ Ensure Stripe Secret Key is defined

@@ -14,7 +14,7 @@ import fs from "fs";
 dotenv.config();
 
 // ✅ Utilities
-import { logger } from "../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";  // Import the custom logger
 import ReminderService from "../services/ReminderService";
 import setupSwagger from "./swaggerConfig";
 
@@ -31,13 +31,13 @@ uploadDirs.forEach((dir) => {
 });
 
 // ✅ Routes
-import authRoutes from "../routes/auth";
-import userRoutes from "../routes/user"; // ✅ Ensure it's properly imported
+import authRoutes from "../api/routes/auth";
+import userRoutes from "../api/routes/user"; // ✅ Ensure it's properly imported
 import groupRoutes from "../routes/group";
 import chatRoutes from "../routes/chat";
 import paymentRoutes from "../routes/payment";
 import subscriptionRoutes from "../routes/subscription";
-import goalRoutes from "../routes/goal";
+import goalRoutes from "../api/routes/goal";
 import goalMessageRoutes from "../routes/goalMessage";
 import friendsRoutes from "../routes/friends";
 import blogRoutes from "../routes/blog";

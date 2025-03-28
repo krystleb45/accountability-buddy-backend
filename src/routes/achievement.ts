@@ -1,7 +1,7 @@
 import type { Router, Request, Response, NextFunction } from "express";
 import express from "express";
 import rateLimit from "express-rate-limit";
-import authMiddleware from "../middleware/authMiddleware";
+import authMiddleware from "../api/middleware/authMiddleware";
 import * as AchievementController from "../controllers/AchievementController"; // ✅ Fixed import typo
 import mongoose from "mongoose";
 

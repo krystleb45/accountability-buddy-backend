@@ -1,8 +1,8 @@
 import type { Request, Response, NextFunction } from "express";
 import mongoose from "mongoose";
 import Milestone from "../models/Milestone"; // Ensure a corresponding Milestone model exists
-import catchAsync from "../utils/catchAsync"; // Catch async errors
-import sendResponse from "../utils/sendResponse"; // Unified response format
+import catchAsync from "../api/utils/catchAsync";
+import sendResponse from "../api/utils/sendResponse";
 
 
 /**

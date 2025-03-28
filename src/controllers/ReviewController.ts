@@ -1,8 +1,8 @@
 import type { Request, Response } from "express";
-import User from "../models/User";
+import { User } from "../api/models/User";
 import Review from "../models/Review"; // Assuming Review model exists
-import catchAsync from "../utils/catchAsync";
-import sendResponse from "../utils/sendResponse";
+import catchAsync from "../api/utils/catchAsync";
+import sendResponse from "../api/utils/sendResponse";
 
 /**
  * @desc Submit a review

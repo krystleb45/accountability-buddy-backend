@@ -3,7 +3,7 @@ import express from "express";
 import { check } from "express-validator";
 import sanitize from "mongo-sanitize";
 import rateLimit from "express-rate-limit";
-import authMiddleware from "../middleware/authMiddleware"; // Middleware path
+import authMiddleware from "../api/middleware/authMiddleware";
 import { roleBasedAccessControl } from "../middleware/roleBasedAccessControl"; // RBAC middleware
 import * as reportController from "../controllers/ReportController"; // Controller path
 import { logger } from "../utils/winstonLogger";import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust the path

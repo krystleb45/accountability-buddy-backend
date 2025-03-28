@@ -1,5 +1,5 @@
 import express from "express";
-import authMiddleware from "../middleware/authMiddleware";
+import authMiddleware from "../api/middleware/authMiddleware";
 import {
   sendFriendRequest,
   acceptFriendRequest,

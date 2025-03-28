@@ -1,10 +1,10 @@
 import type { Request, Response } from "express";
-import User from "../models/User";
+import { User } from "../api/models/User";
 import FriendRequest from "../models/FriendRequest";
 import Chat from "../models/Chat";
 import Notification from "../models/Notification";
-import catchAsync from "../utils/catchAsync";
-import sendResponse from "../utils/sendResponse";
+import catchAsync from "../api/utils/catchAsync";
+import sendResponse from "../api/utils/sendResponse";
 import { logger } from "../utils/winstonLogger";
 
 export const sendFriendRequest = catchAsync(

@@ -1,5 +1,5 @@
 import Stripe from "stripe";
-import User from "../models/User";
+import { User } from "../api/models/User";
 
 // ✅ Initialize Stripe with API Key
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {

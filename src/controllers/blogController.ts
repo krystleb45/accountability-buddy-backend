@@ -2,8 +2,8 @@ import type { Request, Response } from "express";
 import mongoose from "mongoose";
 import BlogPost from "../models/BlogPost";
 import Notification from "../models/Notification";
-import catchAsync from "../utils/catchAsync";
-import sendResponse from "../utils/sendResponse";
+import catchAsync from "../api/utils/catchAsync";
+import sendResponse from "../api/utils/sendResponse";
 
 /**
  * @desc Create a new blog post

@@ -61,6 +61,7 @@
     "pg": "^8.13.1",
     "pg-promise": "^11.10.2",
     "rate-limit-redis": "^4.2.0",
+    "react-toastify": "^11.0.5",
     "redis": "^4.7.0",
     "sanitize-filename": "^1.6.3",
     "sanitize-html": "^2.14.0",

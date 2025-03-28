@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import Tracker from "../models/Tracker"; // Database model for tracker
-import catchAsync from "../utils/catchAsync";
-import sendResponse from "../utils/sendResponse";
+import catchAsync from "../api/utils/catchAsync";
+import sendResponse from "../api/utils/sendResponse";
 import sanitize from "mongo-sanitize"; // Input sanitization
 
 /**

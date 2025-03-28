@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
-import catchAsync from "../utils/catchAsync"; // Centralized async error handling
-import sendResponse from "../utils/sendResponse"; // Standardized API responses
+import catchAsync from "../api/utils/catchAsync";
+import sendResponse from "../api/utils/sendResponse";
 
 import { createError } from "../middleware/errorHandler"; // Custom error handler
 import Resource from "../models/MilitaryResource"; // Military resources model

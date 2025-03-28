@@ -1,8 +1,8 @@
 import type { Request, Response } from "express";
 import { PrivateMessage } from "../models/PrivateMessage";
-import User from "../models/User"; // Ensure User is properly exported
-import catchAsync from "../utils/catchAsync";
-import sendResponse from "../utils/sendResponse";
+import { User } from "../api/models/User"; // Ensure User is properly exported
+import catchAsync from "../api/utils/catchAsync";
+import sendResponse from "../api/utils/sendResponse";
 import { logger } from "../utils/winstonLogger";
 
 // Sanitize input utility

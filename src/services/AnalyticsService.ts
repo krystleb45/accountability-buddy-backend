@@ -1,5 +1,5 @@
 import Goal from "../models/Goal";
-import Challenge from "../models/Challenge";
+import Challenge from "../api/models/Challenge";
 import ActivityLog from "../models/Activity";
 import { logger } from "../utils/winstonLogger";
 

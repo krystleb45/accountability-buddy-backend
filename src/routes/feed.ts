@@ -2,7 +2,7 @@ import type { Router, Response, NextFunction } from "express";
 import express from "express";
 import { check } from "express-validator";
 import rateLimit from "express-rate-limit";
-import authMiddleware from "../middleware/authMiddleware";
+import authMiddleware from "../api/middleware/authMiddleware";
 import * as feedController from "../controllers/feedController";
 import type { AuthenticatedRequest } from "../types/request"; // Ensure correct path
 import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust the path

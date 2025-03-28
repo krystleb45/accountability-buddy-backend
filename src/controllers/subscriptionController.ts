@@ -1,9 +1,9 @@
 import type { Request, Response, NextFunction } from "express";
-import User from "../models/User";
-import catchAsync from "../utils/catchAsync";
-import sendResponse from "../utils/sendResponse";
+import { User } from "../api/models/User";
+import catchAsync from "../api/utils/catchAsync";
+import sendResponse from "../api/utils/sendResponse";
 import Stripe from "stripe";
-import type { IUser } from "../models/User"; // Assuming the user interface exists
+import type { IUser } from "../api/models/User"; // Assuming the user interface exists
 import type { ISubscription } from "../models/Subscription"; // Assuming Subscription model
 
 

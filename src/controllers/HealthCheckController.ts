@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import mongoose from "mongoose";
-import sendResponse from "../utils/sendResponse";
+
+import sendResponse from "../api/utils/sendResponse";
 
 /**
  * @desc Health check endpoint

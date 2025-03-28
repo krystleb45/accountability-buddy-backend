@@ -1,7 +1,7 @@
 import type { RequestHandler } from "express";
 import jwt from "jsonwebtoken";
 import sanitize from "mongo-sanitize";
-import User from "../models/User";
+import { User } from "../api/models/User";
 import { logger } from "../utils/winstonLogger";
 import type { AuthenticatedRequest } from "../types/AuthenticatedRequest";
 

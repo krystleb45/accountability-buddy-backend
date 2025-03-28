@@ -3,8 +3,8 @@ import fs from "fs";
 import sanitizeFilename from "sanitize-filename";
 import { execSync } from "child_process";
 import type { Request, Response, NextFunction } from "express";
-import catchAsync from "../utils/catchAsync";
-import sendResponse from "../utils/sendResponse";
+import catchAsync from "../api/utils/catchAsync";
+import sendResponse from "../api/utils/sendResponse";
 import { logger } from "../utils/winstonLogger";
 
 

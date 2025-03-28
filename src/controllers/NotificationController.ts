@@ -1,8 +1,8 @@
 import type { Request, Response } from "express";
 import Notification from "../models/Notification"; // Adjusted import
-import User from "../models/User";
-import catchAsync from "../utils/catchAsync";
-import sendResponse from "../utils/sendResponse";
+import { User } from "../api/models/User";
+import catchAsync from "../api/utils/catchAsync";
+import sendResponse from "../api/utils/sendResponse";
 import { logger } from "../utils/winstonLogger";
 
 // Sanitize input utility

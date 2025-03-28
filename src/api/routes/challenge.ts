@@ -8,7 +8,7 @@ import {
   joinChallenge,
   leaveChallenge,
   getChallengeById, // ✅ now implemented below
-} from "../controllers/ChallengeController";
+} from "../controllers/challengeController";
 
 const router: Router = express.Router();
 

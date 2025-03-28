@@ -3,7 +3,7 @@ import express from "express";
 import { check } from "express-validator";
 import sanitize from "mongo-sanitize";
 import rateLimit from "express-rate-limit";
-import authMiddleware from "../middleware/authMiddleware"; // Correct middleware import path
+import authMiddleware from "../api/middleware/authMiddleware";
 import * as sessionController from "../controllers/SessionController"; // Ensure named import for controller methods
 import { logger } from "../utils/winstonLogger";import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust the path
 

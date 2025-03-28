@@ -1,6 +1,7 @@
 import rateLimit from "express-rate-limit";
 import type { Request, Response } from "express";
-import sendResponse from "../utils/sendResponse";
+
+import sendResponse from "../api/utils/sendResponse";
 
 /**
  * @desc Apply rate limiting middleware

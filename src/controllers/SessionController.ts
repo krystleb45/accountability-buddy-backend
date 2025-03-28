@@ -3,7 +3,7 @@ import type { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { Session } from "../models/Session"; // Import Session model
-import User from "../models/User"; // Import User model
+import { User } from "../api/models/User"; // Import User model
 
 // Environment variables
 const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret";

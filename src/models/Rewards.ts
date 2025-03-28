@@ -1,13 +1,13 @@
 import type { Request, Response, NextFunction } from "express";
 import type { Document, Model, Types } from "mongoose";
 import mongoose, { Schema } from "mongoose";
-import User from "./User";
-import catchAsync from "../utils/catchAsync";
-import sendResponse from "../utils/sendResponse";
+import { User } from "../api/models/User";
+import catchAsync from "../api/utils/catchAsync";
+import sendResponse from "../api/utils/sendResponse";
 
 // Define the IReward interface
 export interface IReward extends Document {
-  _id: Types.ObjectId; // Explicitly define _id as ObjectId
+  _id: Types.ObjectId;
   title: string;
   description?: string;
   points: number;
@@ -22,7 +22,7 @@ const RewardSchema: Schema<IReward> = new Schema(
     description: { type: String },
     points: { type: Number, required: true, default: 0 },
   },
-  { timestamps: true }, // Adds createdAt and updatedAt fields automatically
+  { timestamps: true } // Adds createdAt and updatedAt fields automatically
 );
 
 // Create the Reward model

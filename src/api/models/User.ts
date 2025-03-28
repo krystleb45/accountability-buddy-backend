@@ -55,8 +55,8 @@ export interface IUser extends Document {
   twoFactorSecret?: string;
   completedGoals?: number;
   streak?: number;
-  streakCount?: number; // ✅ Added for gamification streak logic
-  badges?: Types.ObjectId[]; // ✅ Added to support awarded badge references
+  streakCount?: number;
+  badges?: Types.ObjectId[];
   achievements?: Types.ObjectId[];
   lastGoalCompletedAt?: Date;
   trial_start_date?: Date;
@@ -66,11 +66,8 @@ export interface IUser extends Document {
   interests?: string[];
   chatPreferences?: ChatPreferences;
   activeStatus: "online" | "offline";
-
-  // ✅ Pinned Goals & Featured Achievements
   pinnedGoals: Types.ObjectId[];
   featuredAchievements: Types.ObjectId[];
-
   comparePassword(candidatePassword: string): Promise<boolean>;
   generateResetToken(): string;
 }
@@ -90,34 +87,31 @@ const UserSchema: Schema<IUser> = new Schema(
     isLocked: { type: Boolean, default: false },
     active: { type: Boolean, default: true },
     profilePicture: { type: String },
-
     friends: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     friendRequests: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-
     points: { type: Number, default: 0 },
     rewards: [{ type: mongoose.Schema.Types.ObjectId, ref: "Reward" }],
     resetPasswordToken: { type: String },
     resetPasswordExpires: { type: Date },
     subscriptions: [{ type: mongoose.Schema.Types.ObjectId, ref: "Subscription" }],
     stripeCustomerId: { type: String },
-
     trial_start_date: { type: Date, default: null },
-    subscription_status: { type: String, enum: ["trial", "active", "expired"], default: "trial" },
+    subscription_status: {
+      type: String,
+      enum: ["trial", "active", "expired"],
+      default: "trial",
+    },
     next_billing_date: { type: Date, default: null },
-
     completedGoals: { type: Number, default: 0, min: 0 },
     streak: { type: Number, default: 0, min: 0 },
-    streakCount: { type: Number, default: 0, min: 0 }, // ✅ NEW
+    streakCount: { type: Number, default: 0, min: 0 },
     lastGoalCompletedAt: { type: Date, default: null },
-
     achievements: [{ type: mongoose.Schema.Types.ObjectId, ref: "Achievement" }],
-    badges: [{ type: mongoose.Schema.Types.ObjectId, ref: "Badge" }], // ✅ NEW
-
+    badges: [{ type: mongoose.Schema.Types.ObjectId, ref: "Badge" }],
     pinnedGoals: [{ type: mongoose.Schema.Types.ObjectId, ref: "Goal" }],
     featuredAchievements: [{ type: mongoose.Schema.Types.ObjectId, ref: "Achievement" }],
-
     interests: [{ type: String, trim: true }],
     chatPreferences: {
       preferredGroups: [{ type: mongoose.Schema.Types.ObjectId, ref: "Chat" }],
@@ -171,7 +165,6 @@ UserSchema.methods.generateResetToken = function (): string {
 };
 
 /**
- * ✅ Export the model
+ * ✅ Export the model properly as named export
  */
-const User: Model<IUser> = mongoose.model<IUser>("User", UserSchema);
-export default User;
+export const User: Model<IUser> = mongoose.model<IUser>("User", UserSchema);

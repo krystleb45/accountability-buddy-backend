@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import Profile from "../models/profile"; // Assuming Profile model exists
-import catchAsync from "../utils/catchAsync";
-import sendResponse from "../utils/sendResponse";
+import catchAsync from "../api/utils/catchAsync";
+import sendResponse from "../api/utils/sendResponse";
 import LoggingService from "../services/LoggingService";
 import Stripe from "stripe";
 

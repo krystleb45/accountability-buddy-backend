@@ -1,7 +1,7 @@
 import type { Response, NextFunction, Router, Request } from "express";
 import express from "express";
 import APIKey from "../models/APIKey";
-import authMiddleware from "../middleware/authMiddleware";
+import authMiddleware from "../api/middleware/authMiddleware";
 import { roleBasedAccessControl } from "../middleware/roleBasedAccessControl";
 import { logger } from "../utils/winstonLogger";
 

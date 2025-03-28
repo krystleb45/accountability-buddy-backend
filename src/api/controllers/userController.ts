@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import mongoose, { SortOrder } from "mongoose";
-import User from "../models/User";
+import { User } from "../models/User";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
 import bcrypt from "bcryptjs";
@@ -113,7 +113,7 @@ export const unpinGoal = catchAsync(async (req: Request, res: Response): Promise
     sendResponse(res, 404, false, "User not found.");
     return;
   }
-  user.pinnedGoals = user.pinnedGoals.filter(id => id.toString() !== goalId.toString());
+  user.pinnedGoals = user.pinnedGoals.filter((id: { toString: () => any; }) => id.toString() !== goalId.toString());
   await user.save();
   sendResponse(res, 200, true, "Goal unpinned successfully.", { pinnedGoals: user.pinnedGoals });
 });
@@ -157,7 +157,7 @@ export const unfeatureAchievement = catchAsync(async (req: Request, res: Respons
     sendResponse(res, 404, false, "User not found.");
     return;
   }
-  user.featuredAchievements = user.featuredAchievements.filter(id => id.toString() !== achievementId.toString());
+  user.featuredAchievements = user.featuredAchievements.filter((id: { toString: () => any; }) => id.toString() !== achievementId.toString());
   await user.save();
   sendResponse(res, 200, true, "Achievement unfeatured successfully.", { featuredAchievements: user.featuredAchievements });
 });

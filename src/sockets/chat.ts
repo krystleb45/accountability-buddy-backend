@@ -1,7 +1,7 @@
 import type { Server, Socket } from "socket.io";
 import Chat from "../models/Chat"; // Chat model for storing messages
 import Group from "../models/Group"; // Group model for managing groups
-import User from "../models/User"; // User model for user details
+import { User } from "../api/models/User"; // User model for user details
 import { logger } from "../utils/winstonLogger";
 
 interface JoinRoomData {

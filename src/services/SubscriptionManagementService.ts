@@ -1,6 +1,6 @@
 import Stripe from "stripe";
 import { logger } from "../utils/winstonLogger";
-import User from "../models/User";
+import { User } from "../api/models/User";
 import Subscription from "../models/Subscription"; // Assume a Subscription model exists
 import { CustomError } from "./errorHandler";
 

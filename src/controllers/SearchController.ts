@@ -1,10 +1,11 @@
 import type { Request, Response, NextFunction } from "express";
-import User from "../models/User";
+import { User } from "../api/models/User";
 import Group from "../models/Group";
 import Goal from "../models/Goal"; // Added Goal model
 import { Post }  from "../models/Post"; // Added Post model
 import sanitize from "mongo-sanitize";
-import sendResponse from "../utils/sendResponse";
+
+import sendResponse from "../api/utils/sendResponse";
 import type { Document, Model } from "mongoose";
 
 // Helper function to sanitize input

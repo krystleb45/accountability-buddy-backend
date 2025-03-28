@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { Integration } from "../models/Integration";
-import catchAsync from "../utils/catchAsync";
-import sendResponse from "../utils/sendResponse";
+import catchAsync from "../api/utils/catchAsync";
+import sendResponse from "../api/utils/sendResponse";
 import sanitize from "mongo-sanitize";
 import { logger } from "../utils/winstonLogger";
 import { createError } from "../middleware/errorHandler";

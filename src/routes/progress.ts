@@ -1,7 +1,7 @@
 import type { Router, Request, Response, NextFunction } from "express";
 import express from "express";
 import { check } from "express-validator";
-import authMiddleware from "../middleware/authMiddleware"; // Correct middleware import path
+import authMiddleware from "../api/middleware/authMiddleware";
 import * as ProgressController from "../controllers/ProgressController"; // Corrected controller import path
 import { logger } from "../utils/winstonLogger";import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust the path
 

@@ -1,6 +1,6 @@
 import type { IGoal } from "../models/Goal";
 import Goal from "../models/Goal"; // Import the Goal model and interface
-import User from "../models/User"; // Import the User model
+import User from "../api/models/User"; // Import the User model
 import { logger } from "../utils/winstonLogger";
 import { CustomError } from "./errorHandler"; // Centralized error handling
 import type { FilterQuery } from "mongoose";

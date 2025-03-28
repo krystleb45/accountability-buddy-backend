@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import AuditLog from "../models/AuditLog"; // Ensure this model is defined and implemented correctly
-import catchAsync from "../utils/catchAsync";
-import sendResponse from "../utils/sendResponse";
+import catchAsync from "../api/utils/catchAsync";
+import sendResponse from "../api/utils/sendResponse";
 import { createError } from "../middleware/errorHandler";
 import sanitize from "mongo-sanitize";
 

@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import Notification from "../models/Notification"; // Ensure this matches your model export
-import catchAsync from "../utils/catchAsync";
-import sendResponse from "../utils/sendResponse";
+import catchAsync from "../api/utils/catchAsync";
+import sendResponse from "../api/utils/sendResponse";
 import sanitize from "mongo-sanitize";
 
 /**

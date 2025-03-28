@@ -1,8 +1,8 @@
 import { Router } from "express";
 import express from "express";
 import authMiddleware from "../middleware/authMiddleware";
-import checkSubscription from "../middleware/checkSubscription";
-import goalController from "../controllers/GoalController"; // ✅ Hooked in controller methods
+import checkSubscription from "../../middleware/checkSubscription";
+import goalController from "../controllers/goalController"; // ✅ Hooked in controller methods
 
 const router: Router = express.Router();
 

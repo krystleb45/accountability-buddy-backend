@@ -11,13 +11,13 @@ import mongoSanitize from "express-mongo-sanitize";
 import xssClean from "xss-clean";
 import hpp from "hpp";
 import bodyParser from "body-parser";
-import authRoutes from "./routes/auth";
-import userRoutes from "./routes/user";
+import authRoutes from "./api/routes/auth";
+import userRoutes from "./api/routes/user";
 import newsletterRoutes from "./routes/newsletter";
 import paymentRoutes from "./routes/payment";
 import { errorHandler } from "./middleware/errorHandler";
 import { logger } from "../src/utils/winstonLogger";
-import challengeRoutes from "./routes/challenge"; 
+import challengeRoutes from "./api/routes/challenge"; 
 
 
 // Load environment variables

@@ -3,10 +3,10 @@ import express from "express";
 import { check, validationResult } from "express-validator";
 import rateLimit from "express-rate-limit";
 
-import { login, register, refreshToken } from "../../src/controllers/authController";
+import { login, register, refreshToken } from "../../controllers/authController";
 import authMiddleware from "../middleware/authMiddleware";
-import type { AuthenticatedRequest } from "../types/AuthenticatedRequest";
-import { logger } from "../utils/winstonLogger";
+import type { AuthenticatedRequest } from "../../types/AuthenticatedRequest";
+import { logger } from "../../utils/winstonLogger";
 
 const router: Router = express.Router();
 

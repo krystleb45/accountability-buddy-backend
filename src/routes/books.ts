@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { check } from "express-validator";
-import authMiddleware from "../middleware/authMiddleware";
+import authMiddleware from "../api/middleware/authMiddleware";
 import handleValidationErrors from "../middleware/handleValidationErrors";
 import * as bookController from "../controllers/bookController";
 

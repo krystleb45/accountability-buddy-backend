@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import History from "../models/History"; // Ensure you have a History model
-import catchAsync from "../utils/catchAsync"; // Import async handler
-import sendResponse from "../utils/sendResponse"; // Import utility for responses
+import catchAsync from "../api/utils/catchAsync";
+import sendResponse from "../api/utils/sendResponse";
 import { createError } from "../middleware/errorHandler"; // Custom error handler
 
 /**

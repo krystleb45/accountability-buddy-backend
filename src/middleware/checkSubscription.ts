@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction, RequestHandler } from "express";
-import User from "../models/User";
+import { User } from "../api/models/User";
 import { logger } from "../utils/winstonLogger"; // ✅ Logging for better debugging
 
 /**

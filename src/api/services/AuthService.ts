@@ -1,8 +1,8 @@
 import type { JwtPayload } from "jsonwebtoken";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-import Role from "../models/Role";
-import { logger } from "../utils/winstonLogger";
+import Role from "../../models/Role";
+import { logger } from "../../utils/winstonLogger";
 
 export const AuthService = {
   /**
@@ -25,7 +25,7 @@ export const AuthService = {
         throw new Error("JWT_SECRET is not defined.");
       }
 
-      return jwt.sign(payload, secretKey, { expiresIn: "1h" });
+      return jwt.sign(payload, secretKey, { expiresIn: "1h" });  // Mobile session expiry can be adjusted here
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
       logger.error(`Error generating token: ${errorMessage}`);
@@ -116,6 +116,25 @@ export const AuthService = {
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
       logger.error(`Error verifying socket token: ${errorMessage}`);
       throw new Error("Socket token verification failed.");
+    }
+  },
+
+  /**
+   * @desc    Refreshes the token by validating the old token and generating a new one.
+   * @param   oldToken - The expired JWT token.
+   * @returns A new JWT token.
+   */
+  async refreshToken(oldToken: string): Promise<string> {
+    try {
+      const decoded = await this.verifyToken(oldToken);
+      if (typeof decoded === "string") throw new Error("Invalid token payload");
+
+      const { userId, role } = decoded as JwtPayload;
+      const user = { _id: userId, role };
+      return this.generateToken(user);
+    } catch (error) {
+      logger.error("Error refreshing token:", error);
+      throw new Error("Token refresh failed");
     }
   },
 };

@@ -2,7 +2,7 @@ import { Router } from "express";
 import { check } from "express-validator";
 import rateLimit from "express-rate-limit";
 import * as chatController from "../controllers/chatController";
-import authMiddleware from "../middleware/authMiddleware";
+import authMiddleware from "../api/middleware/authMiddleware";
 import handleValidationErrors from "../middleware/handleValidationErrors";
 
 const router: Router = Router();

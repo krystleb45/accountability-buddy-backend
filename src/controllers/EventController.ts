@@ -2,8 +2,8 @@ import mongoose from "mongoose";
 import type { Request, Response } from "express";
 import type { IEvent } from "../models/Event";
 import Event from "../models/Event"; // Import IEvent with participants
-import catchAsync from "../utils/catchAsync";
-import sendResponse from "../utils/sendResponse";
+import catchAsync from "../api/utils/catchAsync";
+import sendResponse from "../api/utils/sendResponse";
 import { logger } from "../utils/winstonLogger";
 
 /**

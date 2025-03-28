@@ -1,12 +1,10 @@
-// RewardsController.ts
-import type { Request, Response, NextFunction } from "express";
-import type  { Types } from "mongoose";
-import User from "../models/User";
-import type { IReward } from "../models/Rewards";
-import { Reward } from "../models/Rewards";
-import Review from "../models/Review";
+import { Request, Response, NextFunction } from "express";
+import { Types } from "mongoose";
+import { User } from "../models/User"; // Correct path
+import Reward from "../models/Reward";  // Correct import for the Reward model (default import)
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
+import Review from "@src/models/Review"; // Ensure correct path
 
 /**
  * @desc Get user rewards
@@ -14,26 +12,18 @@ import sendResponse from "../utils/sendResponse";
  * @access Private
  */
 export const getUserRewards = catchAsync(
-  async (
-    req: Request<{}, {}, {}, {}>,
-    res: Response,
-    _next: NextFunction,
-  ): Promise<void> => {
+  async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
     const userId = req.user?.id;
 
-    const user = await User.findById(userId).populate<{
-      rewards: IReward[];
-    }>("rewards");
+    const user = await User.findById(userId).populate("rewards");
 
     if (!user) {
       sendResponse(res, 404, false, "User not found");
       return;
     }
 
-    sendResponse(res, 200, true, "User rewards fetched successfully", {
-      rewards: user.rewards ?? [],
-    });
-  },
+    sendResponse(res, 200, true, "User rewards fetched successfully", { rewards: user.rewards ?? [] });
+  }
 );
 
 /**
@@ -42,10 +32,7 @@ export const getUserRewards = catchAsync(
  * @access Private
  */
 export const redeemReward = catchAsync(
-  async (
-    req: Request<{}, any, { rewardId: string }>,
-    res: Response,
-  ): Promise<void> => {
+  async (req: Request, res: Response): Promise<void> => {
     const { rewardId } = req.body;
     const userId = req.user?.id;
 
@@ -62,17 +49,18 @@ export const redeemReward = catchAsync(
     }
 
     const userPoints = user.points ?? 0;
-    if (userPoints < reward.points) {
+    if (userPoints < reward.pointsRequired) {  // Fixing the points field to `pointsRequired`
       sendResponse(res, 400, false, "Insufficient points to redeem this reward");
       return;
     }
 
-    user.points = userPoints - reward.points;
-    user.rewards.push(reward._id as Types.ObjectId);
+    // Deduct points and update the user's reward list
+    user.points = userPoints - reward.pointsRequired;
+    user.rewards.push(reward._id as Types.ObjectId);  // Ensure reward._id is treated as ObjectId
     await user.save();
 
     sendResponse(res, 200, true, "Reward redeemed successfully", { reward });
-  },
+  }
 );
 
 /**
@@ -81,25 +69,24 @@ export const redeemReward = catchAsync(
  * @access Private (Admin only)
  */
 export const createReward = catchAsync(
-  async (
-    req: Request<{}, any, { title: string; description?: string; points: number }>,
-    res: Response,
-  ): Promise<void> => {
-    const { title, description, points } = req.body;
+  async (req: Request, res: Response): Promise<void> => {
+    const { title, description, pointsRequired, rewardType, imageUrl } = req.body;
 
-    if (!title || !points) {
-      sendResponse(res, 400, false, "Title and points are required");
+    if (!title || !pointsRequired || !rewardType) {
+      sendResponse(res, 400, false, "Title, points, and rewardType are required");
       return;
     }
 
     const newReward = await Reward.create({
-      title,
+      title,  // Use `title` as per the updated model
       description,
-      points,
+      pointsRequired,
+      rewardType,
+      imageUrl,
     });
 
     sendResponse(res, 201, true, "Reward created successfully", { reward: newReward });
-  },
+  }
 );
 
 /**
@@ -123,10 +110,7 @@ export const awardPoints = async (userId: string, points: number): Promise<void>
  * @access Private
  */
 export const submitReview = catchAsync(
-  async (
-    req: Request<{}, any, { userId: string; rating: number; content: string }>,
-    res: Response,
-  ): Promise<void> => {
+  async (req: Request, res: Response): Promise<void> => {
     const { userId, rating, content } = req.body;
     const reviewerId = req.user?.id;
 
@@ -168,5 +152,5 @@ export const submitReview = catchAsync(
     });
 
     sendResponse(res, 201, true, "Review submitted successfully", { review: newReview });
-  },
+  }
 );

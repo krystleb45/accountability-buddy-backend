@@ -2,7 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import type { JwtPayload } from "jsonwebtoken";
 import jwt from "jsonwebtoken";
 import { CustomError } from "../services/errorHandler"; // Centralized error handling
-import User from "../models/User"; // User model for authorization
+import User from "../api/models/User"; // User model for authorization
 import { logger } from "../utils/winstonLogger";
 
 export const MiddlewareService = {

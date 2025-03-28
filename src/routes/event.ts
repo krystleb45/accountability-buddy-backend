@@ -4,8 +4,8 @@ import { check, validationResult } from "express-validator";
 import rateLimit from "express-rate-limit";
 import mongoose from "mongoose"; // For ObjectId validation
 import Event from "../models/Event";
-import authMiddleware from "../middleware/authMiddleware";
-import catchAsync from "../utils/catchAsync";
+import authMiddleware from "../api/middleware/authMiddleware";
+import catchAsync from "../api/utils/catchAsync";
 
 const router: Router = express.Router();
 

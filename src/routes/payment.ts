@@ -3,7 +3,7 @@ import express from "express";
 import Stripe from "stripe";
 import bodyParser from "body-parser";
 import rateLimit from "express-rate-limit";
-import authMiddleware from "../middleware/authMiddleware";
+import authMiddleware from "../api/middleware/authMiddleware";
 import { logger } from "../utils/winstonLogger";
 const router: Router = express.Router();
 

@@ -2,8 +2,8 @@ import type { Request, Response, NextFunction } from "express";
 import mongoose from "mongoose";
 import Group, { IGroup } from "../models/Group";
 import Notification from "../models/Notification"; // ✅ Import Notification model
-import catchAsync from "../utils/catchAsync";
-import sendResponse from "../utils/sendResponse";
+import catchAsync from "../api/utils/catchAsync";
+import sendResponse from "../api/utils/sendResponse";
 import { createError } from "../middleware/errorHandler";
 
 // ✅ Extend request type for user authentication

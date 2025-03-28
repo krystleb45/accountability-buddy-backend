@@ -1,38 +1,28 @@
-import type { Request, Response, NextFunction } from "express";
-import Goal from "../models/Goal";
-import User from "../models/User";
-import Badge from "../models/Badge";
+import { Request, Response, NextFunction } from "express";
+import Goal from "../../models/Goal";  // Correct path
+import { IUser, User } from "../models/User";  // Correct path
+import Badge from "../../models/Badge";
 import { Types } from "mongoose";
-import type { IUser } from "../models/User";
-import catchAsync from "../utils/catchAsync";
+import { checkStreakMilestone } from "../../utils/streakUtils";
 import sendResponse from "../utils/sendResponse";
-import { createError } from "../middleware/errorHandler";
-import { checkStreakMilestone } from "../utils/streakUtils"; // ✅ NEW
+import createError from "../utils/errorUtils"; // Make sure this is from errorUtils.ts
+import catchAsync from "../utils/catchAsync";
+import { RequestWithUser } from "../types/RequestWithUser";
 
-// ✅ Extend Request Type for User
-interface RequestWithUser<T = {}, U = {}> extends Request<U, {}, T> {
-  user?: {
-    id: string;
-    email?: string;
-    role: "user" | "admin" | "moderator";
-    isAdmin?: boolean;
-  };
-}
-
-/**
- * @desc    Get all goals (Admin Only)
- * @route   GET /api/goals
- * @access  Private (Admin)
- */
+// Example of a controller function using `RequestWithUser`
 export const getAllGoals = catchAsync(
   async (req: RequestWithUser, res: Response, next: NextFunction): Promise<void> => {
-    if (!req.user?.isAdmin) return next(createError("Access denied. Admins only.", 403));
+    if (!req.user?.isAdmin) {
+      // Correct usage of createError, with 3 arguments passed to next() 
+      return next(createError("Access denied. Admins only.", 403, {}));  // 3 arguments: message, statusCode, details
+    }
 
     const goals = await Goal.find().sort({ createdAt: -1 });
 
     sendResponse(res, 200, true, "All goals fetched successfully", { goals });
   }
 );
+
 /**
  * @desc    Get all goal completion dates for streak calendar
  * @route   GET /api/goals/streak-dates
@@ -133,7 +123,7 @@ export const completeGoal = catchAsync(
       );
 
       if (!alreadyHasBadge) {
-        const badge = await Badge.findOne({ id: badgeId });
+        const badge = await Badge.findOne({ _id: badgeId }); // Fix the query here
         if (badge) {
           user.badges = [...(user.badges ?? []), badge._id as Types.ObjectId];
         }

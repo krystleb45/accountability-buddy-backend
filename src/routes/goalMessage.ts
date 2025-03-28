@@ -2,7 +2,7 @@ import type { Router, Request, Response, NextFunction } from "express";
 import express from "express";
 import { check } from "express-validator";
 import * as goalMessageController from "../controllers/GoalMessageController"; // Controller import
-import authMiddleware from "../middleware/authMiddleware"; // Auth middleware
+import authMiddleware from "../api/middleware/authMiddleware";
 import rateLimit from "express-rate-limit";
 import { logger } from "../utils/winstonLogger";
 import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust the path

@@ -7,7 +7,7 @@ import {
   updateUserRole,
   deleteUserAccount,
 } from "../controllers/AdminController";
-import authMiddleware from "../middleware/authMiddleware";
+import authMiddleware from "../api/middleware/authMiddleware";
 import roleMiddleware from "../middleware/adminMiddleware";
 import { PERMISSIONS } from "../constants/roles";
 import type { AuthenticatedRequest } from "../types/AuthenticatedRequest";

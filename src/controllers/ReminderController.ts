@@ -2,8 +2,8 @@ import type { Request, Response, NextFunction } from "express";
 import { Reminder } from "../models/Reminder";
 import Goal from "../models/Goal";
 import { scheduleReminder } from "../services/ReminderService";
-import catchAsync from "../utils/catchAsync";
-import sendResponse from "../utils/sendResponse";
+import catchAsync from "../api/utils/catchAsync";
+import sendResponse from "../api/utils/sendResponse";
 import sanitize from "mongo-sanitize";
 import CustomReminder from "../models/CustomReminder";
 

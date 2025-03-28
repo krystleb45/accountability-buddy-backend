@@ -1,5 +1,5 @@
 import nodemailer from "nodemailer";
-import User from "../models/User";
+import User from "../api/models/User";
 import Goal from "../models/Goal";
 import LoggingService from "./LoggingService";
 import NotificationService from "./NotificationService";

@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import Follow from "../models/Follow";
-import catchAsync from "../utils/catchAsync";
-import sendResponse from "../utils/sendResponse";
+import catchAsync from "../api/utils/catchAsync";
+import sendResponse from "../api/utils/sendResponse";
 import { createError } from "../middleware/errorHandler";
 
 /**

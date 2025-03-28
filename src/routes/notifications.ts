@@ -2,7 +2,7 @@ import type { Router } from "express";
 import express from "express";
 import { check } from "express-validator";
 import rateLimit from "express-rate-limit";
-import authMiddleware from "../middleware/authMiddleware";
+import authMiddleware from "../api/middleware/authMiddleware";
 import * as NotificationController from "../controllers/NotificationController";
 import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust the path
 

@@ -1,9 +1,9 @@
 import type { FilterQuery } from "mongoose";
 import type { IUser } from "../models/User";
-import User from "../models/User";
-import { logger } from "../utils/winstonLogger";
-import { CustomError } from "./errorHandler";
+import { User } from "../models/User";
+import { logger } from "../../utils/winstonLogger";
 import bcrypt from "bcryptjs"; // For password hashing
+import { CustomError } from "@src/services/errorHandler";
 
 
 const UserService = {

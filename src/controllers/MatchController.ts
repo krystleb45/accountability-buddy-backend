@@ -1,9 +1,9 @@
 import type { Request, Response } from "express";
 import mongoose from "mongoose";
 import { Match } from "../models/Match";
-import User from "../models/User";
-import catchAsync from "../utils/catchAsync";
-import sendResponse from "../utils/sendResponse";
+import { User } from "../api/models/User";
+import catchAsync from "../api/utils/catchAsync";
+import sendResponse from "../api/utils/sendResponse";
 import { logger } from "../utils/winstonLogger";
 
 /**

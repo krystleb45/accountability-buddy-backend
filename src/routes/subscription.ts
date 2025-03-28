@@ -1,7 +1,7 @@
 import type { Router, Request, Response, NextFunction } from "express";
 import express from "express";
 import rateLimit from "express-rate-limit";
-import authMiddleware from "../middleware/authMiddleware"; // ✅ Removed unused import
+import authMiddleware from "../api/middleware/authMiddleware";
 import * as subscriptionController from "../controllers/subscriptionController";
 import { createTrialSubscription, cancelSubscription } from "../utils/stripe";
 import { logger } from "../utils/winstonLogger";

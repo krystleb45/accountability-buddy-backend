@@ -2,7 +2,7 @@ import type { Router, Response, NextFunction, RequestHandler, Request } from "ex
 import express from "express";
 import { check, validationResult } from "express-validator";
 import rateLimit from "express-rate-limit";
-import authMiddleware from "../middleware/authMiddleware";
+import authMiddleware from "../api/middleware/authMiddleware";
 import { roleBasedAccessControl } from "../middleware/roleBasedAccessControl";
 import { logger } from "../utils/winstonLogger";
 import * as AdminController from "../controllers/AdminController";

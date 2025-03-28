@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import Activity from "../models/Activity"; // ✅ Fixed: Renamed from UserActivity
-import catchAsync from "../utils/catchAsync";
-import sendResponse from "../utils/sendResponse";
+import catchAsync from "../api/utils/catchAsync";
+import sendResponse from "../api/utils/sendResponse";
 import { createError } from "../middleware/errorHandler";
 
 /**

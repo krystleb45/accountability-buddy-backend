@@ -1,7 +1,7 @@
 import type { Router, Request, Response, NextFunction } from "express";
 import express from "express";
 import { check, validationResult } from "express-validator";
-import authMiddleware from "../middleware/authMiddleware";
+import authMiddleware from "../api/middleware/authMiddleware";
 import sanitize from "mongo-sanitize";
 import { logger } from "../utils/winstonLogger";import {
   createTask,

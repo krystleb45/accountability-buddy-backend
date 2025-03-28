@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { check } from "express-validator";
 import rateLimit from "express-rate-limit";
-import authMiddleware from "../middleware/authMiddleware";
-import validationMiddleware from "../middleware/validationMiddleware";
+import authMiddleware from "../api/middleware/authMiddleware";
+import validationMiddleware from "../api/middleware/validationMiddleware";
 import {
   logActivity,
   getUserActivities,

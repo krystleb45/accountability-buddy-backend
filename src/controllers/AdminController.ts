@@ -1,7 +1,7 @@
 import type { Response, NextFunction } from "express";
-import User from "../models/User";
-import catchAsync from "../utils/catchAsync";
-import sendResponse from "../utils/sendResponse";
+import { User } from "../api/models/User";
+import catchAsync from "../api/utils/catchAsync";
+import sendResponse from "../api/utils/sendResponse";
 import { createError } from "../middleware/errorHandler";
 import { PERMISSIONS } from "../constants/roles";
 import type { AuthenticatedRequest } from "../types/AuthenticatedRequest"; // ✅ Import AuthenticatedRequest

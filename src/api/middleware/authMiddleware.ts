@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
-import User from "../models/User";
-import { logger } from "../utils/winstonLogger"; // ✅ Logging for debugging
+import { User } from "../models/User";
+import { logger } from "../../utils/winstonLogger"; // ✅ Logging for debugging
 
 /**
  * ✅ Extend Express Request type to include `user` (NO explicit export needed)

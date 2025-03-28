@@ -5,7 +5,7 @@ import {
   getResources,
   getDisclaimer,
 } from "../controllers/militarySupportController";
-import authMiddleware from "../middleware/authMiddleware";
+import authMiddleware from "../api/middleware/authMiddleware";
 import militaryAuth from "../middleware/militaryAuth";
 
 const router: Router = express.Router();

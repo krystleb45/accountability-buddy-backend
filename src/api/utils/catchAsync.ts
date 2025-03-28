@@ -1,6 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import { logger } from "../utils/winstonLogger";
-
+import { logger } from "../../utils/winstonLogger";
 
 /**
  * @desc    A higher-order function to wrap asynchronous route handlers for error management.
@@ -13,13 +12,12 @@ const catchAsync = <T extends Request>(
 ): ((req: T, res: Response, next: NextFunction) => void) => {
   return (req: T, res: Response, next: NextFunction): void => {
     Promise.resolve(fn(req, res, next)).catch((err) => {
-      // Log the error with structured information using a logger
       logger.error(`Error in async handler: ${err instanceof Error ? err.message : String(err)}`, {
         stack: err instanceof Error ? err.stack : undefined,
         requestUrl: req.originalUrl,
         method: req.method,
       });
-      next(err); // Forward the error to the next middleware
+      next(err);
     });
   };
 };

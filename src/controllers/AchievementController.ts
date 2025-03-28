@@ -1,10 +1,10 @@
 import type { Request, Response, NextFunction } from "express";
 import mongoose from "mongoose";
 import Achievement from "../models/Achievement";
-import catchAsync from "../utils/catchAsync";
-import sendResponse from "../utils/sendResponse";
+import catchAsync from "../api/utils/catchAsync";
+import sendResponse from "../api/utils/sendResponse";
 import { createError } from "../middleware/errorHandler";
-import { IUser } from "../models/User";
+import { IUser } from "../api/models/User";
 
 /**
  * @desc Get all achievements for a user

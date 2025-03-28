@@ -15,8 +15,8 @@ import {
   featureAchievement, // ✅ Ensure this exists in userController.ts
   unfeatureAchievement, // ✅ Ensure this exists in userController.ts
 } from "../controllers/userController";
-import { logger } from "../utils/winstonLogger";
-import { getLeaderboard } from "../controllers/LeaderboardController"; // ✅ New
+import { logger } from "../../utils/winstonLogger";
+import { getLeaderboard } from "../../controllers/LeaderboardController"; // ✅ New
 
 
 // ✅ Initialize router

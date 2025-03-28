@@ -1,8 +1,8 @@
 import mongoose from "mongoose";
 import type { Request, Response, NextFunction } from "express";
 import FeedPost from "../models/FeedPost";
-import catchAsync from "../utils/catchAsync";
-import sendResponse from "../utils/sendResponse";
+import catchAsync from "../api/utils/catchAsync";
+import sendResponse from "../api/utils/sendResponse";
 import { logger } from "../utils/winstonLogger";
 
 // Define reusable request types

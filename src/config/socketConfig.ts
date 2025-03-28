@@ -5,7 +5,7 @@ import logger from "./logging";
 import { verifyJWT } from "../../src/utils/jwtUtils";
 import Chat from "../models/Chat";
 import Message from "../models/Message";
-import User from "../models/User";
+import User from "../api/models/User";
 import mongoose from "mongoose";
 
 // Define the user shape
