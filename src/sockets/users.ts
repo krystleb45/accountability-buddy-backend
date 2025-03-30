@@ -1,6 +1,6 @@
 import type { Server, Socket } from "socket.io";
 import redisClient from "../config/redisClient";
-import User from "../api/models/User";
+import { User } from "../api/models/User";
 import { logger } from "../utils/winstonLogger";
 
 // Redis key prefix for online users

@@ -1,9 +1,9 @@
 import { Request, Response, NextFunction } from "express";
-import Goal from "../../models/Goal";  // Correct path
+import Goal from "../models/Goal";  // Correct path
 import { IUser, User } from "../models/User";  // Correct path
-import Badge from "../../models/Badge";
+import Badge from "../models/Badge";
 import { Types } from "mongoose";
-import { checkStreakMilestone } from "../../utils/streakUtils";
+import { checkStreakMilestone } from "../utils/streakUtils";
 import sendResponse from "../utils/sendResponse";
 import createError from "../utils/errorUtils"; // Make sure this is from errorUtils.ts
 import catchAsync from "../utils/catchAsync";

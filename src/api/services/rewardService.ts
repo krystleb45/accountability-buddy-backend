@@ -1,7 +1,7 @@
 import { Types } from "mongoose";
 import Challenge from "../models/Challenge"; // Ensure this is correct
 import { IChallenge } from "../models/Challenge";
-import { rewardChallengeCompletion } from "../../utils/rewardUtils"; // Utility to reward when challenge is completed
+import { rewardChallengeCompletion } from "../utils/rewardUtils"; // Utility to reward when challenge is completed
 
 // 🟢 Service to create a new challenge
 export const createChallengeService = async (

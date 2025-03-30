@@ -1,4 +1,4 @@
-import { someController } from "../controllers/someController";
+import { someController } from "../api/controllers/someController";
 import type { Request, Response } from "express";
 
 describe("Controller Tests", () => {

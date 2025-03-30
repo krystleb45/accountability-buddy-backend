@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import Role from "../models/Role";
+import Role from "../api/models/Role";
 import dotenv from "dotenv";
 import { logger } from "../utils/winstonLogger";
 

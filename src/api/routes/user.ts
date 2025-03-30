@@ -1,7 +1,7 @@
 import type { Router, Response } from "express";
 import express from "express";
 import { check } from "express-validator";
-import authMiddleware from "../middleware/authMiddleware"; // ✅ Ensure proper middleware import
+import { protect } from "../middleware/authMiddleware"; // ✅ Corrected middleware import
 import rateLimit from "express-rate-limit";
 import {
   getUserProfile,
@@ -16,8 +16,7 @@ import {
   unfeatureAchievement, // ✅ Ensure this exists in userController.ts
 } from "../controllers/userController";
 import { logger } from "../../utils/winstonLogger";
-import { getLeaderboard } from "../../controllers/LeaderboardController"; // ✅ New
-
+import { getLeaderboard } from "../controllers/LeaderboardController"; // ✅ New
 
 // ✅ Initialize router
 const router: Router = express.Router();
@@ -48,7 +47,7 @@ const handleError = (
  * ✅ @desc    Get the user's profile
  * ✅ @access  Private
  */
-router.get("/profile", authMiddleware, getUserProfile);
+router.get("/profile", protect, getUserProfile); // ✅ Replaced authMiddleware with protect
 
 /**
  * ✅ @route   PUT /user/profile
@@ -57,7 +56,7 @@ router.get("/profile", authMiddleware, getUserProfile);
  */
 router.put(
   "/profile",
-  authMiddleware,
+  protect, // ✅ Replaced authMiddleware with protect
   [
     check("email", "Invalid email").optional().isEmail(),
     check("username", "Username cannot be empty").optional().notEmpty(),
@@ -72,7 +71,7 @@ router.put(
  */
 router.patch(
   "/password",
-  authMiddleware,
+  protect, // ✅ Replaced authMiddleware with protect
   sensitiveOperationLimiter,
   [
     check("currentPassword", "Current password is required").notEmpty(),
@@ -86,7 +85,7 @@ router.patch(
  * ✅ @desc    Delete the user's account
  * ✅ @access  Private
  */
-router.delete("/account", authMiddleware, sensitiveOperationLimiter, async (req, res, next) => {
+router.delete("/account", protect, sensitiveOperationLimiter, async (req, res, next) => {
   try {
     await deleteUserAccount(req, res, next);
   } catch (error) {
@@ -99,42 +98,42 @@ router.delete("/account", authMiddleware, sensitiveOperationLimiter, async (req,
  * ✅ @desc    Pin a goal for the user
  * ✅ @access  Private
  */
-router.post("/pin-goal", authMiddleware, pinGoal);
+router.post("/pin-goal", protect, pinGoal); // ✅ Replaced authMiddleware with protect
 
 /**
  * ✅ @route   DELETE /user/unpin-goal
  * ✅ @desc    Unpin a goal for the user
  * ✅ @access  Private
  */
-router.delete("/unpin-goal", authMiddleware, unpinGoal);
+router.delete("/unpin-goal", protect, unpinGoal); // ✅ Replaced authMiddleware with protect
 
 /**
  * ✅ @route   GET /user/pinned-goals
  * ✅ @desc    Get all pinned goals for a user
  * ✅ @access  Private
  */
-router.get("/pinned-goals", authMiddleware, getPinnedGoals);
+router.get("/pinned-goals", protect, getPinnedGoals); // ✅ Replaced authMiddleware with protect
 
 /**
  * ✅ @route   POST /user/feature-achievement
  * ✅ @desc    Feature an achievement for the user
  * ✅ @access  Private
  */
-router.post("/feature-achievement", authMiddleware, featureAchievement);
+router.post("/feature-achievement", protect, featureAchievement); // ✅ Replaced authMiddleware with protect
 
 /**
  * ✅ @route   DELETE /user/unfeature-achievement
  * ✅ @desc    Unfeature an achievement for the user
  * ✅ @access  Private
  */
-router.delete("/unfeature-achievement", authMiddleware, unfeatureAchievement);
+router.delete("/unfeature-achievement", protect, unfeatureAchievement); // ✅ Replaced authMiddleware with protect
 
 /**
  * ✅ @route   GET /user/featured-achievements
  * ✅ @desc    Get all featured achievements for a user
  * ✅ @access  Private
  */
-router.get("/featured-achievements", authMiddleware, getFeaturedAchievements);
+router.get("/featured-achievements", protect, getFeaturedAchievements); // ✅ Replaced authMiddleware with protect
 
 /**
  * ✅ @route   GET /user/leaderboard

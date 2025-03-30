@@ -3,9 +3,9 @@ import express from "express";
 import { check, validationResult } from "express-validator";
 import rateLimit from "express-rate-limit";
 
-import { login, register, refreshToken } from "../../controllers/authController";
-import authMiddleware from "../middleware/authMiddleware";
-import type { AuthenticatedRequest } from "../../types/AuthenticatedRequest";
+import { login, register, refreshToken } from "../controllers/authController";
+import { protect } from "../middleware/authMiddleware"; // ✅ Updated import to use 'protect'
+import type { AuthenticatedRequest } from "../types/AuthenticatedRequest";
 import { logger } from "../../utils/winstonLogger";
 
 const router: Router = express.Router();
@@ -105,7 +105,7 @@ router.post(
  */
 router.get(
   "/me",
-  authMiddleware,
+  protect, // ✅ Use 'protect' middleware instead of default authMiddleware
   handleRouteErrors(async (req: Request, res: Response): Promise<void> => {
     const typedReq = req as AuthenticatedRequest;
 

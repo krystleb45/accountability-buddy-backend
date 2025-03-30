@@ -27,31 +27,34 @@
         "tabWidth": 2
       }
     ],
-    "no-console": ["warn", { "allow": ["warn", "error"] }],
+    "no-console": [
+      "warn", 
+      { "allow": ["warn", "error"] }
+    ], // Allow warn and error, disallow console.log() in production
     "no-unused-vars": "off",
     "@typescript-eslint/no-unused-vars": [
       "warn",
       { "args": "none", "ignoreRestSiblings": true }
     ],
-    "@typescript-eslint/explicit-function-return-type": "off",
+    "@typescript-eslint/explicit-function-return-type": "error", // Enforce explicit return types for better readability
     "@typescript-eslint/no-explicit-any": [
-      "warn",
+      "error", // Strictly disallow 'any'
       { "ignoreRestArgs": true }
     ],
-    "@typescript-eslint/no-non-null-assertion": "off",
+    "@typescript-eslint/no-non-null-assertion": "off", // Allow non-null assertion '!' if needed
     "@typescript-eslint/ban-ts-comment": [
       "warn",
       {
         "ts-ignore": "allow-with-description"
       }
     ],
-    "@typescript-eslint/no-floating-promises": "error",
-    "@typescript-eslint/consistent-type-imports": "warn",
+    "@typescript-eslint/no-floating-promises": "error", // Ensure promises are handled properly
+    "@typescript-eslint/consistent-type-imports": "warn", // Consistent imports for types (Array<T> vs T[])
     "@typescript-eslint/array-type": [
       "warn",
       { "default": "array-simple" }
     ],
-    "@typescript-eslint/no-inferrable-types": "warn",
+    "@typescript-eslint/no-inferrable-types": "warn", // Avoid unnecessary explicit types on variables
     "sort-imports": [
       "warn",
       {

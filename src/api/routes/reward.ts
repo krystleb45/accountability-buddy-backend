@@ -1,16 +1,14 @@
 import type { Router, Request, Response, NextFunction } from "express";
 import express from "express";
 import { check } from "express-validator";
-import authMiddleware from "../middleware/authMiddleware"; // Correct middleware import path
-import { roleBasedAccessControl } from "../../middleware/roleBasedAccessControl"; // Corrected RBAC middleware import path
-import * as RewardController from "../controllers/rewardController"; // Corrected controller import path
+import { protect } from "../middleware/authMiddleware"; // ✅ Corrected middleware import path
+import { roleBasedAccessControl } from "../middleware/roleBasedAccessControl"; // Corrected RBAC middleware import path
+import * as RewardController from "../controllers/RewardController"; // Corrected controller import path
 import rateLimit from "express-rate-limit";
-import { logger } from "../../utils/winstonLogger";import handleValidationErrors from "../../middleware/handleValidationErrors"; // Adjust the path
-
+import { logger } from "../../utils/winstonLogger"; // Logger import
+import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust the path
 
 const router: Router = express.Router();
-
-
 
 /**
  * Rate limiter to prevent abuse.
@@ -28,7 +26,7 @@ const rateLimiter = rateLimit({
  */
 router.get(
   "/",
-  authMiddleware,
+  protect, // ✅ Replaced authMiddleware with 'protect'
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       await RewardController.getUserRewards(req, res, next);
@@ -47,7 +45,7 @@ router.get(
  */
 router.post(
   "/redeem",
-  authMiddleware,
+  protect, // ✅ Replaced authMiddleware with 'protect'
   rateLimiter,
   [check("rewardId").notEmpty().withMessage("Reward ID is required.")],
   handleValidationErrors,
@@ -74,7 +72,7 @@ router.post(
  */
 router.post(
   "/create",
-  authMiddleware,
+  protect, // ✅ Replaced authMiddleware with 'protect'
   roleBasedAccessControl(["admin"]),
   [
     check("title").notEmpty().withMessage("Title is required."),

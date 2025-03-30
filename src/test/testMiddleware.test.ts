@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { globalRateLimiter } from "../utils/rateLimiter";
+import { globalRateLimiter } from "../api/utils/rateLimiter";
 
 jest.mock("express-rate-limit", () => {
   // eslint-disable-next-line @typescript-eslint/explicit-function-return-type

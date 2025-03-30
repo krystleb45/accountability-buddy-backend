@@ -1,7 +1,7 @@
 import type { JwtPayload } from "jsonwebtoken";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-import Role from "../../models/Role";
+import Role from "../models/Role";
 import { logger } from "../../utils/winstonLogger";
 
 export const AuthService = {

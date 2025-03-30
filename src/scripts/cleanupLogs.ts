@@ -1,6 +1,6 @@
 // scripts/cleanupLogs.ts
 import mongoose from "mongoose";
-import AuditLog from "../models/AuditLog";
+import AuditLog from "../api/models/AuditLog";
 import dotenv from "dotenv";
 import { logger } from "../utils/winstonLogger";
 

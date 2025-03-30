@@ -2,8 +2,8 @@ import type { Server as HttpServer } from "http";
 import type { Socket } from "socket.io";
 import { Server } from "socket.io";
 import chatSocket from "./chat"; // Chat event handlers
-import Notification from "../models/Notification"; // Notification model for real-time notifications
-import AuthService from "../api/services/authService"; // Import AuthService for JWT verification
+import Notification from "../api/models/Notification"; // Notification model for real-time notifications
+import AuthService from "../api/services/AuthService"; // Import AuthService for JWT verification
 import { logger } from "../utils/winstonLogger";
 
 interface DecodedToken {

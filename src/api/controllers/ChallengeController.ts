@@ -4,7 +4,7 @@ import Challenge from "../models/Challenge";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
 import sanitize from "mongo-sanitize";
-import { rewardChallengeCompletion } from "../../utils/rewardUtils";
+import { rewardChallengeCompletion } from "../utils/rewardUtils";
 import { createChallengeService } from "../services/challengeService";
 
 /**

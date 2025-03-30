@@ -34,30 +34,29 @@
     }
   },
   "include": [
-    "src/**/*", // All files in src directory
-    "src/types/**/*.d.ts", // Custom types
-    "src/test/**/*.ts", // Test files
-    "src/global.d.ts", // Global types
-    "@types/**/*.d.ts", // Global types from custom folders
-    "jest.setup.ts", // Jest setup file (TypeScript)
-    "jest.config.js" // Jest configuration file
+    "src/**/*",
+    "src/types/**/*.d.ts",
+    "src/test/**/*.ts",
+    "src/global.d.ts",
+    "@types/**/*.d.ts",
+    "jest.setup.ts",
+    "jest.config.js"
   ],
   "exclude": [
-    "node_modules", // Dependencies
-    "dist", // Build folder
-    "coverage", // Coverage reports
-    ".vscode", // IDE settings
-    ".env", // Environment variables
-    "**/*.test.js", // JavaScript test files
-    "**/*.spec.js", // JavaScript spec files
-    "build", // Build folder, if applicable
-    "*.mjs", // Exclude .mjs files
-    "*.cjs", // Exclude .cjs files
-    "build/" // Ignore build artifacts
-  
+    "node_modules",
+    "dist",
+    "coverage",
+    ".vscode",
+    ".env",
+    "**/*.test.js",
+    "**/*.spec.js",
+    "build",
+    "*.mjs",
+    "*.cjs",
+    "build/"
   ],
   "ts-node": {
-    "transpileOnly": true, // Speeds up ts-node by skipping type checks
-    "files": true // Ensures global types are included
+    "transpileOnly": true,
+    "files": true
   }
 }

@@ -1,8 +1,8 @@
 import { Router } from "express";
 import express from "express";
-import authMiddleware from "../middleware/authMiddleware";
-import checkSubscription from "../../middleware/checkSubscription";
-import goalController from "../controllers/goalController"; // ✅ Hooked in controller methods
+import { protect } from "../middleware/authMiddleware"; // ✅ Updated import
+import checkSubscription from "../middleware/checkSubscription";
+import goalController from "../controllers/GoalController"; // ✅ Hooked in controller methods
 
 const router: Router = express.Router();
 
@@ -13,7 +13,7 @@ const router: Router = express.Router();
  */
 router.post(
   "/create",
-  authMiddleware,
+  protect, // ✅ Use 'protect' here
   checkSubscription("paid"),
   goalController.createGoal
 );
@@ -25,7 +25,7 @@ router.post(
  */
 router.put(
   "/:goalId/progress",
-  authMiddleware,
+  protect, // ✅ Use 'protect' here
   goalController.updateGoalProgress
 );
 
@@ -36,7 +36,7 @@ router.put(
  */
 router.put(
   "/:goalId/complete",
-  authMiddleware,
+  protect, // ✅ Use 'protect' here
   goalController.completeGoal
 );
 
@@ -52,13 +52,13 @@ router.get("/public", goalController.getPublicGoals);
  * @desc    Get logged-in user's goals
  * @access  Private
  */
-router.get("/my-goals", authMiddleware, goalController.getUserGoals);
+router.get("/my-goals", protect, goalController.getUserGoals); // ✅ Use 'protect' here
 
 /**
  * @route   GET /api/goals/streak-dates
  * @desc    Get all goal completion dates for a user (for streak calendar heatmap)
  * @access  Private
  */
-router.get("/streak-dates", authMiddleware, goalController.getStreakDates);
+router.get("/streak-dates", protect, goalController.getStreakDates); // ✅ Use 'protect' here
 
 export default router;

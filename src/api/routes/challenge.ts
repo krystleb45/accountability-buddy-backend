@@ -1,6 +1,6 @@
 import type { Router } from "express";
 import express from "express";
-import authMiddleware from "../middleware/authMiddleware";
+import { protect } from "../middleware/authMiddleware"; // ✅ Updated to use 'protect' middleware
 import rateLimit from "express-rate-limit";
 import {
   createChallenge,
@@ -8,7 +8,7 @@ import {
   joinChallenge,
   leaveChallenge,
   getChallengeById, // ✅ now implemented below
-} from "../controllers/challengeController";
+} from "../controllers/ChallengeController";
 
 const router: Router = express.Router();
 
@@ -24,7 +24,7 @@ const challengeCreateLimiter = rateLimit({
  * ✅ @desc    Create a new challenge
  * ✅ @access  Private (Authenticated users only)
  */
-router.post("/", authMiddleware, challengeCreateLimiter, createChallenge);
+router.post("/", protect, challengeCreateLimiter, createChallenge); // ✅ Replaced 'authMiddleware' with 'protect'
 
 /**
  * ✅ @route   GET /challenge/public
@@ -38,14 +38,14 @@ router.get("/public", getPublicChallenges);
  * ✅ @desc    Join a challenge
  * ✅ @access  Private
  */
-router.post("/join", authMiddleware, joinChallenge);
+router.post("/join", protect, joinChallenge); // ✅ Replaced 'authMiddleware' with 'protect'
 
 /**
  * ✅ @route   POST /challenge/leave
  * ✅ @desc    Leave a challenge
  * ✅ @access  Private
  */
-router.post("/leave", authMiddleware, leaveChallenge);
+router.post("/leave", protect, leaveChallenge); // ✅ Replaced 'authMiddleware' with 'protect'
 
 /**
  * ✅ @route   GET /challenge/:id

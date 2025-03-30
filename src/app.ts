@@ -13,15 +13,18 @@ import hpp from "hpp";
 import bodyParser from "body-parser";
 import authRoutes from "./api/routes/auth";
 import userRoutes from "./api/routes/user";
-import newsletterRoutes from "./routes/newsletter";
-import paymentRoutes from "./routes/payment";
-import { errorHandler } from "./middleware/errorHandler";
+import newsletterRoutes from "./api/routes/newsletter";
+import paymentRoutes from "./api/routes/payment";
+import { errorHandler } from "./api/middleware/errorHandler";
 import { logger } from "../src/utils/winstonLogger";
 import challengeRoutes from "./api/routes/challenge"; 
-
+import { checkEnvVariables } from "../src/api/utils/checkEnvVariables";
 
 // Load environment variables
 dotenv.config();
+
+// Check for required environment variables
+checkEnvVariables();
 
 // Initialize the app
 const app: Express = express();
@@ -78,6 +81,7 @@ app.use(
 // Compression Middleware
 app.use(compression());
 
+// MongoDB connection
 mongoose
   .connect(process.env.MONGO_URI || "")
   .then(() => logger.info("MongoDB connected successfully"))

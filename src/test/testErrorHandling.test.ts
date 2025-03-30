@@ -1,4 +1,4 @@
-import { errorHandler } from "../middleware/errorHandler";
+import { errorHandler } from "../api/middleware/errorHandler";
 import type { Request, Response } from "express";
 
 describe("Error Handling Tests", () => {

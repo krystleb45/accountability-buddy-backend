@@ -3,9 +3,7 @@ import mongoose, { Schema } from "mongoose";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 
-/**
- * ✅ User Settings Interface
- */
+// ✅ Define User Settings Interface
 export interface UserSettings {
   notifications?: {
     email?: boolean;
@@ -19,12 +17,10 @@ export interface UserSettings {
   };
 }
 
-/**
- * ✅ Chat Preferences Interface
- */
+// ✅ Define Chat Preferences Interface
 export interface ChatPreferences {
-  preferredGroups?: Types.ObjectId[];
-  directMessagesOnly?: boolean;
+  preferredGroups?: Types.ObjectId[]; // Array of ObjectIds referencing preferred groups
+  directMessagesOnly?: boolean; // Whether to allow only direct messages
 }
 
 /**
@@ -122,9 +118,7 @@ const UserSchema: Schema<IUser> = new Schema(
   { timestamps: true }
 );
 
-/**
- * ✅ Indexes
- */
+// Add indexes for faster querying
 UserSchema.index({ email: 1 });
 UserSchema.index({ username: 1 });
 UserSchema.index({ interests: 1 });
@@ -132,9 +126,7 @@ UserSchema.index({ activeStatus: 1 });
 UserSchema.index({ followers: 1 });
 UserSchema.index({ following: 1 });
 
-/**
- * ✅ Password hashing & streak fix
- */
+// Password hashing & streak fix
 UserSchema.pre<IUser>("save", async function (next) {
   if (!this.isModified("password")) return next();
   try {
@@ -147,16 +139,12 @@ UserSchema.pre<IUser>("save", async function (next) {
   }
 });
 
-/**
- * ✅ Compare password method
- */
+// Compare password method
 UserSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
   return bcrypt.compare(candidatePassword, this.password);
 };
 
-/**
- * ✅ Generate password reset token
- */
+// Generate password reset token
 UserSchema.methods.generateResetToken = function (): string {
   const resetToken = crypto.randomBytes(20).toString("hex");
   this.resetPasswordToken = crypto.createHash("sha256").update(resetToken).digest("hex");
@@ -164,7 +152,31 @@ UserSchema.methods.generateResetToken = function (): string {
   return resetToken;
 };
 
-/**
- * ✅ Export the model properly as named export
- */
+// Methods to update points for leaderboards, badges, and streak tracking
+UserSchema.methods.updatePoints = async function (pointsToAdd: number): Promise<void> {
+  this.points += pointsToAdd;
+  await this.save();
+};
+
+UserSchema.methods.updateStreak = async function (): Promise<void> {
+  // Logic to update streak (e.g., based on check-ins or goal completion)
+  const today = new Date();
+  if (!this.lastGoalCompletedAt || this.lastGoalCompletedAt.toDateString() !== today.toDateString()) {
+    // Increment streak if the user hasn't completed the goal for today
+    this.streak += 1;
+  } else {
+    this.streak = 0; // Reset streak if goal completed
+  }
+  this.lastGoalCompletedAt = today;
+  await this.save();
+};
+
+// Method to award badges based on certain conditions (e.g., streak milestones)
+UserSchema.methods.awardBadge = async function (badgeId: Types.ObjectId): Promise<void> {
+  if (!this.badges.includes(badgeId)) {
+    this.badges.push(badgeId);
+    await this.save();
+  }
+};
+
 export const User: Model<IUser> = mongoose.model<IUser>("User", UserSchema);

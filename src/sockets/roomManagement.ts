@@ -1,5 +1,5 @@
 import type { Server, Socket } from "socket.io";
-import Room from "../models/Room"; // Room model for database operations
+import Room from "../api/models/Room"; // Room model for database operations
 import { logger } from "../utils/winstonLogger";
 
 interface RoomData {

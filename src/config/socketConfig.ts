@@ -1,11 +1,11 @@
 import type { Socket } from "socket.io";
 import { Server as SocketIOServer } from "socket.io";
 import type http from "http";
-import logger from "./logging";
-import { verifyJWT } from "../../src/utils/jwtUtils";
-import Chat from "../models/Chat";
-import Message from "../models/Message";
-import User from "../api/models/User";
+import logger from "../api/config/logging";
+import { verifyJWT } from "../api/utils/jwtUtils";
+import Chat from "../api/models/Chat";
+import Message from "../api/models/Message";
+import { User } from "../api/models/User";
 import mongoose from "mongoose";
 
 // Define the user shape

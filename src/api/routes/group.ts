@@ -1,0 +1,134 @@
+import type { Router, Request, Response, NextFunction } from "express";
+import express from "express";
+import { check } from "express-validator";
+import sanitize from "mongo-sanitize";
+import rateLimit from "express-rate-limit";
+import { protect } from "../middleware/authMiddleware"; // Corrected import to use named export `protect`
+import checkSubscription from "../middleware/checkSubscription";
+import * as groupController from "../controllers/groupController";
+import handleValidationErrors from "../middleware/handleValidationErrors";
+import { logger } from "../../utils/winstonLogger";
+
+const router: Router = express.Router();
+
+/**
+ * Rate limiter to prevent abuse of group-related endpoints.
+ */
+const groupLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // Limit to 10 requests per window
+  message: "Too many requests, please try again later.",
+});
+
+/**
+ * @route   POST /group/create
+ * @desc    Create a new group (Only Paid Subscribers)
+ * @access  Private
+ */
+router.post(
+  "/create",
+  protect,
+  checkSubscription("paid"), // ✅ Only paid subscribers can create groups
+  groupLimiter,
+  [
+    check("name", "Group name is required").notEmpty(),
+    check("name", "Group name must not exceed 100 characters").isLength({ max: 100 }),
+    check("interests", "Group interests must be an array").isArray(),
+  ],
+  handleValidationErrors,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    sanitize(req.body);
+
+    try {
+      const group = await groupController.createGroup(req, res, next);
+      res.status(201).json({ success: true, group });
+    } catch (err) {
+      logger.error("Error creating group", {
+        error: err,
+        userId: req.user?.id,
+      });
+      next(err);
+    }
+  },
+);
+
+/**
+ * @route   POST /group/join
+ * @desc    Join an existing group (Trial & Paid Users)
+ * @access  Private
+ */
+router.post(
+  "/join",
+  protect,
+  checkSubscription("trial"), // ✅ Both trial and paid users can join groups
+  groupLimiter,
+  [check("groupId", "Group ID is required").notEmpty().isMongoId()],
+  handleValidationErrors,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const { groupId } = sanitize(req.body);
+
+    try {
+      const result = await groupController.joinGroup(req, res, next);
+      res.json({ success: true, msg: "Joined the group successfully", result });
+    } catch (err) {
+      logger.error("Error joining group", {
+        error: err,
+        groupId,
+        userId: req.user?.id,
+      });
+      next(err);
+    }
+  },
+);
+
+/**
+ * @route   POST /group/leave
+ * @desc    Leave a group
+ * @access  Private
+ */
+router.post(
+  "/leave",
+  protect,
+  [check("groupId", "Group ID is required").notEmpty().isMongoId()],
+  handleValidationErrors,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const { groupId } = sanitize(req.body);
+
+    try {
+      const result = await groupController.leaveGroup(req, res, next);
+      res.json({ success: true, msg: "Left the group successfully", result });
+    } catch (err) {
+      logger.error("Error leaving group", {
+        error: err,
+        groupId,
+        userId: req.user?.id,
+      });
+      next(err);
+    }
+  },
+);
+
+/**
+ * @route   GET /group/my-groups
+ * @desc    Get user groups (Trial & Paid Users)
+ * @access  Private
+ */
+router.get(
+  "/my-groups",
+  protect,
+  checkSubscription("trial"), // ✅ Trial and paid users can access their groups
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const groups = await groupController.getUserGroups(req, res, next);
+      res.json({ success: true, groups });
+    } catch (err) {
+      logger.error("Error fetching user groups", {
+        error: err,
+        userId: req.user?.id,
+      });
+      next(err);
+    }
+  },
+);
+
+export default router;

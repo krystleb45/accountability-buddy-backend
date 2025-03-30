@@ -1,6 +1,6 @@
 // scripts/migrateData.ts
 import mongoose from "mongoose";
-import User from "../api/models/User";
+import { User } from "../api/models/User";
 import dotenv from "dotenv";
 import { logger } from "../utils/winstonLogger";
 

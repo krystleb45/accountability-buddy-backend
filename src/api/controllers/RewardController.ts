@@ -4,7 +4,7 @@ import { User } from "../models/User"; // Correct path
 import Reward from "../models/Reward";  // Correct import for the Reward model (default import)
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
-import Review from "@src/models/Review"; // Ensure correct path
+import Review from "@src/api/models/Review"; // Ensure correct path
 
 /**
  * @desc Get user rewards
