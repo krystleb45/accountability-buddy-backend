@@ -1,18 +1,18 @@
 import type { Router, Request, Response, NextFunction } from "express";
 import express from "express";
 import rateLimit from "express-rate-limit";
-import { protect } from "../middleware/authMiddleware"; // Corrected import to use named export `protect`
+import { protect } from "../middleware/authMiddleware";
 import * as subscriptionController from "../controllers/subscriptionController";
-import { createTrialSubscription, cancelSubscription } from "../../utils/stripe";
 import { logger } from "../../utils/winstonLogger";
+
 const router: Router = express.Router();
 
 /**
  * ✅ Rate limiter to prevent abuse of subscription actions.
  */
 const subscriptionLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // Limit each IP to 5 requests per window
+  windowMs: 15 * 60 * 1000,
+  max: 5,
   message: "Too many subscription requests from this IP, please try again later.",
 });
 
@@ -27,24 +27,57 @@ const handleError = (error: unknown, res: Response, defaultMessage: string): voi
 };
 
 /**
+ * @route   GET /users/:userId/subscription
+ * @desc    Check the user's subscription status (basic DB check)
+ * @access  Private
+ */
+router.get(
+  "/users/:userId/subscription",
+  protect,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { userId } = req.params;
+      const { user } = req;
+      if (!user || user.id !== userId) {
+        res.status(401).json({ success: false, message: "Unauthorized or invalid user ID" });
+        return;
+      }
+      await subscriptionController.getSubscriptionStatus(req, res, next);
+    } catch (error) {
+      handleError(error, res, "Error retrieving subscription status");
+    }
+  }
+);
+
+/**
+ * @route   GET /subscription/current
+ * @desc    Get the user's current subscription details
+ * @access  Private
+ */
+router.get(
+  "/current",
+  protect,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      await subscriptionController.getCurrentSubscription(req, res, next);
+    } catch (error) {
+      handleError(error, res, "Error fetching current subscription");
+    }
+  }
+);
+
+/**
  * @route   POST /subscription/start-trial
- * @desc    Starts a 7-day free trial for a user
+ * @desc    Start a 7-day free trial for a user
  * @access  Private
  */
 router.post(
   "/start-trial",
   protect,
-  subscriptionLimiter, // ✅ Apply rate limiter
-  async (req: Request, res: Response): Promise<void> => {
+  subscriptionLimiter,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { user } = req;
-      if (!user) {
-        res.status(401).json({ success: false, message: "Unauthorized" });
-        return;
-      }
-
-      const trialSubscription = await createTrialSubscription(user.id);
-      res.status(200).json({ success: true, message: "Free trial started!", trialSubscription });
+      await subscriptionController.startTrial(req, res, next);
     } catch (error) {
       handleError(error, res, "Error starting free trial");
     }
@@ -52,26 +85,94 @@ router.post(
 );
 
 /**
+ * @route   POST /subscription/create
+ * @desc    Create a paid (non-trial) subscription session
+ * @access  Private
+ */
+router.post(
+  "/create",
+  protect,
+  subscriptionLimiter,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      await subscriptionController.createSubscription(req, res, next);
+    } catch (error) {
+      handleError(error, res, "Error creating paid subscription");
+    }
+  }
+);
+
+/**
  * @route   DELETE /subscription/cancel
- * @desc    Cancel the user's subscription
+ * @desc    Cancel the user's subscription (optionally with refund)
  * @access  Private
  */
 router.delete(
   "/cancel",
   protect,
-  subscriptionLimiter, // ✅ Apply rate limiter
-  async (req: Request, res: Response): Promise<void> => {
+  subscriptionLimiter,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { user } = req;
-      if (!user) {
-        res.status(401).json({ success: false, message: "Unauthorized" });
-        return;
-      }
-
-      await cancelSubscription(user.id);
-      res.status(200).json({ success: true, message: "Subscription canceled successfully." });
+      await subscriptionController.cancelSubscription(req, res, next);
     } catch (error) {
       handleError(error, res, "Error canceling subscription");
+    }
+  }
+);
+
+/**
+ * @route   POST /subscription/upgrade
+ * @desc    Upgrade subscription from trial to paid
+ * @access  Private
+ */
+router.post(
+  "/upgrade",
+  protect,
+  subscriptionLimiter,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { newPriceId } = req.body;
+      if (!newPriceId) {
+        res.status(400).json({ success: false, message: "Missing newPriceId" });
+        return;
+      }
+      await subscriptionController.upgradeToPaidSubscription(req, res, next);
+    } catch (error) {
+      handleError(error, res, "Error upgrading subscription");
+    }
+  }
+);
+
+/**
+ * @route   GET /subscription/status
+ * @desc    Real-time sync of subscription status with Stripe
+ * @access  Private
+ */
+router.get(
+  "/status",
+  protect,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      await subscriptionController.getRealTimeStatus(req, res, next);
+    } catch (error) {
+      handleError(error, res, "Error fetching real-time subscription status");
+    }
+  }
+);
+
+/**
+ * @route   POST /subscription/expire-trial
+ * @desc    Handle trial expiration logic
+ * @access  Private
+ */
+router.post(
+  "/expire-trial",
+  protect,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      await subscriptionController.handleTrialExpiration(req, res, next);
+    } catch (error) {
+      handleError(error, res, "Error handling trial expiration");
     }
   }
 );

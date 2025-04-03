@@ -3,7 +3,7 @@ import mongoose, { Schema } from "mongoose";
 import sanitize from "mongo-sanitize";
 
 // Define the Comment interface
-interface IComment {
+export interface IComment {
   _id: mongoose.Types.ObjectId;
   user: mongoose.Types.ObjectId;
   text: string;
@@ -18,7 +18,7 @@ export interface IBlogPost extends Document {
   imageUrl?: string;
   author: mongoose.Types.ObjectId;
   likes: mongoose.Types.ObjectId[];
-  comments: IComment[];
+  comments: IComment[];  // Using the IComment interface here
   createdAt: Date;
   updatedAt: Date;
 }

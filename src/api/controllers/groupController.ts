@@ -1,21 +1,14 @@
-import type { Request, Response, NextFunction } from "express";
 import mongoose from "mongoose";
+import { Response, NextFunction } from "express";
 import Group, { IGroup } from "../models/Group";
-import Notification from "../models/Notification"; // ✅ Import Notification model
+import Notification from "../models/Notification";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
 import { createError } from "../middleware/errorHandler";
 
-// ✅ Extend request type for user authentication
-interface RequestWithUser<T = {}, U = {}> extends Request<U, {}, T> {
-  user?: {
-    id: string;
-    email?: string;
-    role: "user" | "admin" | "moderator";
-    isAdmin?: boolean;
-    subscription_status?: "trial" | "active" | "expired";
-  };
-}
+// ✅ Import correct custom RequestWithUser type
+import { RequestWithUser } from "../types/RequestWithUser"; 
+
 
 /**
  * @desc Create a new group

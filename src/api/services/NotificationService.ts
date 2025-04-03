@@ -3,8 +3,7 @@ import Notification from "../models/Notification";
 import LoggingService from "./LoggingService";
 // import client from "../config/twilioConfig"; // Uncomment if Twilio is being used
 import firebaseAdmin from "../../config/firebaseConfig"; // Firebase Admin SDK for push notifications
-import Group from "../models/Group"; // Import Group model
-import mongoose from "mongoose";
+import { User } from "../models/User";
 
 const transporter = nodemailer.createTransport({
   host: process.env.EMAIL_HOST || "smtp.gmail.com",
@@ -111,190 +110,53 @@ const NotificationService = {
     }
   },
 
-  // Mark Notification as Read
-  markNotificationAsRead: async (
-    notificationId: string,
-    userId: string
-  ): Promise<void> => {
-    try {
-      const notification = await Notification.findOne({
-        _id: notificationId,
-        userId,
-      });
+  // ** New Responsibilities - Subscription-Related Notifications **
 
-      if (!notification) {
-        throw new Error("Notification not found.");
-      }
+  // Notify user when their trial is about to expire (e.g., 3 days before expiration)
+  sendTrialExpirationAlert: async (userId: string): Promise<void> => {
+    const message = "Your trial period is about to expire. Upgrade now to continue using premium features.";
+    await NotificationService.sendInAppNotification(userId, message);
+    const user = await User.findById(userId);
 
-      notification.read = true;
-      await notification.save();
-
-      LoggingService.logInfo(
-        `Notification with ID ${notificationId} marked as read by user ${userId}`
-      );
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      LoggingService.logError(
-        "Error marking notification as read",
-        new Error(errorMessage),
-        { notificationId, userId }
-      );
-      throw new Error("Failed to mark notification as read");
+    if (user?.email) {
+      await NotificationService.sendEmail(user.email, "Trial Expiration Alert", message);
     }
   },
 
-  // Send Poll Created Notification
-  sendPollCreatedNotification: async (
-    groupId: mongoose.Types.ObjectId,
-    pollId: mongoose.Types.ObjectId
-  ): Promise<void> => {
-    try {
-      const group = await Group.findById(groupId);
-      if (!group || !Array.isArray(group.members)) {
-        throw new Error("Group or group members not found");
-      }
+  // Notify user when their subscription is about to expire
+  sendSubscriptionExpirationAlert: async (userId: string): Promise<void> => {
+    const message = "Your subscription is about to expire. Renew now to continue enjoying premium features.";
+    await NotificationService.sendInAppNotification(userId, message);
+    const user = await User.findById(userId);
 
-      const members = group.members; // TypeScript now knows this is an array
-      const message = "A new poll has been created in the group. Check it out now!";
-
-      for (const memberId of members) {
-        if (memberId instanceof mongoose.Types.ObjectId) {
-          await NotificationService.sendInAppNotification(
-            memberId.toString(),
-            message
-          );
-        }
-      }
-
-      LoggingService.logInfo(`Poll created notification sent for poll ${pollId}`);
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      LoggingService.logError(
-        "Error sending poll created notification",
-        new Error(errorMessage),
-        { groupId, pollId }
-      );
-      throw new Error("Failed to send poll created notification");
+    if (user?.email) {
+      await NotificationService.sendEmail(user.email, "Subscription Expiration Alert", message);
     }
   },
 
-  // Send Poll Results Ready Notification
-  sendPollResultsReadyNotification: async (
-    groupId: mongoose.Types.ObjectId,
-    pollId: mongoose.Types.ObjectId
-  ): Promise<void> => {
-    try {
-      const group = await Group.findById(groupId);
-      if (!group || !Array.isArray(group.members)) {
-        throw new Error("Group or group members not found");
-      }
+  // Notify user when their subscription has been canceled
+  sendSubscriptionCanceledAlert: async (userId: string): Promise<void> => {
+    const message = "Your subscription has been canceled. Please contact support if you need assistance.";
+    await NotificationService.sendInAppNotification(userId, message);
+    const user = await User.findById(userId);
 
-      const members = group.members; // TypeScript now knows this is an array
-      const message = "The results for the poll are now available!";
-
-      for (const memberId of members) {
-        if (memberId instanceof mongoose.Types.ObjectId) {
-          await NotificationService.sendInAppNotification(
-            memberId.toString(),
-            message
-          );
-        }
-      }
-
-      LoggingService.logInfo(`Poll results ready notification sent for poll ${pollId}`);
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      LoggingService.logError(
-        "Error sending poll results notification",
-        new Error(errorMessage),
-        { groupId, pollId }
-      );
-      throw new Error("Failed to send poll results notification");
+    if (user?.email) {
+      await NotificationService.sendEmail(user.email, "Subscription Canceled", message);
     }
   },
 
-  // Add Unread Messages for Group Members
-  addUnreadMessage: async (
-    userId: string, // userId is a string, but will be converted to ObjectId
-    groupId: mongoose.Types.ObjectId
-  ): Promise<void> => {
-    try {
-      const group = await Group.findById(groupId);
+  // Send upgrade prompt when trial ends
+  sendUpgradePrompt: async (userId: string): Promise<void> => {
+    const message = "Your trial has ended. Upgrade to a paid subscription to continue enjoying premium features.";
+    await NotificationService.sendInAppNotification(userId, message);
+    const user = await User.findById(userId);
 
-      if (!group) {
-        throw new Error("Group not found");
-      }
-
-      // Convert userId to ObjectId
-      const userObjectId = new mongoose.Types.ObjectId(userId);
-
-      // Find the unread message count for this user
-      const userUnread = group.unreadMessages.find(
-        (entry) => entry.userId.equals(userObjectId) // Compare using ObjectId
-      );
-
-      if (userUnread) {
-        userUnread.count += 1; // Increment unread count for the user
-      } else {
-        group.unreadMessages.push({ userId: userObjectId, count: 1 }); // Add new unread entry
-      }
-
-      await group.save();
-      LoggingService.logInfo(`Unread message count updated for user ${userId} in group ${groupId}`);
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      LoggingService.logError(
-        "Error adding unread message count",
-        new Error(errorMessage),
-        { userId, groupId }
-      );
-      throw new Error("Failed to add unread message count");
+    if (user?.email) {
+      await NotificationService.sendEmail(user.email, "Trial Ended - Upgrade Now", message);
     }
   },
 
-  // Update Unread Messages
-  updateUnreadMessageCount: async (
-    userId: string, // userId is a string, but will be converted to ObjectId
-    groupId: mongoose.Types.ObjectId,
-    unreadCount: number
-  ): Promise<void> => {
-    try {
-      const group = await Group.findById(groupId);
-
-      if (!group) {
-        throw new Error("Group not found");
-      }
-
-      // Convert userId to ObjectId
-      const userObjectId = new mongoose.Types.ObjectId(userId);
-
-      // Find the index of the user in the unreadMessages array
-      const memberIndex = group.unreadMessages.findIndex((entry) =>
-        entry.userId.equals(userObjectId)
-      );
-
-      if (memberIndex !== -1) {
-        // Update unread count for the existing user
-        group.unreadMessages[memberIndex].count = unreadCount;
-      } else {
-        // Add new unread message entry if not found
-        group.unreadMessages.push({ userId: userObjectId, count: unreadCount });
-      }
-
-      await group.save();
-      LoggingService.logInfo(`Unread message count updated for user ${userId} in group ${groupId}`);
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      LoggingService.logError(
-        "Error updating unread message count",
-        new Error(errorMessage),
-        { userId, groupId }
-      );
-      throw new Error("Failed to update unread message count");
-    }
-  },
+  // Other methods...
 };
 
 export default NotificationService;

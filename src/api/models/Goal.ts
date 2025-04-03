@@ -27,10 +27,12 @@ export interface IGoal extends Document {
   milestones: IMilestone[];
   tags: string[];
   priority: "high" | "medium" | "low";
-  reminders?: IReminder[]; // Added reminders field
+  reminders?: IReminder[];
+  isPinned: boolean;
+  points: number; // <-- Add this line
 }
 
-// Define the schema
+
 const GoalSchema: Schema<IGoal> = new Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
@@ -98,10 +100,13 @@ const GoalSchema: Schema<IGoal> = new Schema(
           },
         },
       },
-    ], // Added reminders schema
+    ],
+    isPinned: { type: Boolean, default: false },
+    points: { type: Number, default: 0 } // <-- Added points field here
   },
   { timestamps: true },
 );
+
 
 // Pre-save hook to handle status changes
 GoalSchema.pre<IGoal>("save", function (next) {
@@ -114,6 +119,14 @@ GoalSchema.pre<IGoal>("save", function (next) {
     next(error as Error);
   }
 });
+
+// Add indexes for common queries
+GoalSchema.index({ user: 1 }); // Index on user for faster retrieval of goals by user
+GoalSchema.index({ status: 1 }); // Index on status for filtering goals by status
+GoalSchema.index({ completedAt: 1 }); // Index on completedAt for faster filtering of completed goals
+GoalSchema.index({ dueDate: 1 }); // Index on dueDate for faster retrieval of goals by due date
+GoalSchema.index({ tags: 1 }); // Index on tags for filtering goals by tags (if used in queries)
+GoalSchema.index({ isPinned: 1 }); // Index for isPinned to allow fast pin/unpin operations
 
 // Export the Goal model
 const Goal: Model<IGoal> = mongoose.model<IGoal>("Goal", GoalSchema);

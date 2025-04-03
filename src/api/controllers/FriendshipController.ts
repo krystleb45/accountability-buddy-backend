@@ -186,6 +186,62 @@ export const removeFriend = catchAsync(
   }
 );
 
+// Reject Friend Request
+export const rejectFriendRequest = catchAsync(
+  async (req: Request<{ requestId: string }>, res: Response): Promise<void> => {
+    const userId = req.user?.id;
+    const { requestId } = req.params;
+
+    const friendRequest = await FriendRequest.findById(requestId);
+    if (!friendRequest) {
+      sendResponse(res, 404, false, "Friend request not found.");
+      return;
+    }
+
+    if (friendRequest.recipient.toString() !== userId) {
+      sendResponse(res, 403, false, "Unauthorized to reject this friend request.");
+      return;
+    }
+
+    friendRequest.status = "rejected";
+    await friendRequest.save();
+
+    await Notification.create({
+      user: friendRequest.sender.toString(),
+      message: `${userId} rejected your friend request.`,
+      type: "alert",
+      read: false,
+      link: "/friends",
+    });
+
+    logger.info(`Friend request rejected: ${userId} rejected friend request from ${friendRequest.sender}`);
+    sendResponse(res, 200, true, "Friend request rejected.");
+  }
+);
+
+// Get AI-Recommended Friends
+export const getAIRecommendedFriends = catchAsync(
+  async (req: Request, res: Response): Promise<void> => {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      sendResponse(res, 400, false, "User ID is required.");
+      return;
+    }
+
+    // Placeholder for AI recommendation logic
+    const recommendedFriends = await User.find({
+      interests: { $in: ["Fitness", "Music"] }, // Example: recommend users with shared interests
+    }).limit(5);
+
+    logger.info(`Fetched AI recommended friends for user ${userId}`);
+
+    sendResponse(res, 200, true, "AI recommended friends retrieved successfully", {
+      recommendedFriends,
+    });
+  }
+);
+
 export default {
   sendFriendRequest,
   acceptFriendRequest,
@@ -193,4 +249,6 @@ export default {
   getPendingFriendRequests,
   cancelFriendRequest,
   removeFriend,
+  rejectFriendRequest,
+  getAIRecommendedFriends,
 };

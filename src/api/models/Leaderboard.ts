@@ -9,7 +9,7 @@ export interface ILeaderboard extends Document {
   totalPoints: number;
   streakDays: number;
   rank: number | null;
-  rankDescription: string;
+  rankDescription: string; // Virtual field, don't include in schema directly
 }
 
 // ✅ Define static methods for the Leaderboard Model
@@ -68,12 +68,15 @@ const LeaderboardSchema = new Schema<ILeaderboard>(
 );
 
 // Compound index for sorting leaderboard
-LeaderboardSchema.index({
-  totalPoints: -1,
-  completedGoals: -1,
-  completedMilestones: -1,
-  streakDays: -1,
-});
+LeaderboardSchema.index(
+  {
+    totalPoints: -1,
+    completedGoals: -1,
+    completedMilestones: -1,
+    streakDays: -1,
+  },
+  { name: "leaderboard_sort_index" }
+); // Compound index for leaderboard sorting
 
 // ✅ Define Static Method: Update Leaderboard Entry
 LeaderboardSchema.statics.updateLeaderboard = async function (
@@ -97,7 +100,7 @@ LeaderboardSchema.statics.updateLeaderboard = async function (
   );
 
   // ✅ Ensure Rank Updates
-  await Leaderboard.recalculateRanks();
+  await (this as ILeaderboardModel).recalculateRanks(); // Cast `this` to `ILeaderboardModel`
   return leaderboardEntry;
 };
 
@@ -133,6 +136,9 @@ LeaderboardSchema.virtual("rankDescription").get(function (): string {
 });
 
 // ✅ Ensure TypeScript Recognizes Static Methods
-const Leaderboard = mongoose.model<ILeaderboard, ILeaderboardModel>("Leaderboard", LeaderboardSchema);
+const Leaderboard = mongoose.model<ILeaderboard, ILeaderboardModel>(
+  "Leaderboard",
+  LeaderboardSchema
+);
 
 export default Leaderboard;

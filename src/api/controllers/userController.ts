@@ -5,6 +5,8 @@ import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
 import bcrypt from "bcryptjs";
 import { subDays } from "date-fns";
+import Goal from "../models/Goal";
+import Streak from "../models/Streak";
 
 
 export const getUserProfile = catchAsync(async (req: Request, res: Response): Promise<void> => {
@@ -207,4 +209,72 @@ export const getFeaturedAchievements = catchAsync(async (req: Request, res: Resp
     return;
   }
   sendResponse(res, 200, true, "Featured achievements retrieved successfully.", { featuredAchievements: user.featuredAchievements });
+});
+/**
+ * @desc Get full user statistics (profile + goals + streak)
+ * @route GET /users/:userId/statistics
+ * @access Private
+ */
+export const getUserStatistics = catchAsync(async (req: Request, res: Response): Promise<void> => {
+  const userId = req.params.userId;
+
+  if (!mongoose.isValidObjectId(userId)) {
+    sendResponse(res, 400, false, "Invalid user ID format.");
+    return;
+  }
+
+  // 1. Fetch core user fields (omit password and sensitive info)
+  const user = await User.findById(userId).select(
+    "username profilePicture points completedGoals streakCount createdAt subscriptionTier subscription_status"
+  );
+
+  if (!user) {
+    sendResponse(res, 404, false, "User not found.");
+    return;
+  }
+
+  // 2. Fetch current streak from Streak model (for accuracy)
+  const streakDoc = await Streak.findOne({ user: userId });
+  const currentStreak = streakDoc?.streakCount || 0;
+
+  // 3. Fetch goal status counts and completed milestones
+  const [totalGoals, completedGoals, inProgressGoals, notStartedGoals, archivedGoals, milestoneAgg] = await Promise.all([
+    Goal.countDocuments({ user: userId }),
+    Goal.countDocuments({ user: userId, status: "completed" }),
+    Goal.countDocuments({ user: userId, status: "in-progress" }),
+    Goal.countDocuments({ user: userId, status: "not-started" }),
+    Goal.countDocuments({ user: userId, status: "archived" }),
+    Goal.aggregate([
+      { $match: { user: new mongoose.Types.ObjectId(userId) } },
+      { $unwind: "$milestones" },
+      { $match: { "milestones.completed": true } },
+      { $count: "completedMilestones" }
+    ])
+  ]);
+
+  const completedMilestones = milestoneAgg?.[0]?.completedMilestones || 0;
+
+  // 4. Format and return response
+  sendResponse(res, 200, true, "User statistics fetched successfully.", {
+    stats: {
+      username: user.username,
+      profilePicture: user.profilePicture,
+      memberSince: user.createdAt,
+      points: user.points,
+      completedGoals: user.completedGoals,
+      streakCount: currentStreak,
+      subscription: {
+        tier: user.subscriptionTier,
+        status: user.subscription_status
+      },
+      goals: {
+        total: totalGoals,
+        completed: completedGoals,
+        inProgress: inProgressGoals,
+        notStarted: notStartedGoals,
+        archived: archivedGoals
+      },
+      completedMilestones
+    }
+  });
 });

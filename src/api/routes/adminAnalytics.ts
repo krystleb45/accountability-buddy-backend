@@ -2,20 +2,17 @@ import { Router, Request, Response, NextFunction, RequestHandler } from "express
 import express from "express";
 import { check, validationResult } from "express-validator";
 import rateLimit from "express-rate-limit";
-import { protect } from "../middleware/authMiddleware"; // Corrected to import 'protect'
+import { protect } from "../middleware/authMiddleware";
 import { roleBasedAccessControl } from "../middleware/roleBasedAccessControl";
-import { logger } from "../../utils/winstonLogger";
 import * as AdminController from "../controllers/AdminController";
 import * as AnalyticsController from "../controllers/AnalyticsController";
-import type { AuthenticatedRequest, AnalyticsRequestBody } from "../types/AuthenticatedRequest";
+import type { AdminAuthenticatedRequest } from "../types/AdminAuthenticatedRequest";
+import type { AnalyticsRequestBody } from "../types/AuthenticatedRequest"; // Ensure this type is exported
 
-// Explicitly define the router type
 const router: Router = express.Router();
 
-// Middleware to check admin role
 const isAdmin: RequestHandler = roleBasedAccessControl(["admin"]);
 
-// Rate limiter to prevent abuse
 const rateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 10, // Allow 10 requests per window
@@ -26,19 +23,26 @@ const rateLimiter = rateLimit({
 });
 
 /**
- * Unified Error Handler for Routes
+ * Helper to wrap admin routes that require a full authenticated user.
+ * This helper checks at runtime that req.user exists and then casts req to
+ * an AdminAuthenticatedRequest. If req.user is missing, it rejects with an error.
  */
-const handleRouteErrors =
-  <T extends object>(
-    handler: (req: AuthenticatedRequest<{}, any, T>, res: Response, next: NextFunction) => Promise<void>
+const handleAdminRoute =
+  <T = any>(
+    handler: (
+      req: AdminAuthenticatedRequest<{}, any, T>,
+      res: Response,
+      next: NextFunction
+    ) => Promise<void>
   ): RequestHandler =>
-    (req, res, next) => {
-      (handler as (req: Request, res: Response, next: NextFunction) => Promise<void>)
-      (req as unknown as AuthenticatedRequest<{}, any, T>, res, next)
-        .catch((error) => {
-          logger.error(`Error occurred: ${(error as Error).message}`);
-          res.status(500).json({ success: false, message: "Internal server error" });
-        });
+    (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    // Runtime check: if no user is attached, reject immediately.
+      if (!(req as any).user) {
+        return Promise.reject(new Error("Unauthorized access"));
+      }
+      // Cast req to AdminAuthenticatedRequest.
+      const adminReq = req as unknown as AdminAuthenticatedRequest<{}, any, T>;
+      return handler(adminReq, res, next);
     };
 
 /**
@@ -48,9 +52,9 @@ const handleRouteErrors =
  */
 router.get(
   "/users",
-  protect, // Use 'protect' middleware instead of authMiddleware
+  protect,
   isAdmin,
-  handleRouteErrors(async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  handleAdminRoute(async (req: AdminAuthenticatedRequest, res: Response, next: NextFunction) => {
     await AdminController.getUserAnalytics(req, res, next);
   })
 );
@@ -62,9 +66,9 @@ router.get(
  */
 router.get(
   "/goals",
-  protect, // Use 'protect' middleware instead of authMiddleware
+  protect,
   isAdmin,
-  handleRouteErrors(async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  handleAdminRoute(async (req: AdminAuthenticatedRequest, res: Response, next: NextFunction) => {
     await AnalyticsController.getGlobalAnalytics(req, res, next);
   })
 );
@@ -76,9 +80,9 @@ router.get(
  */
 router.get(
   "/posts",
-  protect, // Use 'protect' middleware instead of authMiddleware
+  protect,
   isAdmin,
-  handleRouteErrors(async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  handleAdminRoute(async (req: AdminAuthenticatedRequest, res: Response, next: NextFunction) => {
     await AnalyticsController.getGlobalAnalytics(req, res, next);
   })
 );
@@ -90,9 +94,9 @@ router.get(
  */
 router.get(
   "/financial",
-  protect, // Use 'protect' middleware instead of authMiddleware
+  protect,
   isAdmin,
-  handleRouteErrors(async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  handleAdminRoute(async (req: AdminAuthenticatedRequest, res: Response, next: NextFunction) => {
     await AdminController.getFinancialAnalytics(req, res, next);
   })
 );
@@ -105,23 +109,24 @@ router.get(
 router.post(
   "/custom",
   [
-    protect, // Use 'protect' middleware instead of authMiddleware
+    protect,
     isAdmin,
     rateLimiter,
     check("startDate").notEmpty().withMessage("Start date is required").isISO8601().withMessage("Invalid date format"),
     check("endDate").notEmpty().withMessage("End date is required").isISO8601().withMessage("Invalid date format"),
     check("metric").notEmpty().withMessage("Metric is required").isString().withMessage("Metric must be a string"),
   ],
-  handleRouteErrors<AnalyticsRequestBody>(async (req: AuthenticatedRequest<{}, any, AnalyticsRequestBody>, res, next) => {
+  handleAdminRoute<AnalyticsRequestBody>(async (
+    req: AdminAuthenticatedRequest<{}, any, AnalyticsRequestBody>,
+    res: Response,
+    next: NextFunction
+  ) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       res.status(400).json({ success: false, errors: errors.array() });
       return;
     }
-  
-    // ✅ Ensure `getCustomAnalytics` receives correctly typed values
-    const analytics = await AnalyticsController.getCustomAnalytics(req, res, next);
-    res.status(200).json({ success: true, data: analytics });
+    await AnalyticsController.getCustomAnalytics(req, res, next);
   })
 );
 

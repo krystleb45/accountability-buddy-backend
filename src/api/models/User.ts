@@ -2,8 +2,8 @@ import type { Document, Types, Model, CallbackError } from "mongoose";
 import mongoose, { Schema } from "mongoose";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
+import { ISubscription } from "./Subscription"; // import the real subscription interface
 
-// ✅ Define User Settings Interface
 export interface UserSettings {
   notifications?: {
     email?: boolean;
@@ -17,24 +17,24 @@ export interface UserSettings {
   };
 }
 
-// ✅ Define Chat Preferences Interface
 export interface ChatPreferences {
-  preferredGroups?: Types.ObjectId[]; // Array of ObjectIds referencing preferred groups
-  directMessagesOnly?: boolean; // Whether to allow only direct messages
+  preferredGroups?: Types.ObjectId[];
+  directMessagesOnly?: boolean;
 }
 
-/**
- * ✅ User Interface
- */
+// Define subscription status enums
+type SubscriptionStatus = "trial" | "active" | "expired";
+type SubscriptionTier = "basic" | "premium" | "pro";
+
 export interface IUser extends Document {
   _id: Types.ObjectId;
-  firstName?: string;
-  lastName?: string;
   username: string;
   email: string;
   password: string;
-  role: "user" | "admin" | "moderator";
+  role: "user" | "admin" | "moderator" | "military";
   isVerified: boolean;
+  isAdmin: boolean;
+  permissions: string[];
   isLocked?: boolean;
   active: boolean;
   profilePicture?: string;
@@ -42,91 +42,144 @@ export interface IUser extends Document {
   friendRequests: Types.ObjectId[];
   followers: Types.ObjectId[];
   following: Types.ObjectId[];
-  points?: number;
+  points: number;
   rewards: Types.ObjectId[];
   resetPasswordToken?: string;
   resetPasswordExpires?: Date;
-  subscriptions?: Types.ObjectId[];
-  settings?: UserSettings;
   twoFactorSecret?: string;
-  completedGoals?: number;
-  streak?: number;
-  streakCount?: number;
-  badges?: Types.ObjectId[];
-  achievements?: Types.ObjectId[];
-  lastGoalCompletedAt?: Date;
-  trial_start_date?: Date;
-  subscription_status: "trial" | "active" | "expired";
-  next_billing_date?: Date;
+  firstName?: string;
+  lastName?: string;
+  // Use the imported ISubscription for subscriptions
+  subscriptions?: (Types.ObjectId | ISubscription)[];
   stripeCustomerId?: string;
+  subscription_status: SubscriptionStatus;
+  subscriptionTier?: SubscriptionTier;
+  subscriptionStartDate?: Date;
+  subscriptionEndDate?: Date;
+  trial_start_date?: Date;
+  next_billing_date?: Date;
+
+  // Chat & Interests
   interests?: string[];
   chatPreferences?: ChatPreferences;
-  activeStatus: "online" | "offline";
+
+  // Gamification
+  completedGoals?: number;
+  streak?: number;
+  streakCount: number;
+  lastGoalCompletedAt?: Date;
+  badges?: Types.ObjectId[];
+  achievements?: Types.ObjectId[];
   pinnedGoals: Types.ObjectId[];
   featuredAchievements: Types.ObjectId[];
+
+  // Settings (added)
+  settings?: UserSettings;
+
+  // Misc
+  activeStatus: "online" | "offline";
+  createdAt: Date;
+  updatedAt: Date;
+
+  // Methods
   comparePassword(candidatePassword: string): Promise<boolean>;
   generateResetToken(): string;
+  updatePoints(pointsToAdd: number): Promise<void>;
+  updateStreak(): Promise<void>;
+  awardBadge(badgeId: Types.ObjectId): Promise<void>;
 }
 
-/**
- * ✅ Define User Schema
- */
 const UserSchema: Schema<IUser> = new Schema(
   {
-    firstName: { type: String },
-    lastName: { type: String },
     username: { type: String, required: true, unique: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true, minlength: 8 },
-    role: { type: String, enum: ["user", "admin", "moderator"], default: "user" },
+    firstName: { type: String },
+    lastName: { type: String },
+    role: { type: String, enum: ["user", "admin", "moderator", "military"], default: "user" },
     isVerified: { type: Boolean, default: false },
+    isAdmin: { type: Boolean, default: false },
+    permissions: { type: [String], default: [] },
     isLocked: { type: Boolean, default: false },
     active: { type: Boolean, default: true },
     profilePicture: { type: String },
+
+    // Relationships
     friends: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     friendRequests: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-    points: { type: Number, default: 0 },
     rewards: [{ type: mongoose.Schema.Types.ObjectId, ref: "Reward" }],
-    resetPasswordToken: { type: String },
-    resetPasswordExpires: { type: Date },
+    achievements: [{ type: mongoose.Schema.Types.ObjectId, ref: "Achievement" }],
+    badges: [{ type: mongoose.Schema.Types.ObjectId, ref: "Badge" }],
+    pinnedGoals: [{ type: mongoose.Schema.Types.ObjectId, ref: "Goal" }],
+    featuredAchievements: [{ type: mongoose.Schema.Types.ObjectId, ref: "Achievement" }],
+
+    // Stripe / Subscriptions
     subscriptions: [{ type: mongoose.Schema.Types.ObjectId, ref: "Subscription" }],
     stripeCustomerId: { type: String },
-    trial_start_date: { type: Date, default: null },
     subscription_status: {
       type: String,
       enum: ["trial", "active", "expired"],
       default: "trial",
     },
+    subscriptionTier: {
+      type: String,
+      enum: ["basic", "premium", "pro"],
+      default: "basic",
+    },
+    trial_start_date: { type: Date, default: null },
+    subscriptionStartDate: { type: Date, default: null },
+    subscriptionEndDate: { type: Date, default: null },
     next_billing_date: { type: Date, default: null },
-    completedGoals: { type: Number, default: 0, min: 0 },
-    streak: { type: Number, default: 0, min: 0 },
-    streakCount: { type: Number, default: 0, min: 0 },
+
+    // Gamification & Activity
+    completedGoals: { type: Number, default: 0 },
+    streak: { type: Number, default: 0 },
+    streakCount: { type: Number, default: 0 },
     lastGoalCompletedAt: { type: Date, default: null },
-    achievements: [{ type: mongoose.Schema.Types.ObjectId, ref: "Achievement" }],
-    badges: [{ type: mongoose.Schema.Types.ObjectId, ref: "Badge" }],
-    pinnedGoals: [{ type: mongoose.Schema.Types.ObjectId, ref: "Goal" }],
-    featuredAchievements: [{ type: mongoose.Schema.Types.ObjectId, ref: "Achievement" }],
-    interests: [{ type: String, trim: true }],
+
+    // Communication & Interests
+    interests: [{ type: String }],
     chatPreferences: {
       preferredGroups: [{ type: mongoose.Schema.Types.ObjectId, ref: "Chat" }],
       directMessagesOnly: { type: Boolean, default: false },
     },
-    activeStatus: { type: String, enum: ["online", "offline"], default: "offline" },
+
+    activeStatus: {
+      type: String,
+      enum: ["online", "offline"],
+      default: "offline",
+    },
+
+    // Security
+    resetPasswordToken: { type: String },
+    resetPasswordExpires: { type: Date },
+
+    // Settings
+    settings: {
+      notifications: {
+        email: { type: Boolean, default: false },
+        sms: { type: Boolean, default: false },
+        push: { type: Boolean, default: false },
+        enableNotifications: { type: Boolean, default: false },
+      },
+      privacy: {
+        profileVisibility: { type: String, enum: ["public", "friends", "private"], default: "public" },
+        searchVisibility: { type: Boolean, default: true },
+      },
+    },
   },
   { timestamps: true }
 );
 
-// Add indexes for faster querying
+// Indexes
 UserSchema.index({ email: 1 });
 UserSchema.index({ username: 1 });
 UserSchema.index({ interests: 1 });
 UserSchema.index({ activeStatus: 1 });
-UserSchema.index({ followers: 1 });
-UserSchema.index({ following: 1 });
 
-// Password hashing & streak fix
+// Password hashing
 UserSchema.pre<IUser>("save", async function (next) {
   if (!this.isModified("password")) return next();
   try {
@@ -139,12 +192,11 @@ UserSchema.pre<IUser>("save", async function (next) {
   }
 });
 
-// Compare password method
+// Methods
 UserSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
   return bcrypt.compare(candidatePassword, this.password);
 };
 
-// Generate password reset token
 UserSchema.methods.generateResetToken = function (): string {
   const resetToken = crypto.randomBytes(20).toString("hex");
   this.resetPasswordToken = crypto.createHash("sha256").update(resetToken).digest("hex");
@@ -152,26 +204,22 @@ UserSchema.methods.generateResetToken = function (): string {
   return resetToken;
 };
 
-// Methods to update points for leaderboards, badges, and streak tracking
 UserSchema.methods.updatePoints = async function (pointsToAdd: number): Promise<void> {
   this.points += pointsToAdd;
   await this.save();
 };
 
 UserSchema.methods.updateStreak = async function (): Promise<void> {
-  // Logic to update streak (e.g., based on check-ins or goal completion)
   const today = new Date();
   if (!this.lastGoalCompletedAt || this.lastGoalCompletedAt.toDateString() !== today.toDateString()) {
-    // Increment streak if the user hasn't completed the goal for today
     this.streak += 1;
   } else {
-    this.streak = 0; // Reset streak if goal completed
+    this.streak = 0;
   }
   this.lastGoalCompletedAt = today;
   await this.save();
 };
 
-// Method to award badges based on certain conditions (e.g., streak milestones)
 UserSchema.methods.awardBadge = async function (badgeId: Types.ObjectId): Promise<void> {
   if (!this.badges.includes(badgeId)) {
     this.badges.push(badgeId);

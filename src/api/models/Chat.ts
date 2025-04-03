@@ -66,9 +66,9 @@ const ChatSchema: Schema<IChat> = new Schema<IChat>(
 );
 
 // ✅ Add Indexes for Faster Queries
-ChatSchema.index({ participants: 1, createdAt: -1 }); // Speed up user chat lookups
+ChatSchema.index({ participants: 1, createdAt: -1 }); // Speed up user chat lookups by user and chat creation date
 ChatSchema.index({ groupName: 1 }, { sparse: true }); // Faster group lookups, avoids indexing null values
-ChatSchema.index({ "unreadMessages.userId": 1 }); // Optimize unread message tracking
+ChatSchema.index({ "unreadMessages.userId": 1 }); // Optimize unread message tracking by user
 ChatSchema.index({ lastMessage: -1 }); // Fast retrieval of latest messages
 ChatSchema.index({ isPinned: 1 }); // Optimize pinned chats lookup
 

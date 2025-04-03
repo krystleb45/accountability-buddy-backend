@@ -2,15 +2,12 @@ import type { Router, Response, NextFunction } from "express";
 import express from "express";
 import { check } from "express-validator";
 import rateLimit from "express-rate-limit";
-import { protect } from "../middleware/authMiddleware"; // Corrected import to use named export `protect`
+import { protect } from "../middleware/authMiddleware"; // Using the named export `protect`
 import * as feedController from "../controllers/feedController";
-import type { AuthenticatedRequest } from "../types/request"; // Ensure correct path
-import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust the path
-
+import type { AuthenticatedRequest } from "../types/AuthenticatedRequest"; // Updated path for your authenticated request type
+import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust path if needed
 
 const router: Router = express.Router();
-
-
 
 // Rate limiter to prevent abuse
 const rateLimiter = rateLimit({
@@ -117,7 +114,11 @@ router.post(
     check("text", "Comment must not exceed 200 characters").isLength({ max: 200 }),
   ],
   handleValidationErrors,
-  async (req: AuthenticatedRequest<{ id: string }, {}, { text: string }>, res: Response, next: NextFunction) => {
+  async (
+    req: AuthenticatedRequest<{ id: string }, {}, { text: string }>,
+    res: Response,
+    next: NextFunction,
+  ) => {
     try {
       await feedController.addComment(req as any, res, next);
     } catch (err) {

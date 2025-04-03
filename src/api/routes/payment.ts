@@ -1,47 +1,35 @@
-import type { Router, Request, Response, NextFunction } from "express";
+import type { Router, Request, Response } from "express";
 import express from "express";
 import Stripe from "stripe";
 import bodyParser from "body-parser";
 import rateLimit from "express-rate-limit";
-import { protect } from "../middleware/authMiddleware"; // Corrected import to use named export `protect`
+import { protect } from "../middleware/authMiddleware";
 import { logger } from "../../utils/winstonLogger";
+import Subscription from "../models/Subscription";
+import stripeClient from "../../utils/stripe"; // Centralized stripe client
+
 const router: Router = express.Router();
 
-// Ensure Stripe secret key is defined
-if (!process.env.STRIPE_SECRET_KEY) {
-  throw new Error("Stripe secret key is not defined in environment variables.");
-}
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: "2025-02-24.acacia",
-});
-
-
-/**
- * Rate limiter to prevent abuse (e.g., repeated API calls).
- */
+// ✅ Rate limiter to prevent abuse
 const rateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: 10,
   message: "Too many requests. Please try again later.",
 });
 
-/**
- * Middleware to handle validation errors.
- */
+// ✅ Error handler
 const handleErrors = (
   error: unknown,
   res: Response,
   statusCode = 500,
-  message = "An error occurred",
+  message = "An error occurred"
 ): void => {
-  const errorMessage =
-    error instanceof Error ? error.message : "Unknown error occurred";
+  const errorMessage = error instanceof Error ? error.message : "Unknown error";
   logger.error(`${message}: ${errorMessage}`);
   res.status(statusCode).json({ success: false, message });
 };
 
-// Use body-parser for raw requests in the webhook
+// ✅ Use raw body for Stripe webhook
 router.use("/webhook", bodyParser.raw({ type: "application/json" }));
 
 /**
@@ -53,60 +41,47 @@ router.post(
   "/create-payment-intent",
   protect,
   rateLimiter,
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  async (req: Request, res: Response) => {
     try {
       const { amount, currency } = req.body;
-
-      // Input validation
       if (!amount || !currency) {
-        res
-          .status(400)
-          .json({
-            success: false,
-            message: "Amount and currency are required.",
-          });
+        res.status(400).json({ success: false, message: "Amount and currency required." });
         return;
       }
 
-      // Create payment intent
-      const paymentIntent = await stripe.paymentIntents.create({
+      const intent = await stripeClient.paymentIntents.create({
         amount,
         currency,
         metadata: { userId: req.user?.id || "unknown" },
       });
 
-      res
-        .status(201)
-        .json({ success: true, clientSecret: paymentIntent.client_secret });
-    } catch (error: unknown) {
+      res.status(201).json({ success: true, clientSecret: intent.client_secret });
+      return;
+    } catch (error) {
       handleErrors(error, res, 500, "Failed to create payment intent.");
-      next(error);
+      return;
     }
-  },
+  }
 );
 
 /**
  * @route   POST /create-session
- * @desc    Create a Stripe checkout session for subscriptions
+ * @desc    Create a Stripe Checkout Session for subscription
  * @access  Private
  */
 router.post(
   "/create-session",
   protect,
   rateLimiter,
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  async (req: Request, res: Response) => {
     try {
       const { priceId } = req.body;
-
       if (!priceId) {
-        res
-          .status(400)
-          .json({ success: false, message: "Price ID is required." });
+        res.status(400).json({ success: false, message: "Price ID is required." });
         return;
       }
 
-      // Create Stripe session
-      const session = await stripe.checkout.sessions.create({
+      const session = await stripeClient.checkout.sessions.create({
         payment_method_types: ["card"],
         mode: "subscription",
         line_items: [{ price: priceId, quantity: 1 }],
@@ -117,74 +92,95 @@ router.post(
       });
 
       res.status(200).json({ success: true, sessionId: session.id });
-    } catch (error: unknown) {
-      handleErrors(error, res, 500, "Failed to create payment session.");
-      next(error);
+      return;
+    } catch (error) {
+      handleErrors(error, res, 500, "Failed to create checkout session.");
+      return;
     }
-  },
+  }
 );
 
 /**
  * @route   POST /webhook
- * @desc    Stripe webhook endpoint to handle payment events
+ * @desc    Stripe webhook handler
  * @access  Public
  */
-router.post(
-  "/webhook",
-  async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
-    const sig = req.headers["stripe-signature"];
+router.post("/webhook", async (req: Request, res: Response) => {
+  const sig = req.headers["stripe-signature"];
+  const secret = process.env.STRIPE_WEBHOOK_SECRET || "";
 
-    if (!sig) {
-      res.status(400).send("Webhook Error: Missing Stripe signature.");
-      return;
-    }
+  if (!sig) {
+    res.status(400).send("Webhook Error: Missing signature.");
+    return;
+  }
 
-    let event: Stripe.Event;
+  let event: Stripe.Event;
+  try {
+    event = stripeClient.webhooks.constructEvent(req.body, sig, secret);
+  } catch (err) {
+    logger.error("❌ Invalid Stripe webhook signature", err);
+    res.status(400).send("Invalid webhook signature.");
+    return;
+  }
 
-    try {
-      event = stripe.webhooks.constructEvent(
-        req.body,
-        sig,
-        process.env.STRIPE_WEBHOOK_SECRET as string,
-      );
-    } catch (error: unknown) {
-      handleErrors(error, res, 400, "Webhook signature verification failed.");
-      return;
-    }
-
-    try {
-      switch (event.type) {
-        case "checkout.session.completed": {
-          const session = event.data.object as Stripe.Checkout.Session;
-          logger.info(`Payment successful for session: ${session.id}`);
-          // TODO: Handle post-payment logic
-          break;
-        }
-
-        case "invoice.payment_succeeded": {
-          const invoice = event.data.object as Stripe.Invoice;
-          logger.info(`Payment succeeded for invoice: ${invoice.id}`);
-          // TODO: Handle subscription renewal logic
-          break;
-        }
-
-        case "invoice.payment_failed": {
-          const invoiceFailed = event.data.object as Stripe.Invoice;
-          logger.error(`Payment failed for invoice: ${invoiceFailed.id}`);
-          // TODO: Handle subscription payment failure
-          break;
-        }
-
-        default:
-          logger.warn(`Unhandled event type: ${event.type}`);
+  try {
+    switch (event.type) {
+      case "checkout.session.completed": {
+        const session = event.data.object as Stripe.Checkout.Session;
+        logger.info(`✅ Checkout session completed: ${session.id}`);
+        // Optionally: update user or subscription
+        break;
       }
-    } catch (error: unknown) {
-      handleErrors(error, res, 500, `Error handling event ${event.type}.`);
-      return;
+
+      case "invoice.payment_succeeded": {
+        const invoice = event.data.object as Stripe.Invoice;
+        logger.info(`💰 Payment succeeded: ${invoice.id}`);
+        // Optionally: extend subscription, grant benefits
+        break;
+      }
+
+      case "invoice.payment_failed": {
+        const invoice = event.data.object as Stripe.Invoice;
+        logger.warn(`⚠️ Payment failed: ${invoice.id}`);
+        // Optionally: notify user or downgrade account
+        break;
+      }
+
+      case "customer.subscription.deleted": {
+        const subscription = event.data.object as Stripe.Subscription;
+        await Subscription.findOneAndUpdate(
+          { stripeSubscriptionId: subscription.id },
+          { status: "canceled", isActive: false, subscriptionEnd: new Date() }
+        );
+        logger.info(`🛑 Subscription canceled: ${subscription.id}`);
+        break;
+      }
+
+      case "customer.subscription.updated": {
+        const sub = event.data.object as Stripe.Subscription;
+        await Subscription.findOneAndUpdate(
+          { stripeSubscriptionId: sub.id },
+          {
+            status: sub.status,
+            isActive: sub.status === "active" || sub.status === "trialing",
+            currentPeriodEnd: new Date(sub.current_period_end * 1000),
+          }
+        );
+        logger.info(`🔄 Subscription updated: ${sub.id}`);
+        break;
+      }
+
+      default:
+        logger.info(`🔍 Unhandled event type: ${event.type}`);
     }
 
     res.status(200).json({ received: true });
-  },
-);
+    return;
+  } catch (err) {
+    logger.error(`🔥 Error handling Stripe webhook: ${(err as Error).message}`);
+    res.status(500).send("Webhook handler failed");
+    return;
+  }
+});
 
 export default router;

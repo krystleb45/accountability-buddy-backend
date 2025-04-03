@@ -8,16 +8,25 @@ import sendResponse from "../utils/sendResponse";
 import createError from "../utils/errorUtils"; // Make sure this is from errorUtils.ts
 import catchAsync from "../utils/catchAsync";
 import { RequestWithUser } from "../types/RequestWithUser";
+import { logger } from "../../utils/winstonLogger"; // Logger import
 
-// Example of a controller function using `RequestWithUser`
+// Define query params interface
+interface GoalQueryParams {
+  page?: string;
+  limit?: string;
+}
+
 export const getAllGoals = catchAsync(
   async (req: RequestWithUser, res: Response, next: NextFunction): Promise<void> => {
     if (!req.user?.isAdmin) {
-      // Correct usage of createError, with 3 arguments passed to next() 
-      return next(createError("Access denied. Admins only.", 403, {}));  // 3 arguments: message, statusCode, details
+      return next(createError("Access denied. Admins only.", 403));  // 3 arguments: message, statusCode, details
     }
 
-    const goals = await Goal.find().sort({ createdAt: -1 });
+    const { page = "1", limit = "10" } = req.query as GoalQueryParams;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const goals = await Goal.find().sort({ createdAt: -1 }).skip(skip).limit(parseInt(limit));
+
+    logger.info(`Fetched all goals, page: ${page}, limit: ${limit}`); // Log goal retrieval
 
     sendResponse(res, 200, true, "All goals fetched successfully", { goals });
   }
@@ -40,6 +49,8 @@ export const getStreakDates = catchAsync(
 
     const dates = completedGoals.map(goal => goal.completedAt?.toISOString().split("T")[0]);
 
+    logger.info(`Fetched streak dates for user ${userId}`); // Log streak date retrieval
+
     sendResponse(res, 200, true, "Goal streak dates fetched", { dates });
   }
 );
@@ -58,6 +69,8 @@ export const createGoal = catchAsync(
     if (!userId) return next(createError("Unauthorized access", 401));
 
     const newGoal = await Goal.create({ title, description, dueDate, user: userId });
+
+    logger.info(`Created new goal for user ${userId}, title: "${title}"`); // Log goal creation
 
     sendResponse(res, 201, true, "Goal created successfully", { goal: newGoal });
   }
@@ -82,6 +95,8 @@ export const updateGoalProgress = catchAsync(
 
     goal.progress = progress;
     await goal.save();
+
+    logger.info(`Updated progress for goal ${goalId} to ${progress}% for user ${userId}`); // Log progress update
 
     sendResponse(res, 200, true, "Goal progress updated successfully", { goal });
   }
@@ -123,7 +138,7 @@ export const completeGoal = catchAsync(
       );
 
       if (!alreadyHasBadge) {
-        const badge = await Badge.findOne({ _id: badgeId }); // Fix the query here
+        const badge = await Badge.findOne({ _id: badgeId });
         if (badge) {
           user.badges = [...(user.badges ?? []), badge._id as Types.ObjectId];
         }
@@ -137,6 +152,8 @@ export const completeGoal = catchAsync(
 
     await user.save();
 
+    logger.info(`Goal ${goalId} completed by user ${userId}. Streak: ${currentStreak}, Bonus XP: ${bonusXP}`); // Log goal completion
+
     sendResponse(res, 200, true, "Goal marked as complete", {
       goal,
       newStreak: currentStreak,
@@ -146,7 +163,7 @@ export const completeGoal = catchAsync(
 );
 
 /**
- * @desc    Get user's personal goals
+ * @desc    Get user's personal goals with pagination
  * @route   GET /api/goals/my-goals
  * @access  Private
  */
@@ -155,20 +172,28 @@ export const getUserGoals = catchAsync(
     const userId = req.user?.id;
     if (!userId) return next(createError("Unauthorized access", 401));
 
-    const userGoals = await Goal.find({ user: userId }).sort({ createdAt: -1 });
+    const { page = "1", limit = "10" } = req.query as GoalQueryParams;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const userGoals = await Goal.find({ user: userId }).sort({ createdAt: -1 }).skip(skip).limit(parseInt(limit));
+
+    logger.info(`Fetched personal goals for user ${userId}, page: ${page}, limit: ${limit}`); // Log goal retrieval
 
     sendResponse(res, 200, true, "User goals fetched successfully", { goals: userGoals });
   }
 );
 
 /**
- * @desc    Get public goals
+ * @desc    Get public goals with pagination
  * @route   GET /api/goals/public
  * @access  Public
  */
 export const getPublicGoals = catchAsync(
   async (_req: Request, res: Response): Promise<void> => {
-    const publicGoals = await Goal.find({ isPublic: true }).sort({ createdAt: -1 });
+    const { page = "1", limit = "10" } = _req.query as GoalQueryParams;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const publicGoals = await Goal.find({ isPublic: true }).sort({ createdAt: -1 }).skip(skip).limit(parseInt(limit));
+
+    logger.info(`Fetched public goals, page: ${page}, limit: ${limit}`); // Log public goal retrieval
 
     sendResponse(res, 200, true, "Public goals fetched successfully", { publicGoals });
   }

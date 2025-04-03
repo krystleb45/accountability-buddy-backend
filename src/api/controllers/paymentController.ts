@@ -3,114 +3,136 @@ import type { Request, Response } from "express";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
 import LoggingService from "../services/LoggingService";
+import { User } from "../models/User";
+import Subscription from "../models/Subscription";
+import stripe from "../../utils/stripe";
+import mongoose from "mongoose";
 
-// ✅ Ensure Stripe Secret Key is defined
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-if (!stripeSecretKey) {
-  throw new Error("STRIPE_SECRET_KEY is not defined in environment variables.");
-}
-
-// ✅ Initialize Stripe with API Version
-const stripe = new Stripe(stripeSecretKey, {
-  apiVersion: process.env.STRIPE_API_VERSION as "2025-02-24.acacia" || "2025-02-24.acacia",
-});
-
-// ✅ Placeholder Functions for Webhook Handling
-async function handleSubscriptionCompleted(session: Stripe.Checkout.Session): Promise<void> {
-  LoggingService.logInfo(`Subscription completed: ${session.id}`);
-  // Implement subscription logic
-}
-
-async function handlePaymentSucceeded(invoice: Stripe.Invoice): Promise<void> {
-  LoggingService.logInfo(`Payment succeeded: ${invoice.id}`);
-  // Implement successful payment logic
-}
-
-async function handlePaymentFailed(invoice: Stripe.Invoice): Promise<void> {
-  LoggingService.logError(`Payment failed: ${invoice.id}`, new Error(`Payment failed for invoice ${invoice.id}`));  // Implement failed payment logic
-}
-
-/**
- * @desc Create a Stripe subscription session
- * @route POST /api/payments/create-subscription-session
- * @access Private
- */
+// ✅ Create a Stripe subscription session
 export const createSubscriptionSession = catchAsync(
   async (
     req: Request<{}, {}, { planId: string; successUrl: string; cancelUrl: string }>,
     res: Response
   ): Promise<void> => {
     const { planId, successUrl, cancelUrl } = req.body;
-    const userId = req.user?.id;
+    const user = await User.findById(req.user?.id);
 
-    if (!planId || !successUrl || !cancelUrl) {
-      sendResponse(res, 400, false, "Missing required fields");
+    if (!user || !planId || !successUrl || !cancelUrl) {
+      sendResponse(res, 400, false, "Missing required fields or user");
       return;
     }
 
-    try {
-      const session = await stripe.checkout.sessions.create({
-        payment_method_types: ["card"],
-        line_items: [{ price: planId, quantity: 1 }],
-        mode: "subscription",
-        success_url: successUrl,
-        cancel_url: cancelUrl,
-        client_reference_id: userId,
-      });
-
-      LoggingService.logInfo(`✅ Subscription session created for user ${userId}`);
-      sendResponse(res, 200, true, "Session created successfully", { sessionId: session.id });
-    } catch (error) {
-      LoggingService.logError("❌ Error creating subscription session", error as Error);
-      sendResponse(res, 500, false, "Failed to create session");
+    if (!user.stripeCustomerId) {
+      const customer = await stripe.customers.create({ email: user.email });
+      user.stripeCustomerId = customer.id;
+      await user.save();
     }
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      line_items: [{ price: planId, quantity: 1 }],
+      mode: "subscription",
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      client_reference_id: user.id,
+      customer: user.stripeCustomerId,
+    });
+
+    await LoggingService.logInfo(`✅ Subscription session created for user ${user.id}`);    await sendResponse(res, 200, true, "Session created successfully", { sessionId: session.id });
   }
 );
 
-/**
- * @desc Handle Stripe webhooks
- * @route POST /api/payments/webhook
- * @access Public
- */
-export const handleStripeWebhook = catchAsync(
-  async (req: Request, res: Response): Promise<void> => {
-    // ✅ Ensure Stripe Webhook Secret is Defined
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-    if (!webhookSecret) {
-      throw new Error("STRIPE_WEBHOOK_SECRET is not defined in environment variables.");
-    }
+// ✅ Handle Stripe webhook events
+export const handleStripeWebhook = catchAsync(async (req: Request, res: Response): Promise<void> => {
+  const sig = req.headers["stripe-signature"] as string;
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  const rawBody = (req as any).rawBody;
 
-    const sig = req.headers["stripe-signature"] as string;
-
-    try {
-      // ✅ Properly Access Raw Body for Stripe Webhook Validation
-      const rawBody = (req as any).rawBody;
-      if (!rawBody) {
-        throw new Error("Missing raw body in request");
-      }
-
-      // ✅ Construct Stripe Event Using Raw Body
-      const event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
-
-      // ✅ Handle Different Stripe Event Types
-      switch (event.type) {
-        case "checkout.session.completed":
-          await handleSubscriptionCompleted(event.data.object as Stripe.Checkout.Session);
-          break;
-        case "invoice.payment_succeeded":
-          await handlePaymentSucceeded(event.data.object as Stripe.Invoice);
-          break;
-        case "invoice.payment_failed":
-          await handlePaymentFailed(event.data.object as Stripe.Invoice);
-          break;
-        default:
-          LoggingService.logInfo(`⚠️ Unhandled event type: ${event.type}`);
-      }
-
-      res.json({ received: true });
-    } catch (error) {
-      LoggingService.logError("❌ Webhook handling error", error as Error);
-      res.status(400).send(`Webhook Error: ${(error as Error).message}`);
-    }
+  if (!webhookSecret || !sig || !rawBody) {
+    res.status(400).send("Missing Stripe webhook requirements");
+    return;
   }
-);
+
+  let event: Stripe.Event;
+
+  try {
+    event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
+  } catch (error) {
+    await LoggingService.logError("Webhook verification failed", error as Error);    res.status(400).send(`Webhook Error: ${(error as Error).message}`);
+    return;
+  }
+
+  switch (event.type) {
+    case "checkout.session.completed": {
+      const session = event.data.object as Stripe.Checkout.Session;
+      const userId = session.client_reference_id;
+      const subscriptionId = session.subscription?.toString();
+
+      if (userId && subscriptionId) {
+        const user = await User.findById(userId);
+        if (user) {
+          const stripeSub = await stripe.subscriptions.retrieve(subscriptionId);
+          const newSub = await Subscription.create({
+            user: user._id,
+            status: stripeSub.status,
+            plan: stripeSub.items.data[0]?.price.nickname || "standard",
+            trialEnd: stripeSub.trial_end ? new Date(stripeSub.trial_end * 1000) : null,
+            subscriptionStart: new Date(stripeSub.start_date * 1000),
+            subscriptionEnd: stripeSub.cancel_at ? new Date(stripeSub.cancel_at * 1000) : null,
+            provider: "stripe",
+            stripeSubscriptionId: stripeSub.id,
+            currentPeriodEnd: new Date(stripeSub.current_period_end * 1000),
+            isActive: stripeSub.status === "active" || stripeSub.status === "trialing",
+          });
+
+          user.subscriptions = [newSub._id as mongoose.Types.ObjectId];
+          user.subscription_status = stripeSub.status === "active" ? "active" : "trial";
+          await user.save();
+
+          await LoggingService.logInfo(`✅ New subscription saved for user ${userId}`);        }
+      }
+      break;
+    }
+
+    case "invoice.payment_succeeded": {
+      const invoice = event.data.object as Stripe.Invoice;
+      await LoggingService.logInfo(`✅ Payment succeeded: ${invoice.id}`);
+      break;
+    }
+
+    case "invoice.payment_failed": {
+      const invoice = event.data.object as Stripe.Invoice;
+      await LoggingService.logError(`❌ Payment failed: ${invoice.id}`, new Error("Payment failure"));
+      break;
+    }
+
+    case "customer.subscription.deleted": {
+      const sub = event.data.object as Stripe.Subscription;
+      await Subscription.findOneAndUpdate(
+        { stripeSubscriptionId: sub.id },
+        { status: "canceled", isActive: false, subscriptionEnd: new Date() }
+      );
+      await LoggingService.logInfo(`🛑 Subscription canceled: ${sub.id}`);
+      break;
+    }
+
+    case "customer.subscription.updated": {
+      const sub = event.data.object as Stripe.Subscription;
+      await Subscription.findOneAndUpdate(
+        { stripeSubscriptionId: sub.id },
+        {
+          status: sub.status,
+          isActive: sub.status === "active" || sub.status === "trialing",
+          currentPeriodEnd: new Date(sub.current_period_end * 1000),
+        }
+      );
+      await LoggingService.logInfo(`🔁 Subscription updated: ${sub.id}`);
+      break;
+    }
+
+    default:
+      await LoggingService.logInfo(`⚠️ Unhandled event: ${event.type}`);
+  }
+
+  res.status(200).json({ received: true });
+});

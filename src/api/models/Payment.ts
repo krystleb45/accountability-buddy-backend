@@ -87,9 +87,8 @@ const PaymentSchema: Schema<IPayment> = new Schema<IPayment>(
     timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
-  },
+  }
 );
-
 
 // Pre-save hook to validate amount and handle expiration
 PaymentSchema.pre("save", function (next): void {
@@ -150,11 +149,10 @@ PaymentSchema.virtual("isExpired").get(function (): boolean {
   return !!this.expiresAt && this.expiresAt instanceof Date && this.expiresAt < new Date();
 });
 
-
 // Export the Payment model
 const Payment: IPaymentModel = mongoose.model<IPayment, IPaymentModel>(
   "Payment",
-  PaymentSchema,
+  PaymentSchema
 );
 
 export default Payment;

@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
-import { logger } from "../../utils/winstonLogger";
+import { logger } from "../../utils/winstonLogger"; // Assuming you have a logger utility
+import * as Sentry from "@sentry/node"; // Assuming you're using Sentry for error tracking
 
 /**
  * @desc    Handle custom application errors
@@ -59,7 +60,7 @@ export const errorHandler = (
     message = "Too many requests. Please try again later.";
   }
 
-  // Log the error details
+  // Log the error details to your local logger
   logger.error({
     message: err.message || "An error occurred",
     stack: err.stack || "No stack trace available",
@@ -67,6 +68,9 @@ export const errorHandler = (
     method: req.method,
     statusCode,
   });
+
+  // Optionally capture the error in Sentry or any other monitoring tool
+  Sentry.captureException(err);
 
   // Send the error response
   res.status(statusCode).json({

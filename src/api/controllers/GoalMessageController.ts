@@ -1,27 +1,17 @@
-import type { Request, Response, NextFunction } from "express";
 import mongoose from "mongoose";
+import type { Request, Response, NextFunction } from "express";
 import { GoalMessage } from "../models/GoalMessage";
 import Goal from "../models/Goal";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
 import { createError } from "../middleware/errorHandler";
 import { logger } from "../../utils/winstonLogger";
+import { RequestWithUser } from "../types/RequestWithUser"; // Correct import for RequestWithUser
 
 // Define reusable types for request parameters and bodies
 type GoalParams = { goalId: string };
 type MessageParams = { messageId: string };
 type CreateMessageBody = { message: string };
-
-// Extend Request to include the user property
-interface RequestWithUser extends Request {
-  user?: {
-    id: string;
-    email?: string;
-    role: "user" | "admin" | "moderator";
-    isAdmin?: boolean;
-    password(currentPassword: any, password: any): unknown; // Ensure compatibility with other controllers
-  };
-}
 
 /**
  * @desc Create a new goal message

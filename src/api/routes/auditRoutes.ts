@@ -1,23 +1,22 @@
-import type { Response, NextFunction, Router, Request } from "express";
+import type { Response, NextFunction, Router, Request, RequestHandler } from "express";
 import express from "express";
 import { check, validationResult } from "express-validator";
 import AuditLog from "../models/AuditLog";
-import { protect } from "../middleware/authMiddleware"; // Corrected import to use named export `protect`
+import { protect } from "../middleware/authMiddleware"; // Use named export `protect`
 import { roleBasedAccessControl } from "../middleware/roleBasedAccessControl";
 import { logger } from "../../utils/winstonLogger";
+import type { IUser } from "../models/User"; // Import unified IUser
+
+// Define a local AuthenticatedRequest type that matches what the protect middleware attaches.
+type AuthenticatedRequest = Request & {
+  user?: Pick<
+    IUser,
+    "id" | "email" | "role" | "isAdmin" | "trial_start_date" | "subscription_status" | "next_billing_date"
+  > & { permissions?: string[] };
+};
 
 const router: Router = express.Router();
 
-// ✅ Define `AuthenticatedRequest` locally (no need to import it)
-type AuthenticatedRequest = Request & {
-  user?: {
-    email?: string;
-    id: string;
-    role: "user" | "admin" | "moderator";
-  };
-};
-
-// Middleware for role-based access control
 const isAdmin = roleBasedAccessControl(["admin"]);
 const isAdminOrAuditor = roleBasedAccessControl(["admin", "auditor"]);
 
@@ -26,7 +25,7 @@ const isAdminOrAuditor = roleBasedAccessControl(["admin", "auditor"]);
  */
 const handleRouteErrors = (
   handler: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>
-) => {
+): RequestHandler => {
   return async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       await handler(req, res, next);
@@ -48,13 +47,11 @@ router.get(
   isAdminOrAuditor,
   handleRouteErrors(async (req, res): Promise<void> => {
     const logs = await AuditLog.find().sort({ createdAt: -1 });
-
     if (!logs.length) {
       logger.warn(`⚠️ No audit logs found. User: ${req.user?.id}, IP: ${req.ip}`);
       res.status(404).json({ success: false, message: "No audit logs found" });
       return;
     }
-
     logger.info(`✅ Logs accessed by User: ${req.user?.id}, IP: ${req.ip}`);
     res.json({ success: true, data: logs });
   })
@@ -77,16 +74,13 @@ router.get(
       res.status(400).json({ success: false, errors: errors.array() });
       return;
     }
-
     const { userId } = req.params;
     const userLogs = await AuditLog.find({ userId }).sort({ createdAt: -1 });
-
     if (!userLogs.length) {
       logger.warn(`⚠️ No logs found for user: ${userId}`);
       res.status(404).json({ success: false, message: "No logs found for this user" });
       return;
     }
-
     logger.info(`✅ Logs for user ${userId} accessed by: ${req.user?.id}, IP: ${req.ip}`);
     res.json({ success: true, data: userLogs });
   })
@@ -109,16 +103,13 @@ router.delete(
       res.status(400).json({ success: false, errors: errors.array() });
       return;
     }
-
     const { logId } = req.params;
     const log = await AuditLog.findById(logId);
-
     if (!log) {
       logger.warn(`⚠️ Log not found for ID: ${logId}`);
       res.status(404).json({ success: false, message: "Log not found" });
       return;
     }
-
     await AuditLog.deleteOne({ _id: logId });
     logger.info(`✅ Log ID: ${logId} deleted by Admin: ${req.user?.id}, IP: ${req.ip}`);
     res.json({ success: true, message: "Log deleted successfully" });

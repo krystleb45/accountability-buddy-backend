@@ -249,6 +249,7 @@ export const editBlogPost = catchAsync(async (req: Request<{ id: string }>, res:
 
   sendResponse(res, 200, true, "Blog post updated successfully", { post });
 });
+
 /**
  * @desc Delete a blog post
  * @route DELETE /api/blog/:id
@@ -284,6 +285,3 @@ export const deleteBlogPost = catchAsync(async (
   await BlogPost.deleteOne({ _id: id });
   sendResponse(res, 200, true, "Blog post deleted successfully");
 });
-/**
- * ✅ Only Added `addComment` and `removeComment`
- */

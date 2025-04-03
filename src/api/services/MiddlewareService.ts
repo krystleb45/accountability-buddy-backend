@@ -23,10 +23,13 @@ export const MiddlewareService = {
       const secretKey = process.env.JWT_SECRET || "your_jwt_secret";
       const payload = jwt.verify(token, secretKey) as JwtPayload;
   
+      // Updated to include missing properties with default values.
       req.user = {
         id: payload.userId,
-        role: payload.role, // Include role from JWT payload
-        email: payload.email, // Include email if available
+        role: payload.role,       // Role from JWT payload
+        email: payload.email,     // Email from JWT payload
+        isAdmin: false,           // Default value; adjust if needed
+        subscription_status: "trial", // Default value; adjust if needed
       };
   
       next();
@@ -34,8 +37,7 @@ export const MiddlewareService = {
       logger.error("Token authentication failed:", error);
       next(new CustomError("Invalid or expired token", 403));
     }
-  }
-  ,
+  },
 
   /**
    * Authorize a user based on roles.
@@ -50,11 +52,11 @@ export const MiddlewareService = {
         if (!user) {
           return next(new CustomError("User not found", 404));
         }
-
+  
         if (!roles.includes(user.role)) {
           return next(new CustomError("Access denied", 403));
         }
-
+  
         next();
       } catch (error) {
         logger.error("Authorization failed:", error);
@@ -97,7 +99,7 @@ export const MiddlewareService = {
   ): void {
     const statusCode = (err as CustomError).statusCode || 500;
     const message = err.message || "Internal Server Error";
-
+  
     logger.error(`Error: ${message} | StatusCode: ${statusCode}`);
     res.status(statusCode).json({
       success: false,

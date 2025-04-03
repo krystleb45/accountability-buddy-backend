@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
-import { PrivateMessage } from "../models/PrivateMessage";
-import { User } from "../models/User"; // Ensure User is properly exported
+import { PrivateMessage } from "../models/PrivateMessage"; // Assuming this model is already defined
+import { User } from "../models/User"; // User model for verifying receiver
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
 import { logger } from "../../utils/winstonLogger";

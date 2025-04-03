@@ -4,149 +4,167 @@ interface Metadata {
   [key: string]: unknown;
 }
 
+const environment = process.env.NODE_ENV || "development";
+const allowDebug = environment === "development" || process.env.ENABLE_DEBUG === "true";
+const enableRemote = process.env.ENABLE_REMOTE_LOGGING === "true";
+
+/**
+ * Redact sensitive fields like tokens, passwords, etc.
+ */
+const sensitiveFields = ["token", "password", "authorization", "email"];
+function sanitizeMetadata(metadata: Metadata): Metadata {
+  const { _message, _timestamp, _level, ...rest } = metadata;
+  const sanitized: Metadata = {};
+
+  for (const [key, value] of Object.entries(rest)) {
+    sanitized[key] = sensitiveFields.includes(key.toLowerCase()) ? "[REDACTED]" : value;
+  }
+
+  return sanitized;
+}
+
+/**
+ * Stub for sending logs to a remote service (e.g., Sentry, LogRocket)
+ */
+async function sendToRemoteService(_level: string, _payload: any): Promise<void> {
+  if (!enableRemote) return;
+
+  try {
+    // Replace with actual implementation:
+    // await Sentry.captureMessage(JSON.stringify(_payload));
+    // await LogRocket.log(_level, _payload);
+    // console.log(`[REMOTE LOG - ${_level.toUpperCase()}]:`, _payload);
+  } catch (err) {
+    logger.warn({
+      message: "Remote log forwarding failed",
+      error: (err as Error).message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+}
+
 const LoggingService = {
   /**
-   * Log informational messages
-   * @param {string} message - The message to log
-   * @param {Metadata} [metadata={}] - Optional metadata for contextual logging
+   * 📘 Info logs – general operations
    */
-  logInfo: (message: string, metadata: Metadata = {}): void => {
-    logger.info({
+  logInfo: async (message: string, metadata: Metadata = {}): Promise<void> => {
+    const payload = {
       message,
       ...sanitizeMetadata(metadata),
       timestamp: new Date().toISOString(),
-      environment: process.env.NODE_ENV || "development",
-    });
+      environment,
+    };
+    logger.info(payload);
+    await sendToRemoteService("info", payload);
   },
 
   /**
-   * Log warning messages
-   * @param {string} message - The message to log
-   * @param {Metadata} [metadata={}] - Optional metadata for contextual logging
+   * ⚠️ Warnings – non-fatal issues
    */
-  logWarn: (message: string, metadata: Metadata = {}): void => {
-    logger.warn({
+  logWarn: async (message: string, metadata: Metadata = {}): Promise<void> => {
+    const payload = {
       message,
       ...sanitizeMetadata(metadata),
       timestamp: new Date().toISOString(),
-      environment: process.env.NODE_ENV || "development",
-    });
+      environment,
+    };
+    logger.warn(payload);
+    await sendToRemoteService("warn", payload);
   },
 
   /**
-   * Log error messages
-   * @param {string} message - The message to log
-   * @param {Error | string} err - The error object or string
-   * @param {Metadata} [metadata={}] - Optional metadata for contextual logging
+   * ❌ Errors – operational failures
    */
-  logError: (
-    message: string,
-    err: Error | string,
-    metadata: Metadata = {},
-  ): void => {
-    const errorDetails =
+  logError: async (message: string, err: Error | string, metadata: Metadata = {}): Promise<void> => {
+    const details =
       typeof err === "string"
         ? { error: err }
         : { error: err.message, stack: err.stack || "No stack trace" };
 
-    logger.error({
+    const payload = {
       message,
-      ...errorDetails,
+      ...details,
       ...sanitizeMetadata(metadata),
       timestamp: new Date().toISOString(),
-      environment: process.env.NODE_ENV || "development",
-    });
+      environment,
+    };
+
+    logger.error(payload);
+    await sendToRemoteService("error", payload);
   },
 
   /**
-   * Log debugging information (only in development mode)
-   * @param {string} message - The message to log
-   * @param {Metadata} [metadata={}] - Optional metadata for contextual logging
+   * 🐞 Debug logs – only in development
    */
-  logDebug: (message: string, metadata: Metadata = {}): void => {
-    if (process.env.NODE_ENV === "development") {
-      logger.debug({
-        message,
-        ...sanitizeMetadata(metadata),
-        timestamp: new Date().toISOString(),
-        environment: process.env.NODE_ENV || "development",
-      });
-    }
+  logDebug: async (message: string, metadata: Metadata = {}): Promise<void> => {
+    if (!allowDebug) return;
+
+    const payload = {
+      message,
+      ...sanitizeMetadata(metadata),
+      timestamp: new Date().toISOString(),
+      environment,
+    };
+
+    logger.debug(payload);
+    await sendToRemoteService("debug", payload);
   },
 
   /**
-   * Log fatal errors (critical failures that may require immediate action)
-   * @param {string} message - The message to log
-   * @param {Error | string} err - The error object or string
-   * @param {Metadata} [metadata={}] - Optional metadata for contextual logging
+   * 🛑 Fatal logs – critical errors
    */
-  logFatal: (
-    message: string,
-    err: Error | string,
-    metadata: Metadata = {},
-  ): void => {
-    const errorDetails =
+  logFatal: async (message: string, err: Error | string, metadata: Metadata = {}): Promise<void> => {
+    const details =
       typeof err === "string"
         ? { error: err }
         : { error: err.message, stack: err.stack || "No stack trace" };
 
-    logger.error({
+    const payload = {
       message: `FATAL: ${message}`,
-      ...errorDetails,
+      ...details,
       ...sanitizeMetadata(metadata),
       timestamp: new Date().toISOString(),
-      environment: process.env.NODE_ENV || "development",
-    });
+      environment,
+    };
 
-    // Optional: Trigger alerts or notifications for fatal errors
+    logger.error(payload);
+    await sendToRemoteService("fatal", payload);
   },
 
   /**
-   * Log performance metrics (e.g., response time, memory usage)
-   * @param {string} message - The message to log
-   * @param {object} metrics - Performance metrics to log
-   * @param {Metadata} [metadata={}] - Optional metadata for contextual logging
+   * 🧠 Context logs – app breadcrumbs or trace info
    */
-  logPerformance: (
+  logContext: async (message: string, context: Metadata = {}): Promise<void> => {
+    const payload = {
+      message,
+      ...sanitizeMetadata(context),
+      timestamp: new Date().toISOString(),
+      environment,
+    };
+
+    logger.info(payload);
+    await sendToRemoteService("info", payload);
+  },
+
+  /**
+   * 🚀 Performance metrics (latency, memory, etc.)
+   */
+  logPerformance: async (
     message: string,
     metrics: Record<string, unknown>,
-    metadata: Metadata = {},
-  ): void => {
-    logger.info({
+    metadata: Metadata = {}
+  ): Promise<void> => {
+    const payload = {
       message,
       metrics,
       ...sanitizeMetadata(metadata),
       timestamp: new Date().toISOString(),
-      environment: process.env.NODE_ENV || "development",
-    });
-  },
+      environment,
+    };
 
-  /**
-   * Log contextual information for troubleshooting
-   * @param {string} message - The message to log
-   * @param {Metadata} context - Contextual information to include
-   */
-  logContext: (message: string, context: Metadata): void => {
-    logger.info({
-      message,
-      ...sanitizeMetadata(context),
-      timestamp: new Date().toISOString(),
-      environment: process.env.NODE_ENV || "development",
-    });
+    logger.info(payload);
+    await sendToRemoteService("performance", payload);
   },
 };
-
-/**
- * Helper function to sanitize metadata by removing duplicate or conflicting keys.
- * @param metadata - The metadata object to sanitize
- * @returns Sanitized metadata
- */
-function sanitizeMetadata(metadata: Metadata): Metadata {
-  const { message, timestamp, ...rest } = metadata;
-  // Explicitly ignore `message` and `timestamp` to avoid overwriting base keys
-  void message;
-  void timestamp;
-  return rest;
-}
 
 export default LoggingService;

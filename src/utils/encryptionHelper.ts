@@ -94,3 +94,23 @@ export const generateRandomToken = async (
     );
   }
 };
+
+/**
+ * @desc Encrypts the message with AES-256-CBC and returns the encrypted result.
+ * @param {string} message - The message to encrypt.
+ * @returns {string} - The encrypted message in hex format.
+ */
+export const encryptMessage = (message: string): string => {
+  const encryptionKey = process.env.ENCRYPTION_KEY || "your-32-character-key"; // Ensure key is securely stored
+  return encryptData(message, encryptionKey);
+};
+
+/**
+ * @desc Decrypts the encrypted message.
+ * @param {string} encryptedMessage - The encrypted message.
+ * @returns {string} - The decrypted plaintext message.
+ */
+export const decryptMessage = (encryptedMessage: string): string => {
+  const encryptionKey = process.env.ENCRYPTION_KEY || "your-32-character-key"; // Ensure key is securely stored
+  return decryptData(encryptedMessage, encryptionKey);
+};

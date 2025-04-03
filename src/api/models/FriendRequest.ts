@@ -5,7 +5,7 @@ import mongoose, { Schema } from "mongoose";
 export interface IFriendRequest extends Document {
   sender: mongoose.Types.ObjectId; // User who sent the request
   recipient: mongoose.Types.ObjectId; // User receiving the request
-  status: "pending" | "accepted" | "declined"; // Status of the request
+  status: "pending" | "accepted" | "declined" | "rejected"; // Status of the request
   createdAt: Date;
   updatedAt: Date;
 }
@@ -27,7 +27,7 @@ const FriendRequestSchema = new Schema<IFriendRequest>(
     },
     status: {
       type: String,
-      enum: ["pending", "accepted", "declined"],
+      enum: ["pending", "accepted", "declined", "rejected"], // Add 'rejected' status
       default: "pending",
     },
   },

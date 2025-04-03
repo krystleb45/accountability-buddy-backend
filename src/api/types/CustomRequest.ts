@@ -20,9 +20,13 @@ export interface IMilitaryUser {
 export interface MilitaryRequest extends Request {
   user?: {
     id: string;
-    email?: string; // Optional email field
+    email: string; // Email is required
     role: "user" | "admin" | "moderator"; // Role is required
-    isAdmin?: boolean; // Optional isAdmin field
+    isAdmin: boolean; // Now required (cannot be undefined)
+    trial_start_date: Date; // Required field
+    subscription_status: "active" | "trial" | "expired"; // Required field
+    next_billing_date: Date; // Required field
+    permissions?: string[]; // Optional permissions
   };
-  militaryUser?: IMilitaryUser; // Add military user property
+  militaryUser?: IMilitaryUser; // Optional military user property
 }

@@ -68,7 +68,6 @@ router.delete("/:id", protect, blogController.deleteBlogPost);
  */
 router.post("/:id/like", protect, blogController.toggleLikeBlogPost);
 
-
 /**
  * @route POST /api/blog/:id/comment
  * @desc Add a comment to a blog post
@@ -78,7 +77,7 @@ router.post(
   "/:id/comment",
   protect,
   [
-    check("text").notEmpty().withMessage("Comment text cannot be empty"),
+    check("text").notEmpty().withMessage("Comment text cannot be empty").trim(),
     handleValidationErrors,
   ],
   blogController.addComment

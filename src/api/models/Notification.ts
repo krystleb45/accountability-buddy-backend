@@ -32,7 +32,8 @@ const NotificationSchema: Schema<INotification> = new Schema(
     message: { 
       type: String, 
       required: true, 
-      trim: true // ✅ Prevents storing blank messages
+      trim: true,  // ✅ Prevents storing blank messages
+      maxlength: [500, "Message cannot exceed 500 characters."] // Enforce message length
     },
     type: {
       type: String,

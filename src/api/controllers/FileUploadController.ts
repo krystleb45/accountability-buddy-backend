@@ -38,53 +38,55 @@ const scanFileForVirus = (filePath: string): boolean => {
  * @route   POST /api/upload
  * @access  Private
  */
-export const uploadFile = catchAsync(
-  async (
-    req: Request<{}, {}, {}, { file?: Express.Multer.File }>, // Correct the type of file
-    res: Response,
-    _next: NextFunction
-  ): Promise<void> => {
-    req.params = sanitizeInput(req.params);
-    req.body = sanitizeInput(req.body);
+export const uploadFile = catchAsync(async (
+  req: Request & { file?: Express.Multer.File },
+  res: Response,
+  _next: NextFunction
+): Promise<void> => {
+  req.params = sanitizeInput(req.params);
+  req.body = sanitizeInput(req.body);
 
-    if (!req.file) {
-      sendResponse(res, 400, false, "No file uploaded");
-      return;
-    }
-
-    const filePath = path.join(__dirname, "../uploads", req.file.filename);
-
-    if (!scanFileForVirus(filePath)) {
-      fs.unlinkSync(filePath);
-      sendResponse(res, 400, false, "File contains a virus and was not uploaded");
-      return;
-    }
-
-    const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
-    sendResponse(res, 200, true, "File uploaded successfully", { fileUrl });
+  if (!req.file) {
+    sendResponse(res, 400, false, "No file uploaded");
+    return;
   }
-);
+
+  const filePath = path.join(__dirname, "../uploads", req.file.filename);
+
+  if (!scanFileForVirus(filePath)) {
+    fs.unlinkSync(filePath);
+    sendResponse(res, 400, false, "File contains a virus and was not uploaded");
+    return;
+  }
+
+  const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
+  sendResponse(res, 200, true, "File uploaded successfully", { fileUrl });
+});
 
 /**
  * @desc    Upload multiple files
  * @route   POST /api/uploads
  * @access  Private
  */
-export const uploadMultipleFiles = catchAsync(
-  async (
-    req: Request<{}, {}, {}, { files?: Express.Multer.File[] }>, // Correct the type of files
-    res: Response,
-    _next: NextFunction
-  ): Promise<void> => {
-    req.params = sanitizeInput(req.params);
-    req.body = sanitizeInput(req.body);
+export const uploadMultipleFiles = catchAsync(async (
+  req: Request & { files?: { [fieldname: string]: Express.Multer.File[] } | Express.Multer.File[] },
+  res: Response,
+  _next: NextFunction
+): Promise<void> => {
+  req.params = sanitizeInput(req.params);
+  req.body = sanitizeInput(req.body);
 
-    if (!req.files || !Array.isArray(req.files) || req.files.length === 0) {
-      sendResponse(res, 400, false, "No files uploaded");
-      return;
-    }
+  // Check if no files were uploaded
+  if (!req.files || !Object.keys(req.files).length) {
+    sendResponse(res, 400, false, "No files uploaded");
+    return;
+  }
 
-    const fileUrls: string[] = [];
+  const fileUrls: string[] = [];
+
+  // Check if req.files is an array or an object
+  if (Array.isArray(req.files)) {
+    // Single file upload case (req.files is an array)
     for (const file of req.files) {
       const filePath = path.join(__dirname, "../uploads", file.filename);
 
@@ -95,21 +97,37 @@ export const uploadMultipleFiles = catchAsync(
 
       fileUrls.push(`${req.protocol}://${req.get("host")}/uploads/${file.filename}`);
     }
+  } else {
+    // Multiple file upload case (req.files is an object with fieldname as keys)
+    for (const fieldname in req.files) {
+      const files = req.files[fieldname] as Express.Multer.File[]; // Casting to Express.Multer.File[]
 
-    if (fileUrls.length === 0) {
-      sendResponse(res, 400, false, "No files uploaded due to virus detection");
-      return;
+      for (const file of files) {
+        const filePath = path.join(__dirname, "../uploads", file.filename);
+
+        if (!scanFileForVirus(filePath)) {
+          fs.unlinkSync(filePath);
+          continue;
+        }
+
+        fileUrls.push(`${req.protocol}://${req.get("host")}/uploads/${file.filename}`);
+      }
     }
-
-    sendResponse(res, 200, true, "Files uploaded successfully", { fileUrls });
   }
-);
+
+  if (fileUrls.length === 0) {
+    sendResponse(res, 400, false, "No files uploaded due to virus detection");
+    return;
+  }
+
+  sendResponse(res, 200, true, "Files uploaded successfully", { fileUrls });
+});
 
 // Save file metadata
 export const saveFileMetadata = async (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     const { originalname, mimetype, size, filename } = req.file as Express.Multer.File;
@@ -139,21 +157,18 @@ export const saveFileMetadata = async (
 export const downloadFile = async (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     const { fileId } = req.params;
 
-    // Simulate fetching file info based on ID (replace with DB call if needed)
     const filePath = path.join(__dirname, "../../uploads/", `${fileId}.pdf`);
 
-    // Check if file exists
     if (!fs.existsSync(filePath)) {
       sendResponse(res, 404, false, "File not found");
       return;
     }
 
-    // Set headers for download
     res.download(filePath, (err) => {
       if (err) {
         logger.error(`Error downloading file: ${err.message}`);
@@ -172,21 +187,19 @@ export const downloadFile = async (
  * @access  Private
  */
 export const deleteFile = catchAsync(async (
-  req: Request<{ filename: string }>, // Specify the type for `filename` in the params
+  req: Request & { params: { filename: string } },
   res: Response,
   _next: NextFunction,
 ): Promise<void> => {
-  // Ensure filename exists in the params and sanitize it
-  const filename = req.params.filename ? sanitizeFilename(req.params.filename) : "unknown-file";
+  req.params = sanitizeInput(req.params);
+  const filename = sanitizeFilename(req.params.filename) || "unknown-file";
   const filePath = path.join(__dirname, "../uploads", filename);
 
-  // Check if file exists
   if (!fs.existsSync(filePath)) {
     sendResponse(res, 404, false, "File not found");
     return;
   }
 
-  // Delete the file
   fs.unlinkSync(filePath);
   sendResponse(res, 200, true, "File deleted successfully");
 });

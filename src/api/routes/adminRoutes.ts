@@ -7,21 +7,24 @@ import {
   updateUserRole,
   deleteUserAccount,
 } from "../controllers/AdminController";
-import { protect } from "../middleware/authMiddleware"; // Corrected to use 'protect'
+import { protect } from "../middleware/authMiddleware"; // Use 'protect'
 import roleMiddleware from "../middleware/adminMiddleware";
 import { PERMISSIONS } from "../../constants/roles";
-import type { AuthenticatedRequest } from "../types/AuthenticatedRequest";
+import type { AdminAuthenticatedRequest } from "../types/AdminAuthenticatedRequest";
 
 const router: Router = express.Router();
 
 /**
- * Utility function to handle route errors consistently
+ * Helper to wrap admin routes that require a full authenticated user.
+ * It casts the incoming Express Request to our strict AdminAuthenticatedRequest.
  */
 const handleRouteErrors =
-  (handler: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>): RequestHandler =>
+  (handler: (req: AdminAuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>): RequestHandler =>
     async (req, res, next) => {
       try {
-        await handler(req as AuthenticatedRequest, res, next);
+      // Cast the incoming Request to AdminAuthenticatedRequest.
+        const typedReq = req as unknown as AdminAuthenticatedRequest;
+        await handler(typedReq, res, next);
       } catch (error) {
         logger.error(`Error occurred: ${(error as Error).message}`);
         next(error);
@@ -35,21 +38,13 @@ const handleRouteErrors =
  */
 router.get(
   "/users",
-  protect, // Use 'protect' middleware instead of 'authMiddleware'
+  protect,
   roleMiddleware(PERMISSIONS.MANAGE_USERS),
   handleRouteErrors(async (req, res, next) => {
-    const typedReq = req as AuthenticatedRequest;
-    await getAllUsers(typedReq, res, next);
+    await getAllUsers(req, res, next);
   })
 );
 
-/**
- * Type definition for updating user roles
- */
-interface UpdateUserRoleBody {
-  userId: string;
-  role: string;
-}
 
 /**
  * @route   PATCH /api/admin/users/role
@@ -59,23 +54,19 @@ interface UpdateUserRoleBody {
 router.patch(
   "/users/role",
   [
-    protect, // Use 'protect' middleware instead of 'authMiddleware'
+    protect,
     roleMiddleware(PERMISSIONS.EDIT_SETTINGS),
     check("userId", "User ID is required and must be valid").notEmpty().isMongoId(),
     check("role", "Role is required").notEmpty().isString(),
   ],
   handleRouteErrors(async (req, res, next) => {
-    const typedReq = req as AuthenticatedRequest<{}, {}, UpdateUserRoleBody>;
-  
-    const errors = validationResult(typedReq);
+    const errors = validationResult(req);
     if (!errors.isEmpty()) {
       logger.warn(`Validation failed: ${JSON.stringify(errors.array())}`);
       res.status(400).json({ success: false, errors: errors.array() });
       return;
     }
-  
-    await updateUserRole(typedReq, res, next); // ✅ Pass next here
-  
+    await updateUserRole(req, res, next);
     res.status(200).json({ success: true, message: "User role updated successfully" });
   })
 );
@@ -87,16 +78,10 @@ router.patch(
  */
 router.delete(
   "/users/:userId",
-  [
-    protect, // Use 'protect' middleware instead of 'authMiddleware'
-    roleMiddleware(PERMISSIONS.MANAGE_USERS),
-  ],
+  [protect, roleMiddleware(PERMISSIONS.MANAGE_USERS)],
   handleRouteErrors(async (req, res, next) => {
-    const typedReq = req as AuthenticatedRequest<{ userId: string }>;
-
-    await deleteUserAccount(typedReq, res, next); // ✅ Fixed here
-
-    logger.info(`User account deleted. UserID: ${typedReq.params.userId}`);
+    await deleteUserAccount(req, res, next);
+    logger.info(`User account deleted. UserID: ${req.params.userId}`);
     res.status(200).json({ success: true, message: "User account deleted successfully" });
   })
 );

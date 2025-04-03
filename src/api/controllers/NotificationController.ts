@@ -1,5 +1,5 @@
-import type { Request, Response } from "express";
-import Notification from "../models/Notification"; // Adjusted import
+import { Request, Response } from "express";
+import Notification from "../models/Notification";
 import { User } from "../models/User";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
@@ -25,7 +25,7 @@ const sanitizeInput = (input: any): any => {
  */
 export const sendNotification = catchAsync(
   async (
-    req: Request<{}, {}, { receiverId: string; message: string; type?: string; link?: string }>, // Explicit body type
+    req: Request<{}, {}, { receiverId: string; message: string; type?: string; link?: string }>, 
     res: Response,
   ): Promise<void> => {
     const { receiverId, message, type = "info", link } = sanitizeInput(req.body);
@@ -70,12 +70,18 @@ export const sendNotification = catchAsync(
  */
 export const getNotifications = catchAsync(
   async (
-    req: Request<{}, {}, {}, { limit?: string; page?: string }>, // Explicit query parameters
+    req: Request<{}, {}, {}, { limit?: string; page?: string }>, 
     res: Response,
   ): Promise<void> => {
     const userId = req.user?.id;
     const limit = parseInt(req.query.limit || "10", 10);
     const page = parseInt(req.query.page || "1", 10);
+
+    // Optional: Add checks to prevent invalid values
+    if (limit <= 0 || page <= 0) {
+      sendResponse(res, 400, false, "Invalid pagination values");
+      return;
+    }
 
     const notifications = await Notification.find({ user: userId })
       .sort({ createdAt: -1 })
@@ -102,14 +108,19 @@ export const getNotifications = catchAsync(
  */
 export const markNotificationsAsRead = catchAsync(
   async (
-    req: Request<{}, {}, { notificationIds: string[] }>, // Explicit body type
+    req: Request<{}, {}, { notificationIds: string[] }>, 
     res: Response,
   ): Promise<void> => {
     const userId = req.user?.id;
     const { notificationIds } = req.body;
 
+    if (!notificationIds || notificationIds.length === 0) {
+      sendResponse(res, 400, false, "Notification IDs are required");
+      return;
+    }
+
     const result = await Notification.updateMany(
-      { user: userId, _id: { $in: notificationIds }, read: false }, // ✅ Fixed `read` field
+      { user: userId, _id: { $in: notificationIds }, read: false }, 
       { read: true },
     );
 
@@ -126,7 +137,7 @@ export const markNotificationsAsRead = catchAsync(
  */
 export const deleteNotification = catchAsync(
   async (
-    req: Request<{ notificationId: string }>, // Explicit route parameters
+    req: Request<{ notificationId: string }>, 
     res: Response,
   ): Promise<void> => {
     const { notificationId } = req.params;

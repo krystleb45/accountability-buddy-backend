@@ -1,6 +1,6 @@
 import Goal from "../models/Goal";
 import Challenge from "../models/Challenge";
-import ActivityLog from "../models/Activity";
+import { User } from "../models/User"; // User model to track subscription data
 import { logger } from "../../utils/winstonLogger";
 
 /**
@@ -54,59 +54,42 @@ const calculateChallengeParticipationRate = async (userId: string): Promise<numb
 };
 
 /**
- * @desc    Calculates the average goal progress for a user.
+ * @desc    Fetches subscription data for a user, including status, tier, and dates.
  * @param   userId - The ID of the user.
- * @returns The average progress (0 to 100).
+ * @returns Subscription data for the user.
  */
-const calculateAverageGoalProgress = async (userId: string): Promise<number> => {
+const getSubscriptionData = async (userId: string): Promise<Record<string, any>> => {
   try {
-    const goals = await Goal.find({ userId }).lean();
-    if (!goals.length) return 0;
+    const user = await User.findById(userId).lean();
+    if (!user) throw new Error("User not found");
 
-    const totalProgress = goals.reduce((sum, goal) => sum + (goal.progress || 0), 0);
-    return totalProgress / goals.length;
+    return {
+      subscriptionStatus: user.subscription_status,
+      subscriptionStartDate: user.subscriptionStartDate,
+      subscriptionEndDate: user.subscriptionEndDate,
+      subscriptionTier: user.subscriptionTier,
+    };
   } catch (error) {
-    return handleError(error, `Error calculating average goal progress for user ${userId}`, 0);
+    return handleError(error, `Error fetching subscription data for user ${userId}`, {});
   }
 };
 
 /**
- * @desc    Calculates user engagement level based on login frequency and actions taken.
+ * @desc    Tracks premium feature usage (goals, challenges, streaks, etc.) for a user.
  * @param   userId - The ID of the user.
- * @returns User activity level ("low", "medium", "high").
+ * @returns Feature usage data (e.g., number of challenges completed, streaks, etc.).
  */
-const calculateUserActivityLevel = async (userId: string): Promise<string> => {
+const trackPremiumFeatureUsage = async (userId: string): Promise<Record<string, any>> => {
   try {
-    const totalActions = await ActivityLog.countDocuments({ userId }); // Optimize by counting directly
-    if (totalActions >= 50) return "high";
-    if (totalActions >= 20) return "medium";
-    return "low";
+    const goalCompletionRate = await calculateGoalCompletionRate(userId);
+    const challengeParticipationRate = await calculateChallengeParticipationRate(userId);
+
+    return {
+      goalCompletionRate,
+      challengeParticipationRate,
+    };
   } catch (error) {
-    return handleError(error, `Error calculating user activity level for user ${userId}`, "low");
-  }
-};
-
-/**
- * @desc    Calculates the milestone completion rate for all goals of a user.
- * @param   userId - The ID of the user.
- * @returns The milestone completion rate (0 to 100).
- */
-const calculateMilestoneCompletionRate = async (userId: string): Promise<number> => {
-  try {
-    const goals = await Goal.find({ userId }).lean();
-    if (!goals.length) return 0;
-
-    let totalMilestones = 0;
-    let completedMilestones = 0;
-
-    goals.forEach((goal) => {
-      totalMilestones += goal.milestones.length;
-      completedMilestones += goal.milestones.filter((milestone) => milestone.completed).length;
-    });
-
-    return totalMilestones > 0 ? (completedMilestones / totalMilestones) * 100 : 0;
-  } catch (error) {
-    return handleError(error, `Error calculating milestone completion rate for user ${userId}`, 0);
+    return handleError(error, `Error tracking premium feature usage for user ${userId}`, {});
   }
 };
 
@@ -117,21 +100,14 @@ const calculateMilestoneCompletionRate = async (userId: string): Promise<number>
  */
 const getUserAnalytics = async (userId: string): Promise<Record<string, any> | null> => {
   try {
-    const [goalCompletionRate, challengeParticipationRate, averageGoalProgress, userActivityLevel, milestoneCompletionRate] =
-      await Promise.all([
-        calculateGoalCompletionRate(userId),
-        calculateChallengeParticipationRate(userId),
-        calculateAverageGoalProgress(userId),
-        calculateUserActivityLevel(userId),
-        calculateMilestoneCompletionRate(userId),
-      ]);
+    const [subscriptionData, featureUsage] = await Promise.all([
+      getSubscriptionData(userId),
+      trackPremiumFeatureUsage(userId),
+    ]);
 
     return {
-      goalCompletionRate,
-      challengeParticipationRate,
-      averageGoalProgress,
-      userActivityLevel,
-      milestoneCompletionRate,
+      ...subscriptionData,
+      ...featureUsage,
     };
   } catch (error) {
     return handleError(error, `Error fetching analytics for user ${userId}`, null);
@@ -144,16 +120,18 @@ const getUserAnalytics = async (userId: string): Promise<Record<string, any> | n
  */
 const getGlobalAnalytics = async (): Promise<Record<string, any> | null> => {
   try {
-    const [totalUsers, totalGoals, totalChallenges] = await Promise.all([
-      Goal.countDocuments(), // Assuming "Goal" here implies the User model
+    const [totalUsers, totalGoals, totalChallenges, activeSubscribers] = await Promise.all([
+      User.countDocuments(),
       Goal.countDocuments(),
       Challenge.countDocuments(),
+      User.countDocuments({ subscription_status: "active" }),
     ]);
 
     return {
       totalUsers,
       totalGoals,
       totalChallenges,
+      activeSubscribers,
     };
   } catch (error) {
     return handleError(error, "Error fetching global analytics", null);
@@ -163,9 +141,7 @@ const getGlobalAnalytics = async (): Promise<Record<string, any> | null> => {
 export default {
   calculateGoalCompletionRate,
   calculateChallengeParticipationRate,
-  calculateAverageGoalProgress,
-  calculateUserActivityLevel,
-  calculateMilestoneCompletionRate,
   getUserAnalytics,
   getGlobalAnalytics,
+  trackPremiumFeatureUsage,
 };

@@ -9,19 +9,23 @@ import { logger } from "../../utils/winstonLogger";
  * @param {number} page - The page number for pagination.
  * @returns {Promise<{streaks: Document[], totalPages: number, totalEntries: number}>} - The leaderboard data with pagination.
  */
-export const calculateLeaderboard = async (limit: number, page: number): Promise<{ streaks: Document[], totalPages: number, totalEntries: number }> => {
+export const calculateLeaderboard = async (
+  limit: number,
+  page: number
+): Promise<{
+  streaks: Document[],
+  totalPages: number,
+  totalEntries: number
+}> => {
   try {
-    // Fetch the streaks sorted by streakCount in descending order
     const streaks = await Streak.find()
-      .sort({ streakCount: -1 }) // Sort by highest streak count
-      .skip((page - 1) * limit) // Pagination: calculate how many to skip
-      .limit(limit) // Limit the number of streaks returned
-      .populate("user", "username profilePicture"); // Populate user info
+      .sort({ streakCount: -1, lastCheckIn: -1 }) // Improved sorting
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean() // Optimize performance
+      .populate("user", "username profilePicture");
 
-    // Get the total number of streak records to calculate pagination
     const totalEntries = await Streak.countDocuments();
-
-    // Calculate the total number of pages based on the limit and total entries
     const totalPages = Math.ceil(totalEntries / limit);
 
     return {
@@ -34,6 +38,7 @@ export const calculateLeaderboard = async (limit: number, page: number): Promise
     throw new Error("Error calculating leaderboard");
   }
 };
+
 
 /**
  * Update the leaderboard entry for a user when their streak count changes.

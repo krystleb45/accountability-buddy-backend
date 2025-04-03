@@ -1,190 +1,325 @@
-import type { Request, Response, NextFunction } from "express";
+import type { Request, Response } from "express";
 import { User } from "../models/User";
+import Subscription, { type ISubscription } from "../models/Subscription";
+import stripe from "../../utils/stripe";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
+import { logger } from "../../utils/winstonLogger";
 import Stripe from "stripe";
-import type { IUser } from "../models/User"; 
-import type { ISubscription } from "../models/Subscription"; 
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", { apiVersion: "2025-02-24.acacia" });
-
-
-type PopulatedUser = Omit<IUser, "subscriptions"> & {
-  subscriptions: ISubscription[];
+/**
+ * Helper to map Stripe statuses to our allowed SubscriptionStatus values.
+ */
+const mapStripeStatusToUserStatus = (stripeStatus: string): "trial" | "active" | "expired" => {
+  if (stripeStatus === "active") return "active";
+  if (stripeStatus === "trialing" || stripeStatus === "trial") return "trial";
+  return "expired";
 };
 
-export const createSubscriptionSession = catchAsync(
-  async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
-    const userId = req.user?.id;
-    const user = await User.findById(userId);
-    if (!user) {
-      sendResponse(res, 404, false, "User not found");
-      return;
-    }
-
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card"],
-      line_items: [{ price: process.env.STRIPE_PRICE_ID || "", quantity: 1 }],
-      mode: "subscription",
-      success_url: `${process.env.CLIENT_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.CLIENT_URL}/cancel`,
-      customer_email: user.email,
-    });
-
-    sendResponse(res, 200, true, "Checkout session created", { sessionId: session.id });
+/**
+ * ✅ Get current user's subscription status
+ */
+export const getSubscriptionStatus = catchAsync(async (req: Request, res: Response): Promise<void> => {
+  const user = await User.findById(req.user?.id).populate("subscriptions");
+  if (!user) {
+    sendResponse(res, 404, false, "User not found");
+    return;
   }
-);
 
-export const checkSubscriptionStatus = catchAsync(
-  async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
-    const userId = req.user?.id;
-    const user = await User.findById(userId).populate("subscriptions");
-    if (!user) {
-      sendResponse(res, 404, false, "User not found");
-      return;
-    }
+  const hasActiveSubscription = (user.subscriptions ?? []).some(
+    (s: any) => typeof s === "object" && s.isActive === true
+  );
 
-    const hasActiveSubscription = (user.subscriptions ?? []).some(
-      (subscription: any) => subscription.isActive
-    );
+  sendResponse(res, 200, true, "Subscription status fetched successfully", { hasActiveSubscription });
+  return;
+});
 
-    sendResponse(res, 200, true, "Subscription status fetched successfully", { hasActiveSubscription });
+/**
+ * ✅ Fetch current active subscription for the user
+ */
+export const getCurrentSubscription = catchAsync(async (req: Request, res: Response): Promise<void> => {
+  const user = await User.findById(req.user?.id).populate("subscriptions");
+  if (!user) {
+    sendResponse(res, 404, false, "User not found");
+    return;
   }
-);
 
-export const getCurrentSubscription = catchAsync(
-  async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
-    const userId = req.user?.id;
-    const user = await User.findById(userId).populate("subscriptions");
-    if (!user) {
-      sendResponse(res, 404, false, "User not found");
-      return;
-    }
+  const currentSubscription = (user.subscriptions as ISubscription[] || []).find(
+    (s) => s.isActive
+  );
 
-    const currentSubscription = (user.subscriptions as unknown as ISubscription[] ?? []).find(
-      (subscription) => subscription.isActive
-    );
+  sendResponse(res, 200, true, "Current subscription fetched successfully", {
+    subscription: currentSubscription || null,
+  });
+  return;
+});
 
-    sendResponse(res, 200, true, "Current subscription fetched successfully", {
-      subscription: currentSubscription || null
-    });
+/**
+ * ✅ Upgrade subscription to a new paid plan
+ */
+export const upgradeToPaidSubscription = catchAsync(async (req: Request, res: Response): Promise<void> => {
+  const { newPriceId } = req.body;
+  const user = await User.findById(req.user?.id).populate("subscriptions");
+  if (!user || !newPriceId) {
+    sendResponse(res, 400, false, "Missing input or user");
+    return;
   }
-);
 
-export const upgradeSubscription = catchAsync(
-  async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
-    const { newPriceId } = req.body;
-    const userId = req.user?.id;
-
-    if (!newPriceId) {
-      sendResponse(res, 400, false, "New price ID is required");
-      return;
-    }
-
-    const user = await User.findById(userId).populate("subscriptions");
-    if (!user || !user.subscriptions?.length) {
-      sendResponse(res, 404, false, "No active subscription found");
-      return;
-    }
-
-    const activeSubscription = user.subscriptions[0] as unknown as ISubscription;
-    const stripeSubscriptionId = activeSubscription.stripeSubscriptionId;
-
-    if (!stripeSubscriptionId) {
-      sendResponse(res, 404, false, "Stripe subscription ID is missing");
-      return;
-    }
-
-    const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);
-
-    if (!subscription) {
-      sendResponse(res, 404, false, "Subscription not found in Stripe");
-      return;
-    }
-
-    const updatedSubscription = await stripe.subscriptions.update(subscription.id, {
-      items: [
-        {
-          id: subscription.items.data[0].id,
-          price: newPriceId,
-        },
-      ],
-    });
-
-    sendResponse(res, 200, true, "Subscription upgraded successfully", {
-      subscription: updatedSubscription,
-    });
+  const activeSub = user.subscriptions && user.subscriptions[0] as ISubscription;
+  if (!activeSub || !activeSub.stripeSubscriptionId) {
+    sendResponse(res, 404, false, "Active Stripe subscription not found");
+    return;
   }
-);
 
-export const cancelSubscription = catchAsync(
-  async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
-    const userId = req.user?.id;
-    const user = await User.findById(userId).populate("subscriptions");
+  const subscription = await stripe.subscriptions.retrieve(activeSub.stripeSubscriptionId);
+  const updatedSubscription = await stripe.subscriptions.update(subscription.id, {
+    items: [{ id: subscription.items.data[0].id, price: newPriceId }],
+  });
 
-    if (!user || !user.subscriptions?.length) {
-      sendResponse(res, 404, false, "No active subscription found");
-      return;
-    }
+  activeSub.plan = newPriceId;
+  activeSub.status = updatedSubscription.status;
+  activeSub.currentPeriodEnd = new Date(updatedSubscription.current_period_end * 1000);
+  await activeSub.save();
 
-    const activeSubscription = user.subscriptions[0] as unknown as ISubscription;
-    const stripeSubscriptionId = activeSubscription.stripeSubscriptionId;
+  sendResponse(res, 200, true, "Subscription upgraded successfully", {
+    subscription: updatedSubscription,
+  });
+  return;
+});
 
-    if (!stripeSubscriptionId) {
-      sendResponse(res, 404, false, "Stripe subscription ID not found");
-      return;
-    }
-
-    const canceledSubscription = await stripe.subscriptions.cancel(stripeSubscriptionId);
-
-    if (!canceledSubscription || canceledSubscription.status !== "canceled") {
-      sendResponse(res, 500, false, "Failed to cancel subscription in Stripe");
-      return;
-    }
-
-    user.subscriptions = [];
-    await user.save();
-
-    sendResponse(res, 200, true, "Subscription canceled successfully");
+/**
+ * ✅ Expire trial if user exceeded the trial window
+ */
+export const handleTrialExpiration = catchAsync(async (req: Request, res: Response): Promise<void> => {
+  const user = await User.findById(req.user?.id);
+  if (!user) {
+    sendResponse(res, 404, false, "User not found");
+    return;
   }
-);
 
-export const handleStripeWebhook = catchAsync(
-  async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
-    const sig = req.headers["stripe-signature"] as string;
-    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET || "";
+  if (user.subscription_status === "trial" && user.trial_start_date) {
+    const now = new Date();
+    const expiry = new Date(user.trial_start_date);
+    expiry.setDate(expiry.getDate() + 7);
 
-    let event;
-
-    try {
-      event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
-    } catch (err) {
-      const errorMessage = (err as Error).message || "Webhook Error";
-      res.status(400).send(`Webhook Error: ${errorMessage}`);
+    if (now >= expiry) {
+      user.subscription_status = "expired";
+      await user.save();
+      sendResponse(res, 200, true, "Trial expired. Please upgrade.");
       return;
     }
+  }
 
-    switch (event.type) {
-      case "customer.subscription.deleted":
-        const subscription = event.data.object as { id: string };
-        await User.updateOne(
-          { "subscriptions.stripeSubscriptionId": subscription.id },
-          { $set: { "subscriptions.$.isActive": false } }
+  sendResponse(res, 400, false, "No active trial found.");
+  return;
+});
+
+/**
+ * ✅ Cancel a subscription and optionally refund payment
+ */
+export const cancelSubscription = catchAsync(async (req: Request, res: Response): Promise<void> => {
+  const { refund } = req.body;
+  const user = await User.findById(req.user?.id).populate("subscriptions");
+  if (!user || !user.subscriptions || user.subscriptions.length === 0) {
+    sendResponse(res, 404, false, "No active subscription found");
+    return;
+  }
+
+  const activeSub = user.subscriptions[0] as ISubscription;
+  if (!activeSub.stripeSubscriptionId) {
+    sendResponse(res, 404, false, "Stripe subscription ID not found");
+    return;
+  }
+
+  const canceled = await stripe.subscriptions.cancel(activeSub.stripeSubscriptionId);
+  if (canceled.status !== "canceled") {
+    sendResponse(res, 500, false, "Stripe cancellation failed");
+    return;
+  }
+
+  if (refund && canceled.latest_invoice) {
+    const invoice = await stripe.invoices.retrieve(canceled.latest_invoice as string);
+    if (invoice.payment_intent) {
+      await stripe.refunds.create({ payment_intent: invoice.payment_intent.toString() });
+    }
+  }
+
+  activeSub.status = "canceled";
+  activeSub.isActive = false;
+  activeSub.subscriptionEnd = canceled.canceled_at ? new Date(canceled.canceled_at * 1000) : new Date();
+  await activeSub.save();
+
+  user.subscription_status = "expired";
+  await user.save();
+
+  sendResponse(res, 200, true, "Subscription canceled successfully");
+  return;
+});
+
+/**
+ * ✅ Handle Stripe webhook events
+ */
+export const handleStripeWebhook = catchAsync(async (req: Request, res: Response): Promise<void> => {
+  const sig = req.headers["stripe-signature"] as string;
+  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET || "";
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+  } catch (err) {
+    const message = (err as Error).message || "Invalid webhook signature";
+    logger.error(`❌ Stripe webhook error: ${message}`);
+    sendResponse(res, 400, false, `Webhook Error: ${message}`);
+    return;
+  }
+
+  const { type, data } = event;
+
+  try {
+    switch (type) {
+      case "customer.subscription.deleted": {
+        const sub = data.object as Stripe.Subscription;
+        await Subscription.findOneAndUpdate(
+          { stripeSubscriptionId: sub.id },
+          { status: "canceled", isActive: false, subscriptionEnd: new Date() },
+          { new: true }
         );
+        logger.info(`🛑 Subscription canceled in DB for ${sub.customer}`);
         break;
-
-      case "customer.subscription.updated":
-        const updatedSubscription = event.data.object as { id: string; status: string };
-        await User.updateOne(
-          { "subscriptions.stripeSubscriptionId": updatedSubscription.id },
-          { $set: { "subscriptions.$.status": updatedSubscription.status } }
+      }
+      case "customer.subscription.updated": {
+        const updated = data.object as Stripe.Subscription;
+        await Subscription.findOneAndUpdate(
+          { stripeSubscriptionId: updated.id },
+          {
+            status: updated.status,
+            isActive: updated.status === "active" || updated.status === "trialing",
+            currentPeriodEnd: new Date(updated.current_period_end * 1000),
+          }
         );
+        logger.info(`🔄 Subscription updated for ${updated.customer}`);
         break;
-
+      }
       default:
-        // Handle other event types if needed
+        logger.warn(`Unhandled webhook event: ${type}`);
     }
 
-    res.status(200).send("Webhook received");
+    sendResponse(res, 200, true, "Webhook handled");
+    return;
+  } catch (error) {
+    logger.error(`🔥 Failed to handle webhook: ${error}`);
+    sendResponse(res, 500, false, "Internal server error");
+    return;
   }
-);
+});
+
+/**
+ * ✅ Start a 7-day free trial subscription for the user
+ */
+export const startTrial = catchAsync(async (req: Request, res: Response): Promise<void> => {
+  const user = await User.findById(req.user?.id);
+  if (!user) {
+    sendResponse(res, 404, false, "User not found");
+    return;
+  }
+  if (user.subscription_status === "trial" && user.trial_start_date) {
+    sendResponse(res, 400, false, "Trial already started");
+    return;
+  }
+  if (!user.stripeCustomerId) {
+    const stripeCustomer = await stripe.customers.create({ email: user.email });
+    user.stripeCustomerId = stripeCustomer.id;
+  }
+  const stripeSubscription = await stripe.subscriptions.create({
+    customer: user.stripeCustomerId,
+    items: [{ price: process.env.STRIPE_PRICE_ID }],
+    trial_period_days: 7,
+  });
+  const trialStart = new Date();
+  const trialEnd = new Date(trialStart);
+  trialEnd.setDate(trialEnd.getDate() + 7);
+
+  user.subscription_status = "trial";
+  user.trial_start_date = trialStart;
+  user.next_billing_date = trialEnd;
+
+  const newSubscription = new Subscription({
+    user: user._id,
+    status: "trial",
+    plan: "free-trial",
+    trialEnd,
+    subscriptionStart: trialStart,
+    subscriptionEnd: null,
+    provider: "stripe",
+    stripeSubscriptionId: stripeSubscription.id,
+    isActive: true,
+    currentPeriodEnd: trialEnd,
+  });
+
+  await newSubscription.save();
+  // Cast newSubscription._id appropriately before unshifting.
+  user.subscriptions?.unshift(newSubscription._id as any);
+  await user.save();
+
+  sendResponse(res, 200, true, "Free trial started successfully", {
+    trial: {
+      subscriptionId: newSubscription._id,
+      trialEndsAt: trialEnd,
+    },
+  });
+  return;
+});
+
+/**
+ * ✅ Check real-time subscription status by syncing with Stripe
+ */
+export const getRealTimeStatus = catchAsync(async (req: Request, res: Response): Promise<void> => {
+  const user = await User.findById(req.user?.id);
+  if (!user || !user.stripeCustomerId) {
+    sendResponse(res, 404, false, "User or Stripe customer not found");
+    return;
+  }
+  const stripeSubs = await stripe.subscriptions.list({ customer: user.stripeCustomerId });
+  const activeSub = stripeSubs.data.find((sub) => sub.status === "active" || sub.status === "trialing");
+  const isActive = !!activeSub;
+  // Use our mapping function to restrict to allowed statuses.
+  user.subscription_status = isActive ? mapStripeStatusToUserStatus(activeSub?.status || "active") : "expired";
+  await user.save();
+
+  sendResponse(res, 200, true, "Real-time subscription status fetched", {
+    subscription: activeSub || null,
+    status: user.subscription_status,
+  });
+  return;
+});
+
+/**
+ * ✳️ Create a paid subscription via Stripe Checkout
+ */
+export const createSubscription = catchAsync(async (req: Request, res: Response): Promise<void> => {
+  const { priceId, successUrl, cancelUrl } = req.body;
+  const user = await User.findById(req.user?.id);
+  if (!user || !priceId || !successUrl || !cancelUrl) {
+    sendResponse(res, 400, false, "Missing input or user");
+    return;
+  }
+  if (!user.stripeCustomerId) {
+    const stripeCustomer = await stripe.customers.create({ email: user.email });
+    user.stripeCustomerId = stripeCustomer.id;
+    await user.save();
+  }
+  const session = await stripe.checkout.sessions.create({
+    mode: "subscription",
+    payment_method_types: ["card"],
+    customer: user.stripeCustomerId,
+    line_items: [{ price: priceId, quantity: 1 }],
+    success_url: successUrl,
+    cancel_url: cancelUrl,
+    client_reference_id: user._id.toString(),
+  });
+  sendResponse(res, 200, true, "Checkout session created", {
+    sessionId: session.id,
+    url: session.url,
+  });
+  return;
+});

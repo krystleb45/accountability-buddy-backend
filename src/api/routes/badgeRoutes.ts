@@ -1,51 +1,40 @@
-import type { Response, NextFunction, Router, Request } from "express";
-import express from "express";
+import express, { Router, Request, Response, NextFunction } from "express";
 import { check } from "express-validator";
 import rateLimit from "express-rate-limit";
-import * as badgeController from "../controllers/BadgeController";
-import { protect } from "../middleware/authMiddleware"; // Corrected import to use named export `protect`
-import { roleBasedAccessControl } from "../middleware/roleBasedAccessControl";
-import { logger } from "../../utils/winstonLogger";
+import * as BadgeController from "../controllers/BadgeController";
+import { protect, restrictTo } from "../middleware/authMiddleware";
 import handleValidationErrors from "../middleware/handleValidationErrors";
+import { logger } from "../../utils/winstonLogger";
 
 const router: Router = express.Router();
 
-// ✅ Middleware to ensure only admins can access specific routes
-const adminMiddleware = roleBasedAccessControl(["admin"]);
-
-// ✅ Rate limiter to prevent abuse of badge routes
+// Global rate limiter for all badge routes
 const badgeRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // Limit each IP to 100 requests per window
   message: "Too many requests, please try again later.",
 });
 
-// ✅ Apply rate limiter to all badge routes
+// Stricter rate limiter for critical operations (award, progress update)
+const badgeOperationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // Limit each IP to 5 requests per window for critical operations
+  message: "Too many requests. Please try again later.",
+});
+
+// Apply the global rate limiter to all badge routes
 router.use(badgeRateLimiter);
 
-// ✅ Middleware for input validation
-const validateBadgeData = [
-  check("userId").optional().isMongoId().withMessage("Invalid User ID"),
-  check("badgeType").notEmpty().withMessage("Badge type is required"),
-  check("level")
-    .optional()
-    .isIn(["Bronze", "Silver", "Gold"])
-    .withMessage("Invalid badge level"),
-  check("increment")
-    .optional()
-    .isInt({ min: 1 })
-    .withMessage("Increment must be a positive integer"),
-];
-
 /**
- * Utility function to handle route errors
+ * Utility function to wrap route handlers with error handling.
+ * It now accepts handlers that return either void or Promise<void>.
  */
 const handleRouteErrors = (
-  handler: (req: Request, res: Response, next: NextFunction) => void
+  handler: (req: Request, res: Response, next: NextFunction) => void | Promise<void>
 ) => {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      handler(req, res, next);
+      await Promise.resolve(handler(req, res, next));
     } catch (error) {
       logger.error(`Error in badge route: ${(error as Error).message}`);
       next(error);
@@ -61,7 +50,7 @@ const handleRouteErrors = (
 router.get(
   "/",
   protect,
-  handleRouteErrors(badgeController.getUserBadges as (req: Request, res: Response, next: NextFunction) => Promise<void>)
+  handleRouteErrors(BadgeController.getUserBadges)
 );
 
 /**
@@ -72,7 +61,7 @@ router.get(
 router.get(
   "/showcase",
   protect,
-  handleRouteErrors(badgeController.getUserBadgeShowcase)
+  handleRouteErrors(BadgeController.getUserBadgeShowcase)
 );
 
 /**
@@ -82,19 +71,46 @@ router.get(
  */
 router.post(
   "/award",
-  [protect, adminMiddleware, ...validateBadgeData, handleValidationErrors],
-  handleRouteErrors(badgeController.awardBadge)
+  protect,
+  restrictTo("admin"),
+  badgeOperationLimiter,
+  [
+    check("userId")
+      .notEmpty()
+      .withMessage("User ID is required.")
+      .bail()
+      .isMongoId()
+      .withMessage("Invalid User ID"),
+    check("badgeType").notEmpty().withMessage("Badge type is required"),
+    check("level")
+      .optional()
+      .isIn(["Bronze", "Silver", "Gold"])
+      .withMessage("Invalid badge level"),
+  ],
+  handleValidationErrors,
+  handleRouteErrors(BadgeController.awardBadge)
 );
 
 /**
  * @route   POST /api/badges/progress/update
- * @desc    Update badge progress for the logged-in user
+ * @desc    Update the badge progress for the logged-in user
  * @access  Private
  */
 router.post(
   "/progress/update",
-  [protect, ...validateBadgeData, handleValidationErrors],
-  handleRouteErrors(badgeController.updateBadgeProgress)
+  protect,
+  badgeOperationLimiter,
+  [
+    check("badgeType").notEmpty().withMessage("Badge type is required"),
+    check("increment")
+      .notEmpty()
+      .withMessage("Increment is required")
+      .bail()
+      .isInt({ min: 1 })
+      .withMessage("Increment must be a positive integer"),
+  ],
+  handleValidationErrors,
+  handleRouteErrors(BadgeController.updateBadgeProgress)
 );
 
 /**
@@ -104,8 +120,24 @@ router.post(
  */
 router.post(
   "/upgrade",
-  [protect, ...validateBadgeData, handleValidationErrors],
-  handleRouteErrors(badgeController.upgradeBadgeLevel)
+  protect,
+  [
+    check("userId")
+      .optional()
+      .isMongoId()
+      .withMessage("Invalid User ID"),
+    check("badgeType").notEmpty().withMessage("Badge type is required"),
+    check("level")
+      .optional()
+      .isIn(["Bronze", "Silver", "Gold"])
+      .withMessage("Invalid badge level"),
+    check("increment")
+      .optional()
+      .isInt({ min: 1 })
+      .withMessage("Increment must be a positive integer"),
+  ],
+  handleValidationErrors,
+  handleRouteErrors(BadgeController.upgradeBadgeLevel)
 );
 
 /**
@@ -115,9 +147,9 @@ router.post(
  */
 router.delete(
   "/expired/remove",
-  [protect, adminMiddleware],
-  handleRouteErrors(badgeController.removeExpiredBadges)
+  protect,
+  restrictTo("admin"),
+  handleRouteErrors(BadgeController.removeExpiredBadges)
 );
 
-// ✅ Export the router
 export default router;

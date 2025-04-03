@@ -47,6 +47,7 @@ export const getPollsByGroup = catchAsync(
     const polls = await Poll.find({ groupId, status: "active" });
 
     sendResponse(res, 200, true, "Polls fetched successfully", { polls });
+    logger.info(`Fetched active polls for group ${groupId}`);
   }
 );
 
