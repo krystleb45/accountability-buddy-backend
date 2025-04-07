@@ -10,17 +10,22 @@ import cron from "node-cron";
 import cors from "cors";
 import fs from "fs";
 
+
 // ✅ Load Environment Variables
 dotenv.config();
 
+
 // ✅ Utilities
-import { logger } from "../../utils/winstonLogger";  // Import the custom logger
-import ReminderService from "../services/ReminderService";
-import setupSwagger from "./swaggerConfig";
+import { logger } from "./utils/winstonLogger";  // Import the custom logger
+import ReminderService from "./api/services/ReminderService";
+import setupSwagger from "./api/config/swaggerConfig";
+
+// 🚀 Startup Log
+console.warn("🚀 Server is starting...");
 
 // ✅ Middleware
-import { errorHandler } from "../middleware/errorHandler";
-import { applySecurityMiddlewares } from "./securityConfig";
+import { errorHandler } from "./api/middleware/errorHandler";
+import { applySecurityMiddlewares } from "./api/config/securityConfig";
 
 // ✅ Ensure Uploads Directory Exists (For Profile & Cover Images)
 const uploadDirs = ["uploads/profile", "uploads/covers"];
@@ -31,22 +36,22 @@ uploadDirs.forEach((dir) => {
 });
 
 // ✅ Routes
-import authRoutes from "../routes/auth";
-import userRoutes from "../routes/user"; // ✅ Ensure it's properly imported
-import groupRoutes from "../routes/group";
-import chatRoutes from "../routes/chat";
-import paymentRoutes from "../routes/payment";
-import subscriptionRoutes from "../routes/subscription";
-import goalRoutes from "../routes/goal";
-import goalMessageRoutes from "../routes/goalMessage";
-import friendsRoutes from "../routes/friends";
-import blogRoutes from "../routes/blog";
-import booksRoutes from "../routes/books";
-import notificationsRoutes from "../routes/notifications";
-import followRoutes from "../routes/follow";
+import authRoutes from "./api/routes/auth";
+import userRoutes from "./api/routes/user"; // ✅ Ensure it's properly imported
+import groupRoutes from "./api/routes/group";
+import chatRoutes from "./api/routes/chat";
+import paymentRoutes from "./api/routes/payment";
+import subscriptionRoutes from "./api/routes/subscription";
+import goalRoutes from "./api/routes/goal";
+import goalMessageRoutes from "./api/routes/goalMessage";
+import friendsRoutes from "./api/routes/friends";
+import blogRoutes from "./api/routes/blog";
+import booksRoutes from "./api/routes/books";
+import notificationsRoutes from "./api/routes/notifications";
+import followRoutes from "./api/routes/follow";
 
 // ✅ Stripe Webhook Handler (Requires Raw Body Parsing)
-import { handleStripeWebhook } from "../controllers/paymentController";
+import { handleStripeWebhook } from "./api/controllers/paymentController";
 
 // ✅ Validate Required Environment Variables
 const requiredEnv = ["MONGO_URI", "PORT", "STRIPE_WEBHOOK_SECRET"];

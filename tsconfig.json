@@ -27,6 +27,7 @@
     "incremental": true,
     "noImplicitAny": true,
     "strictNullChecks": true,
+    "composite": true,
     "baseUrl": "./",
     "paths": {
       "@src/*": ["src/*"],
