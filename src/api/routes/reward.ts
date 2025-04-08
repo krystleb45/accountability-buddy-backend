@@ -1,32 +1,45 @@
 import type { Router, Request, Response, NextFunction } from "express";
 import express from "express";
 import { check } from "express-validator";
-import { protect } from "../middleware/authMiddleware"; // ✅ Corrected middleware import path
-import { roleBasedAccessControl } from "../middleware/roleBasedAccessControl"; // Corrected RBAC middleware import path
-import * as RewardController from "../controllers/RewardController"; // Corrected controller import path
+import { protect } from "../middleware/authMiddleware";
+import { roleBasedAccessControl } from "../middleware/roleBasedAccessControl";
+import * as RewardController from "../controllers/RewardController";
 import rateLimit from "express-rate-limit";
-import { logger } from "../../utils/winstonLogger"; // Logger import
-import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust the path
+import { logger } from "../../utils/winstonLogger";
+import handleValidationErrors from "../middleware/handleValidationErrors";
 
 const router: Router = express.Router();
 
-/**
- * Rate limiter to prevent abuse.
- */
 const rateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // Limit to 10 requests per IP
+  windowMs: 15 * 60 * 1000,
+  max: 10,
   message: "Too many requests. Please try again later.",
 });
 
 /**
- * @route   GET /rewards
- * @desc    Get user rewards
- * @access  Private
+ * @swagger
+ * tags:
+ *   name: Rewards
+ *   description: Reward redemption and management
+ */
+
+/**
+ * @swagger
+ * /api/rewards:
+ *   get:
+ *     summary: Get user rewards
+ *     tags: [Rewards]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of user rewards
+ *       401:
+ *         description: Unauthorized
  */
 router.get(
   "/",
-  protect, // ✅ Replaced authMiddleware with 'protect'
+  protect,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       await RewardController.getUserRewards(req, res, next);
@@ -39,13 +52,33 @@ router.get(
 );
 
 /**
- * @route   POST /rewards/redeem
- * @desc    Redeem a reward
- * @access  Private
+ * @swagger
+ * /api/rewards/redeem:
+ *   post:
+ *     summary: Redeem a reward
+ *     tags: [Rewards]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               rewardId:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Reward redeemed successfully
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Unauthorized
  */
 router.post(
   "/redeem",
-  protect, // ✅ Replaced authMiddleware with 'protect'
+  protect,
   rateLimiter,
   [check("rewardId").notEmpty().withMessage("Reward ID is required.")],
   handleValidationErrors,
@@ -66,13 +99,42 @@ router.post(
 );
 
 /**
- * @route   POST /rewards/create
- * @desc    Create a new reward (Admin only)
- * @access  Private (Admin only)
+ * @swagger
+ * /api/rewards/create:
+ *   post:
+ *     summary: Create a new reward
+ *     tags: [Rewards]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - title
+ *               - points
+ *             properties:
+ *               title:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               points:
+ *                 type: number
+ *     responses:
+ *       201:
+ *         description: Reward created successfully
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden (admin only)
  */
 router.post(
   "/create",
-  protect, // ✅ Replaced authMiddleware with 'protect'
+  protect,
   roleBasedAccessControl(["admin"]),
   [
     check("title").notEmpty().withMessage("Title is required."),

@@ -7,7 +7,7 @@ import { checkStreakMilestone } from "../utils/streakUtils";
 import sendResponse from "../utils/sendResponse";
 import createError from "../utils/errorUtils"; // Make sure this is from errorUtils.ts
 import catchAsync from "../utils/catchAsync";
-import { RequestWithUser } from "../types/RequestWithUser";
+import { RequestWithUser } from "../../types/RequestWithUser";
 import { logger } from "../../utils/winstonLogger"; // Logger import
 
 // Define query params interface

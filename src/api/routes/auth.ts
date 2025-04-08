@@ -4,26 +4,24 @@ import { check, validationResult } from "express-validator";
 import rateLimit from "express-rate-limit";
 
 import { login, register, refreshToken } from "../controllers/authController";
-import { protect } from "../middleware/authMiddleware"; // ✅ Updated import to use 'protect'
-import type { AuthenticatedRequest } from "../types/AuthenticatedRequest";
+import { protect } from "../middleware/authMiddleware";
+import type { AuthenticatedRequest } from "../../types/AuthenticatedRequest";
 import { logger } from "../../utils/winstonLogger";
+import { ParamsDictionary } from "express-serve-static-core";
+import { ParsedQs } from "qs";
 
 const router: Router = express.Router();
 
-// Rate limiter for login and registration
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // Limit each IP to 10 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 10,
   message: "Too many authentication attempts. Please try again later.",
 });
 
-/**
- * Utility function to handle errors consistently
- */
 const handleRouteErrors = (
   handler: (req: Request, res: Response, next: NextFunction) => Promise<void>
-): ((req: Request, res: Response, next: NextFunction) => Promise<void>) => {
-  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+) => {
+  return async (req: Request<ParamsDictionary, any, any, ParsedQs, Record<string, any>>, res: Response<any, Record<string, any>>, next: (arg0: unknown) => void): Promise<void> => {
     try {
       await handler(req, res, next);
     } catch (error) {
@@ -34,9 +32,39 @@ const handleRouteErrors = (
 };
 
 /**
- * @route   POST /auth/login
- * @desc    Log in a user
- * @access  Public
+ * @swagger
+ * tags:
+ *   name: Auth
+ *   description: Authentication and user login/register
+ */
+
+/**
+ * @swagger
+ * /api/auth/login:
+ *   post:
+ *     summary: User login
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               password:
+ *                 type: string
+ *                 format: password
+ *     responses:
+ *       200:
+ *         description: Successful login
+ *       400:
+ *         description: Validation error
  */
 router.post(
   "/login",
@@ -45,21 +73,44 @@ router.post(
     check("email", "Valid email is required").isEmail(),
     check("password", "Password is required").notEmpty(),
   ],
-  handleRouteErrors(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  handleRouteErrors(async (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       res.status(400).json({ errors: errors.array() });
       return;
     }
-
     await login(req, res, next);
   })
 );
 
 /**
- * @route   POST /auth/register
- * @desc    Register a new user
- * @access  Public
+ * @swagger
+ * /api/auth/register:
+ *   post:
+ *     summary: Register a new user
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *               - username
+ *             properties:
+ *               email:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *               username:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: User registered successfully
+ *       400:
+ *         description: Validation error
  */
 router.post(
   "/register",
@@ -69,43 +120,57 @@ router.post(
     check("password", "Password must be at least 8 characters").isLength({ min: 8 }),
     check("username", "Username is required").notEmpty(),
   ],
-  handleRouteErrors(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  handleRouteErrors(async (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       res.status(400).json({ errors: errors.array() });
       return;
     }
-
     await register(req, res, next);
   })
 );
 
 /**
- * @route   POST /auth/refresh-token
- * @desc    Refresh authentication tokens
- * @access  Public
+ * @swagger
+ * /api/auth/refresh-token:
+ *   post:
+ *     summary: Refresh JWT token
+ *     tags: [Auth]
+ *     responses:
+ *       200:
+ *         description: Token refreshed successfully
+ *       400:
+ *         description: Invalid refresh token
  */
 router.post(
   "/refresh-token",
-  handleRouteErrors(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  handleRouteErrors(async (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       res.status(400).json({ errors: errors.array() });
       return;
     }
-
     await refreshToken(req, res, next);
   })
 );
 
 /**
- * @route   GET /auth/me
- * @desc    Get current authenticated user info
- * @access  Private
+ * @swagger
+ * /api/auth/me:
+ *   get:
+ *     summary: Get current authenticated user
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Authenticated user info
+ *       401:
+ *         description: Unauthorized
  */
 router.get(
   "/me",
-  protect, // ✅ Use 'protect' middleware instead of default authMiddleware
+  protect,
   handleRouteErrors(async (req: Request, res: Response): Promise<void> => {
     const typedReq = req as AuthenticatedRequest;
 

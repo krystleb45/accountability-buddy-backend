@@ -38,11 +38,11 @@
     "src/**/*",
     "src/types/**/*.d.ts",
     "src/test/**/*.ts",
-    "src/global.d.ts",
+    "src/types/global.d.ts",
     "@types/**/*.d.ts",
     "jest.setup.ts",
     "jest.config.js"
-  ],
+, "@types/socket.d.ts.ts"  ],
   "exclude": [
     "node_modules",
     "dist",

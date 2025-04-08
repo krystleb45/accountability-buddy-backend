@@ -1,20 +1,35 @@
 import { Response, NextFunction, Router } from "express";
 import express from "express";
 import APIKey from "../models/APIKey";
-import { protect } from "../middleware/authMiddleware"; // Use the named export `protect`
+import { protect } from "../middleware/authMiddleware";
 import { roleBasedAccessControl } from "../middleware/roleBasedAccessControl";
 import { logger } from "../../utils/winstonLogger";
-import { handleRouteErrors } from "../utils/handleRouteErrors"; // Helper to cast Request to AdminAuthenticatedRequest
-import type { AdminAuthenticatedRequest } from "../types/AdminAuthenticatedRequest";
+import { handleRouteErrors } from "../utils/handleRouteErrors";
+import type { AdminAuthenticatedRequest } from "../../types/AdminAuthenticatedRequest";
 
 const router: Router = express.Router();
-
 const isAdmin = roleBasedAccessControl(["admin"]);
 
 /**
- * @route   DELETE /api/api-keys/:id
- * @desc    Delete an API key by ID (Admin only)
- * @access  Private (Admin access)
+ * @swagger
+ * /api/api-keys/{id}:
+ *   delete:
+ *     summary: Delete an API key
+ *     tags: [API Keys]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the API key to delete
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: API key deleted successfully
+ *       404:
+ *         description: API key not found
  */
 router.delete(
   "/:id",
@@ -35,9 +50,25 @@ router.delete(
 );
 
 /**
- * @route   PUT /api/api-keys/:id/activate
- * @desc    Activate an API key by ID (Admin only)
- * @access  Private (Admin access)
+ * @swagger
+ * /api/api-keys/{id}/activate:
+ *   put:
+ *     summary: Activate an API key
+ *     tags: [API Keys]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the API key to activate
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: API key activated successfully
+ *       404:
+ *         description: API key not found
  */
 router.put(
   "/:id/activate",
@@ -59,9 +90,25 @@ router.put(
 );
 
 /**
- * @route   PUT /api/api-keys/:id/deactivate
- * @desc    Deactivate an API key by ID (Admin only)
- * @access  Private (Admin access)
+ * @swagger
+ * /api/api-keys/{id}/deactivate:
+ *   put:
+ *     summary: Deactivate an API key
+ *     tags: [API Keys]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the API key to deactivate
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: API key deactivated successfully
+ *       404:
+ *         description: API key not found
  */
 router.put(
   "/:id/deactivate",

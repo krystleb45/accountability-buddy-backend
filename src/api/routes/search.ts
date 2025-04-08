@@ -3,25 +3,19 @@ import express from "express";
 import { check } from "express-validator";
 import sanitize from "mongo-sanitize";
 import rateLimit from "express-rate-limit";
-import { protect } from "../middleware/authMiddleware"; // Corrected import to use named export `protect`
-import * as searchController from "../controllers/SearchController"; // Ensure named import for controller methods
-import { logger } from "../../utils/winstonLogger";import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust the path
-
+import { protect } from "../middleware/authMiddleware";
+import * as searchController from "../controllers/SearchController";
+import { logger } from "../../utils/winstonLogger";
+import handleValidationErrors from "../middleware/handleValidationErrors";
 
 const router: Router = express.Router();
 
-/**
- * Rate limiter to prevent abuse of search functionality.
- */
 const searchLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 30, // Limit each IP to 30 search requests per minute
+  windowMs: 60 * 1000,
+  max: 30,
   message: "Too many search requests from this IP, please try again later.",
 });
 
-/**
- * Middleware to sanitize user input.
- */
 const sanitizeInput = (
   req: Request,
   _res: Response,
@@ -37,23 +31,52 @@ const sanitizeInput = (
   }
 };
 
-
-
 /**
- * Helper function to parse pagination parameters.
- */
-const parsePagination = (
-  query: Partial<Record<string, string | undefined>>,
-): { page: number; limit: number } => {
-  const page = Math.max(1, parseInt(query.page || "1", 10));
-  const limit = Math.min(50, parseInt(query.limit || "10", 10)); // Limit results to a max of 50 per page
-  return { page, limit };
-};
-
-/**
- * @route   GET /search
- * @desc    General search across resources
- * @access  Private (Logged-in users only)
+ * @swagger
+ * /api/search:
+ *   get:
+ *     summary: Global search across users, groups, goals, posts
+ *     tags: [Search]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: query
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The search query string
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *           enum: [user, group, goal, task, post]
+ *         required: true
+ *         description: The resource type to search
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *         description: Page number for pagination
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *         description: Max number of results per page (default 10, max 50)
+ *     responses:
+ *       200:
+ *         description: Search results
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 results:
+ *                   type: array
+ *                   items:
+ *                     type: object
  */
 router.get(
   "/",
@@ -78,8 +101,7 @@ router.get(
   ): Promise<void> => {
     try {
       const { type } = req.query;
-      parsePagination(req.query);
-  
+
       let results;
       switch (type) {
         case "user":
@@ -97,21 +119,17 @@ router.get(
         default:
           throw new Error(`Invalid search type: ${type}`);
       }
-  
+
       res.status(200).json({ success: true, results });
     } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unexpected error occurred";
+      const errorMessage = error instanceof Error ? error.message : "Unexpected error occurred";
       logger.error(`Error during search: ${errorMessage}`);
-      next(error); // Pass error to middleware
+      next(error);
     }
-  }, // Added Closing Parenthesis
-); // Added Closing Brace
+  }
+);
 
-
-/**
- * Factory function to handle resource-specific searches.
- */
+// Reusable factory to register resource-specific routes
 const createSearchRoute = (
   endpoint: string,
   searchHandler: (
@@ -120,31 +138,57 @@ const createSearchRoute = (
     next: NextFunction
   ) => Promise<void>,
 ): void => {
+  /**
+   * @swagger
+   * /api/search{endpoint}:
+   *   get:
+   *     summary: Search {endpoint} by query
+   *     tags: [Search]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: query
+   *         name: query
+   *         schema:
+   *           type: string
+   *         required: true
+   *         description: Query to search
+   *       - in: query
+   *         name: page
+   *         schema:
+   *           type: integer
+   *       - in: query
+   *         name: limit
+   *         schema:
+   *           type: integer
+   *     responses:
+   *       200:
+   *         description: Search results for the resource
+   */
   router.get(
     endpoint,
-    protect, // Authentication middleware
-    searchLimiter, // Rate limiter middleware
-    [check("query", "Search query is required").notEmpty()], // Validation
-    sanitizeInput, // Sanitize input
-    handleValidationErrors, // Handle validation errors
+    protect,
+    searchLimiter,
+    [check("query", "Search query is required").notEmpty()],
+    sanitizeInput,
+    handleValidationErrors,
     async (
-      req: Request<{}, {}, {}, { query: string; page?: string; limit?: string }, Record<string, any>>,
+      req: Request<{}, {}, {}, { query: string; page?: string; limit?: string }>,
       res: Response,
       next: NextFunction,
     ): Promise<void> => {
       try {
-        await searchHandler(req, res, next); // Use the passed search handler
+        await searchHandler(req, res, next);
       } catch (error: unknown) {
-        const errorMessage =
-          error instanceof Error ? error.message : "Unexpected error occurred";
+        const errorMessage = error instanceof Error ? error.message : "Unexpected error occurred";
         logger.error(`Error searching ${endpoint}: ${errorMessage}`);
-        next(error); // Pass error to middleware
+        next(error);
       }
     },
   );
 };
 
-// Resource-specific search routes using middleware-style handlers
+// Register resource-specific routes
 createSearchRoute("/users", searchController.searchUsers);
 createSearchRoute("/groups", searchController.searchGroups);
 createSearchRoute("/goals", searchController.searchGoals);

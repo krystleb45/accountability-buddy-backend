@@ -4,7 +4,7 @@ import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
 import { createError } from "../middleware/errorHandler";
 import { PERMISSIONS } from "../../constants/roles";
-import type { AdminAuthenticatedRequest } from "../types/AdminAuthenticatedRequest";
+import type { AdminAuthenticatedRequest } from "../../types/AdminAuthenticatedRequest";
 
 /**
  * Middleware to check if the current user has the required permissions.

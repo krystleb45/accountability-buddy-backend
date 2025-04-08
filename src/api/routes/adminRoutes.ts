@@ -7,22 +7,24 @@ import {
   updateUserRole,
   deleteUserAccount,
 } from "../controllers/AdminController";
-import { protect } from "../middleware/authMiddleware"; // Use 'protect'
+import { protect } from "../middleware/authMiddleware";
 import roleMiddleware from "../middleware/adminMiddleware";
 import { PERMISSIONS } from "../../constants/roles";
-import type { AdminAuthenticatedRequest } from "../types/AdminAuthenticatedRequest";
+import type { AdminAuthenticatedRequest } from "../../types/AdminAuthenticatedRequest";
 
 const router: Router = express.Router();
 
 /**
- * Helper to wrap admin routes that require a full authenticated user.
- * It casts the incoming Express Request to our strict AdminAuthenticatedRequest.
+ * @swagger
+ * tags:
+ *   name: AdminUsers
+ *   description: Admin endpoints for managing users
  */
+
 const handleRouteErrors =
   (handler: (req: AdminAuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>): RequestHandler =>
     async (req, res, next) => {
       try {
-      // Cast the incoming Request to AdminAuthenticatedRequest.
         const typedReq = req as unknown as AdminAuthenticatedRequest;
         await handler(typedReq, res, next);
       } catch (error) {
@@ -32,9 +34,20 @@ const handleRouteErrors =
     };
 
 /**
- * @route   GET /api/admin/users
- * @desc    Get all users (Admin & Super Admin only)
- * @access  Private
+ * @swagger
+ * /api/admin/users:
+ *   get:
+ *     summary: Get all users
+ *     tags: [AdminUsers]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of all users
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - insufficient permissions
  */
 router.get(
   "/users",
@@ -45,11 +58,39 @@ router.get(
   })
 );
 
-
 /**
- * @route   PATCH /api/admin/users/role
- * @desc    Update a user's role (Super Admin only)
- * @access  Private
+ * @swagger
+ * /api/admin/users/role:
+ *   patch:
+ *     summary: Update a user's role
+ *     tags: [AdminUsers]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - userId
+ *               - role
+ *             properties:
+ *               userId:
+ *                 type: string
+ *                 example: 605c5f2f6c4a2c0015e8f241
+ *               role:
+ *                 type: string
+ *                 example: admin
+ *     responses:
+ *       200:
+ *         description: User role updated successfully
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - insufficient permissions
  */
 router.patch(
   "/users/role",
@@ -72,9 +113,29 @@ router.patch(
 );
 
 /**
- * @route   DELETE /api/admin/users/:userId
- * @desc    Delete a user account (Super Admin only)
- * @access  Private
+ * @swagger
+ * /api/admin/users/{userId}:
+ *   delete:
+ *     summary: Delete a user account
+ *     tags: [AdminUsers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID of the user to delete
+ *     responses:
+ *       200:
+ *         description: User account deleted successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - insufficient permissions
+ *       404:
+ *         description: User not found
  */
 router.delete(
   "/users/:userId",

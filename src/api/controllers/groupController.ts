@@ -7,7 +7,7 @@ import sendResponse from "../utils/sendResponse";
 import { createError } from "../middleware/errorHandler";
 
 // ✅ Import correct custom RequestWithUser type
-import { RequestWithUser } from "../types/RequestWithUser"; 
+import { RequestWithUser } from "../../types/RequestWithUser"; 
 
 
 /**

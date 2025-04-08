@@ -21,9 +21,32 @@ const newsletterRateLimiter = rateLimit({
 });
 
 /**
- * @route   POST /newsletter/signup
- * @desc    Subscribe to the newsletter
- * @access  Public
+ * @swagger
+ * /api/newsletter/signup:
+ *   post:
+ *     summary: Subscribe to the newsletter
+ *     tags: [Newsletter]
+ *     description: Allows a user to subscribe to the Accountability Buddy newsletter.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: user@example.com
+ *     responses:
+ *       200:
+ *         description: Successfully subscribed to the newsletter
+ *       400:
+ *         description: Invalid request or email already exists
+ *       429:
+ *         description: Too many requests (rate limited)
+ *       500:
+ *         description: Internal server error
  */
 router.post(
   "/signup",

@@ -11,30 +11,93 @@ import { logger } from "../../utils/winstonLogger";
 const router = Router();
 
 /**
- * @route   GET /api/leaderboard
- * @desc    Get paginated leaderboard with caching
- * @access  Public
+ * @swagger
+ * tags:
+ *   name: Leaderboard
+ *   description: Leaderboard tracking and stats
+ */
+
+/**
+ * @swagger
+ * /leaderboard:
+ *   get:
+ *     summary: Get the leaderboard (paginated and cached)
+ *     tags: [Leaderboard]
+ *     responses:
+ *       200:
+ *         description: Leaderboard fetched successfully
+ *       500:
+ *         description: Server error
  */
 router.get("/", getLeaderboard);
 
 /**
- * @route   GET /api/leaderboard/user-position
- * @desc    Get current user's position on the leaderboard
- * @access  Private
+ * @swagger
+ * /leaderboard/user-position:
+ *   get:
+ *     summary: Get the current user's position on the leaderboard
+ *     tags: [Leaderboard]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User leaderboard position retrieved
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
  */
 router.get("/user-position", protect, getUserLeaderboardPosition);
 
 /**
- * @route   DELETE /api/leaderboard/reset
- * @desc    Reset the entire leaderboard (Admin only)
- * @access  Private/Admin
+ * @swagger
+ * /leaderboard/reset:
+ *   delete:
+ *     summary: Reset the leaderboard (Admin only)
+ *     tags: [Leaderboard]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Leaderboard reset successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       500:
+ *         description: Server error
  */
 router.delete("/reset", protect, restrictTo("admin"), resetLeaderboard);
 
 /**
- * @route   POST /api/leaderboard/update-points
- * @desc    Trigger update to a user's leaderboard stats (Admin only)
- * @access  Private/Admin
+ * @swagger
+ * /leaderboard/update-points:
+ *   post:
+ *     summary: Trigger an update to a user's leaderboard points (Admin only)
+ *     tags: [Leaderboard]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               userId:
+ *                 type: string
+ *                 example: 6418fdfb5f9a9b91a3f9dc14
+ *     responses:
+ *       200:
+ *         description: Leaderboard updated successfully
+ *       400:
+ *         description: Missing or invalid userId
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       500:
+ *         description: Server error
  */
 router.post(
   "/update-points",

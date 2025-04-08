@@ -19,6 +19,9 @@ import { errorHandler } from "./api/middleware/errorHandler";
 import { logger } from "../src/utils/winstonLogger";
 import challengeRoutes from "./api/routes/challenge"; 
 import { checkEnvVariables } from "../src/api/utils/checkEnvVariables";
+import  setupSwagger  from "../src/config/swaggerConfig"; // adjust path if needed
+import collaborationRoutes from "../src/api/routes/collaborationGoals";
+
 
 // Load environment variables
 dotenv.config();
@@ -39,6 +42,9 @@ app.post(
   },
 );
 
+setupSwagger(app); // 📘 Register Swagger
+
+app.use("/api/collaboration", collaborationRoutes); 
 // Middleware to parse JSON requests
 app.use(express.json({ limit: "10kb" })); // Limit body size
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded data
@@ -80,6 +86,8 @@ app.use(
 
 // Compression Middleware
 app.use(compression());
+
+app.use("/assets", express.static("public/assets"));
 
 // MongoDB connection
 mongoose

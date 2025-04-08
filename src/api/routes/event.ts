@@ -2,18 +2,16 @@ import type { Router, Request, Response } from "express";
 import express from "express";
 import { check, validationResult } from "express-validator";
 import rateLimit from "express-rate-limit";
-import mongoose from "mongoose"; // For ObjectId validation
+import mongoose from "mongoose";
 import Event from "../models/Event";
-import { protect } from "../middleware/authMiddleware"; // Corrected import to use named export `protect`
+import { protect } from "../middleware/authMiddleware";
 import catchAsync from "../utils/catchAsync";
 
 const router: Router = express.Router();
 
-// Utility to validate MongoDB ObjectID
 const isValidObjectId = (id: string): boolean =>
   mongoose.Types.ObjectId.isValid(id);
 
-// Middleware for validating event creation inputs
 const validateEventCreation = [
   check("eventTitle", "Event title is required").notEmpty(),
   check("description", "Description is required").notEmpty(),
@@ -22,25 +20,53 @@ const validateEventCreation = [
   check("location", "Location is required").notEmpty(),
 ];
 
-// Middleware for progress update validation
 const validateEventProgress = [
-  check("progress", "Progress must be a number between 0 and 100").isInt({
-    min: 0,
-    max: 100,
-  }),
+  check("progress", "Progress must be a number between 0 and 100").isInt({ min: 0, max: 100 }),
 ];
 
-// Rate limiter to prevent abuse
 const rateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // Limit each IP to 10 requests per window
+  windowMs: 15 * 60 * 1000,
+  max: 10,
   message: "Too many requests. Please try again later.",
 });
 
 /**
- * @route   POST /create
- * @desc    Create a new event
- * @access  Private
+ * @swagger
+ * /api/events/create:
+ *   post:
+ *     summary: Create a new event
+ *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - eventTitle
+ *               - description
+ *               - date
+ *               - participants
+ *               - location
+ *             properties:
+ *               eventTitle:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               date:
+ *                 type: string
+ *                 format: date-time
+ *               participants:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               location:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Event created
  */
 router.post(
   "/create",
@@ -55,12 +81,7 @@ router.post(
     }
 
     const { eventTitle, description, date, participants, location } = req.body;
-
     const userId = req.user?.id;
-    if (!userId) {
-      res.status(401).json({ success: false, message: "Unauthorized" });
-      return;
-    }
 
     const newEvent = new Event({
       eventTitle,
@@ -76,13 +97,39 @@ router.post(
 
     await newEvent.save();
     res.status(201).json({ success: true, event: newEvent });
-  }),
+  })
 );
 
 /**
- * @route   PUT /:id/update-progress
- * @desc    Update progress on an event
- * @access  Private
+ * @swagger
+ * /api/events/{id}/update-progress:
+ *   put:
+ *     summary: Update progress for an event
+ *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The event ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [progress]
+ *             properties:
+ *               progress:
+ *                 type: integer
+ *                 minimum: 0
+ *                 maximum: 100
+ *     responses:
+ *       200:
+ *         description: Progress updated
  */
 router.put(
   "/:id/update-progress",
@@ -98,12 +145,7 @@ router.put(
 
     const { id } = req.params;
     const { progress } = req.body;
-
     const userId = req.user?.id;
-    if (!userId) {
-      res.status(401).json({ success: false, message: "Unauthorized" });
-      return;
-    }
 
     if (!isValidObjectId(id)) {
       res.status(400).json({ success: false, message: "Invalid event ID" });
@@ -111,22 +153,17 @@ router.put(
     }
 
     const event = await Event.findById(id);
-
     if (!event) {
       res.status(404).json({ success: false, message: "Event not found" });
       return;
     }
 
-    // Ensure only participants or the creator can update progress
-    if (
-      !event.participants.some((p) =>
-        p.user.toString() === userId.toString(),
-      ) &&
-      !event.createdBy.equals(new mongoose.Types.ObjectId(userId))
-    ) {
-      res
-        .status(403)
-        .json({ success: false, message: "Not authorized to update this event" });
+    const isAuthorized =
+      event.participants.some((p) => p.user.toString() === userId.toString()) ||
+      event.createdBy.equals(new mongoose.Types.ObjectId(userId));
+
+    if (!isAuthorized) {
+      res.status(403).json({ success: false, message: "Not authorized to update this event" });
       return;
     }
 
@@ -134,13 +171,20 @@ router.put(
     await event.save();
 
     res.status(200).json({ success: true, event });
-  }),
+  })
 );
 
 /**
- * @route   GET /my-events
- * @desc    Fetch all events for the authenticated user
- * @access  Private
+ * @swagger
+ * /api/events/my-events:
+ *   get:
+ *     summary: Get events for authenticated user
+ *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of events
  */
 router.get(
   "/my-events",
@@ -148,11 +192,6 @@ router.get(
   protect,
   catchAsync(async (req: Request, res: Response): Promise<void> => {
     const userId = req.user?.id;
-
-    if (!userId) {
-      res.status(401).json({ success: false, message: "Unauthorized" });
-      return;
-    }
 
     const events = await Event.find({
       $or: [
@@ -167,13 +206,26 @@ router.get(
     }
 
     res.status(200).json({ success: true, events });
-  }),
+  })
 );
 
 /**
- * @route   GET /:id
- * @desc    Fetch a specific event by ID
- * @access  Private
+ * @swagger
+ * /api/events/{id}:
+ *   get:
+ *     summary: Get event by ID
+ *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Event retrieved
  */
 router.get(
   "/:id",
@@ -181,12 +233,7 @@ router.get(
   protect,
   catchAsync(async (req: Request, res: Response): Promise<void> => {
     const { id } = req.params;
-
     const userId = req.user?.id;
-    if (!userId) {
-      res.status(401).json({ success: false, message: "Unauthorized" });
-      return;
-    }
 
     if (!isValidObjectId(id)) {
       res.status(400).json({ success: false, message: "Invalid event ID" });
@@ -202,21 +249,17 @@ router.get(
       return;
     }
 
-    // Ensure only participants or the creator can view the event
-    if (
-      !event.participants.some((p) =>
-        p.user.toString() === userId.toString(),
-      ) &&
-      !event.createdBy.equals(new mongoose.Types.ObjectId(userId))
-    ) {
-      res
-        .status(403)
-        .json({ success: false, message: "Not authorized to view this event" });
+    const isAuthorized =
+      event.participants.some((p) => p.user.toString() === userId.toString()) ||
+      event.createdBy.equals(new mongoose.Types.ObjectId(userId));
+
+    if (!isAuthorized) {
+      res.status(403).json({ success: false, message: "Not authorized to view this event" });
       return;
     }
 
     res.status(200).json({ success: true, event });
-  }),
+  })
 );
 
 export default router;

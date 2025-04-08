@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 import sanitize from "mongo-sanitize";
 import { User } from "../models/User";
 import { logger } from "../../utils/winstonLogger";
-import type { AuthenticatedRequest } from "../types/AuthenticatedRequest";
+import type { AuthenticatedRequest } from "../../types/AuthenticatedRequest";
 
 /**
  * Middleware to enforce role-based access control (RBAC)

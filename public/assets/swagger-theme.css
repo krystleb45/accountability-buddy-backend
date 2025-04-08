@@ -1,0 +1,11 @@
+.swagger-ui {
+    background-color: #0f172a;
+    color: #e2e8f0;
+  }
+  .swagger-ui .topbar {
+    background-color: #1e293b;
+  }
+  .swagger-ui .info hgroup.main a {
+    color: #22c55e;
+  }
+  

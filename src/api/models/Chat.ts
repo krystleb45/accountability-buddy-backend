@@ -72,10 +72,7 @@ ChatSchema.index({ "unreadMessages.userId": 1 }); // Optimize unread message tra
 ChatSchema.index({ lastMessage: -1 }); // Fast retrieval of latest messages
 ChatSchema.index({ isPinned: 1 }); // Optimize pinned chats lookup
 
-// Adding indexes for frequent queries like chatId, userId, and messageId
-ChatSchema.index({ _id: 1 }); // Index for chatId
-ChatSchema.index({ "participants": 1 }); // Index for userId (for faster lookup by user)
-ChatSchema.index({ "messages": 1 }); // Index for messageId (for fast message lookup)
+
 
 // ✅ Pre-save hook to sanitize group name
 ChatSchema.pre<IChat>("save", function (next): void {

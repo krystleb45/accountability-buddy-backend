@@ -70,7 +70,7 @@ const BookSchema = new Schema<IBook>(
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      index: true, // Optimize query performance
+      index: true, // ✅ Already indexed here – no need for duplicate index below
     },
     likes: [
       {
@@ -88,16 +88,15 @@ const BookSchema = new Schema<IBook>(
     ],
   },
   {
-    timestamps: true, // Automatically creates `createdAt` and `updatedAt`
+    timestamps: true,
   }
 );
 
-// ✅ Indexing for optimized searches
+// ✅ Indexing for optimized searches (excluding addedBy to avoid duplication)
 BookSchema.index({ title: 1, category: 1, createdAt: -1 });
-BookSchema.index({ author: 1 }); // Optimized lookup for books by author
-BookSchema.index({ addedBy: 1 }); // Optimized lookup for user recommendations
+BookSchema.index({ author: 1 });
 
-// ✅ Ensure Unique Likes (Pre-Save Hook)
+// ✅ Ensure Unique Likes
 BookSchema.pre<IBook>("save", function (next): void {
   this.likes = Array.from(new Set(this.likes.map((id) => id.toString()))).map(
     (id) => new mongoose.Types.ObjectId(id)
@@ -105,7 +104,7 @@ BookSchema.pre<IBook>("save", function (next): void {
   next();
 });
 
-// ✅ Instance Method: Add Like
+// ✅ Instance Methods
 BookSchema.methods.addLike = async function (
   userId: mongoose.Types.ObjectId
 ): Promise<void> {
@@ -115,15 +114,13 @@ BookSchema.methods.addLike = async function (
   }
 };
 
-// ✅ Instance Method: Remove Like
 BookSchema.methods.removeLike = async function (
   userId: mongoose.Types.ObjectId
 ): Promise<void> {
-  this.likes = this.likes.filter((id: { equals: (arg0: mongoose.Types.ObjectId) => any; }) => !id.equals(userId));
+  this.likes = this.likes.filter((id: { equals: (arg0: mongoose.Types.ObjectId) => any }) => !id.equals(userId));
   await this.save();
 };
 
-// ✅ Instance Method: Add Comment
 BookSchema.methods.addComment = async function (
   userId: mongoose.Types.ObjectId,
   text: string
@@ -137,17 +134,15 @@ BookSchema.methods.addComment = async function (
   await this.save();
 };
 
-// ✅ Instance Method: Remove Comment
 BookSchema.methods.removeComment = async function (
   commentId: mongoose.Types.ObjectId
 ): Promise<void> {
   this.comments = this.comments.filter(
-    (comment: { _id: { equals: (arg0: mongoose.Types.ObjectId) => any; }; }) => !comment._id.equals(commentId)
+    (comment: { _id: { equals: (arg0: mongoose.Types.ObjectId) => any } }) => !comment._id.equals(commentId)
   );
   await this.save();
 };
 
-// Export the Book model
+// ✅ Export the Book model
 const Book: Model<IBook> = mongoose.model<IBook>("Book", BookSchema);
-
 export default Book;

@@ -1,5 +1,5 @@
 import cron from "node-cron";
-import { sendDailyStreakReminder } from "../api/notifications/notificationApi"; // Import the notification function
+import { sendDailyStreakReminder } from "../api/routes/notificationApi"; // Import the notification function
 import { User } from "../api/models/User"; // Import User model to fetch users
 import { logger } from "../utils/winstonLogger"; // Import the logger to log the process
 

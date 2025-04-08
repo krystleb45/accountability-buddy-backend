@@ -1,19 +1,28 @@
 import type { Router, Request, Response, NextFunction } from "express";
 import express from "express";
 import { check } from "express-validator";
-import { protect } from "../middleware/authMiddleware"; // Corrected import to use named export `protect`
-import * as ProgressController from "../controllers/ProgressController"; // Corrected controller import path
-import { logger } from "../../utils/winstonLogger";import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust the path
-
+import { protect } from "../middleware/authMiddleware";
+import * as ProgressController from "../controllers/ProgressController";
+import { logger } from "../../utils/winstonLogger";
+import handleValidationErrors from "../middleware/handleValidationErrors";
 
 const router: Router = express.Router();
 
-
-
 /**
- * @route   GET /progress
- * @desc    Get user progress
- * @access  Private
+ * @swagger
+ * /api/progress:
+ *   get:
+ *     summary: Get user progress
+ *     tags: [Progress]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Progress fetched successfully
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal server error
  */
 router.get(
   "/",
@@ -36,15 +45,42 @@ router.get(
       logger.error(
         `Error fetching progress for user ${req.user?.id}: ${errorMessage}`,
       );
-      next(error); // Pass error to global error handler
+      next(error);
     }
   },
 );
 
 /**
- * @route   PUT /progress/update
- * @desc    Update user progress
- * @access  Private
+ * @swagger
+ * /api/progress/update:
+ *   put:
+ *     summary: Update user progress
+ *     tags: [Progress]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - goalId
+ *               - progress
+ *             properties:
+ *               goalId:
+ *                 type: string
+ *               progress:
+ *                 type: number
+ *     responses:
+ *       200:
+ *         description: Progress updated successfully
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal server error
  */
 router.put(
   "/update",
@@ -82,15 +118,26 @@ router.put(
       logger.error(
         `Error updating progress for user ${req.user?.id}: ${errorMessage}`,
       );
-      next(error); // Pass error to global error handler
+      next(error);
     }
   },
 );
 
 /**
- * @route   DELETE /progress/reset
- * @desc    Reset user progress
- * @access  Private
+ * @swagger
+ * /api/progress/reset:
+ *   delete:
+ *     summary: Reset user progress
+ *     tags: [Progress]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Progress reset successfully
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal server error
  */
 router.delete(
   "/reset",
@@ -121,7 +168,7 @@ router.delete(
       logger.error(
         `Error resetting progress for user ${req.user?.id}: ${errorMessage}`,
       );
-      next(error); // Pass error to global error handler
+      next(error);
     }
   },
 );

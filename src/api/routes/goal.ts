@@ -1,64 +1,147 @@
 import { Router } from "express";
 import express from "express";
-import { protect } from "../middleware/authMiddleware"; // ✅ Updated import
+import { protect } from "../middleware/authMiddleware";
 import checkSubscription from "../middleware/checkSubscription";
-import goalController from "../controllers/GoalController"; // ✅ Hooked in controller methods
+import goalController from "../controllers/GoalController";
 
 const router: Router = express.Router();
 
 /**
- * @route   POST /api/goals/create
- * @desc    Create a new goal (Requires Active Subscription)
- * @access  Private
+ * @swagger
+ * tags:
+ *   name: Goals
+ *   description: Endpoints for managing user goals
  */
-router.post(
-  "/create",
-  protect, // ✅ Use 'protect' here
-  checkSubscription("paid"),
-  goalController.createGoal
-);
 
 /**
- * @route   PUT /api/goals/:goalId/progress
- * @desc    Update progress for a goal
- * @access  Private
+ * @swagger
+ * /api/goals/create:
+ *   post:
+ *     summary: Create a new goal
+ *     tags: [Goals]
+ *     security:
+ *       - bearerAuth: []
+ *     description: Create a goal for a logged-in user with an active paid subscription.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - title
+ *               - target
+ *             properties:
+ *               title:
+ *                 type: string
+ *               target:
+ *                 type: number
+ *               category:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Goal created successfully
+ *       401:
+ *         description: Unauthorized or inactive subscription
  */
-router.put(
-  "/:goalId/progress",
-  protect, // ✅ Use 'protect' here
-  goalController.updateGoalProgress
-);
+router.post("/create", protect, checkSubscription("paid"), goalController.createGoal);
 
 /**
- * @route   PUT /api/goals/:goalId/complete
- * @desc    Mark goal as complete (triggers streak logic)
- * @access  Private
+ * @swagger
+ * /api/goals/{goalId}/progress:
+ *   put:
+ *     summary: Update goal progress
+ *     tags: [Goals]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: goalId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the goal
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               progress:
+ *                 type: number
+ *     responses:
+ *       200:
+ *         description: Goal progress updated
+ *       404:
+ *         description: Goal not found
  */
-router.put(
-  "/:goalId/complete",
-  protect, // ✅ Use 'protect' here
-  goalController.completeGoal
-);
+router.put("/:goalId/progress", protect, goalController.updateGoalProgress);
 
 /**
- * @route   GET /api/goals/public
- * @desc    Get public goals (Available to All Users)
- * @access  Public
+ * @swagger
+ * /api/goals/{goalId}/complete:
+ *   put:
+ *     summary: Mark a goal as complete
+ *     tags: [Goals]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: goalId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the goal
+ *     responses:
+ *       200:
+ *         description: Goal marked as complete
+ *       404:
+ *         description: Goal not found
+ */
+router.put("/:goalId/complete", protect, goalController.completeGoal);
+
+/**
+ * @swagger
+ * /api/goals/public:
+ *   get:
+ *     summary: Get all public goals
+ *     tags: [Goals]
+ *     description: Retrieve goals marked as public by users.
+ *     responses:
+ *       200:
+ *         description: List of public goals
  */
 router.get("/public", goalController.getPublicGoals);
 
 /**
- * @route   GET /api/goals/my-goals
- * @desc    Get logged-in user's goals
- * @access  Private
+ * @swagger
+ * /api/goals/my-goals:
+ *   get:
+ *     summary: Get user-specific goals
+ *     tags: [Goals]
+ *     security:
+ *       - bearerAuth: []
+ *     description: Get all goals created by the logged-in user.
+ *     responses:
+ *       200:
+ *         description: List of user goals
  */
-router.get("/my-goals", protect, goalController.getUserGoals); // ✅ Use 'protect' here
+router.get("/my-goals", protect, goalController.getUserGoals);
 
 /**
- * @route   GET /api/goals/streak-dates
- * @desc    Get all goal completion dates for a user (for streak calendar heatmap)
- * @access  Private
+ * @swagger
+ * /api/goals/streak-dates:
+ *   get:
+ *     summary: Get goal completion streak dates
+ *     tags: [Goals]
+ *     security:
+ *       - bearerAuth: []
+ *     description: Get all dates where the user completed goals (used for streak visualizations).
+ *     responses:
+ *       200:
+ *         description: Streak dates returned
  */
-router.get("/streak-dates", protect, goalController.getStreakDates); // ✅ Use 'protect' here
+router.get("/streak-dates", protect, goalController.getStreakDates);
 
 export default router;

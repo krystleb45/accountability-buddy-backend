@@ -1,15 +1,38 @@
 import { Router } from "express";
 import { check } from "express-validator";
-import { protect } from "../middleware/authMiddleware"; // Corrected import to use named export `protect`
+import { protect } from "../middleware/authMiddleware";
 import handleValidationErrors from "../middleware/handleValidationErrors";
 import * as bookController from "../controllers/bookController";
 
 const router: Router = Router();
 
 /**
- * @route   POST /api/books
- * @desc    Add a new book recommendation
- * @access  Private (Admin Only)
+ * @swagger
+ * /api/books:
+ *   post:
+ *     summary: Add a new book recommendation
+ *     tags: [Books]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [title, author, category, description]
+ *             properties:
+ *               title:
+ *                 type: string
+ *               author:
+ *                 type: string
+ *               category:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Book added successfully
  */
 router.post(
   "/",
@@ -25,23 +48,68 @@ router.post(
 );
 
 /**
- * @route   GET /api/books
- * @desc    Get all book recommendations
- * @access  Public
+ * @swagger
+ * /api/books:
+ *   get:
+ *     summary: Get all book recommendations
+ *     tags: [Books]
+ *     responses:
+ *       200:
+ *         description: List of books
  */
 router.get("/", bookController.getAllBooks);
 
 /**
- * @route   GET /api/books/:id
- * @desc    Get a single book by ID
- * @access  Public
+ * @swagger
+ * /api/books/{id}:
+ *   get:
+ *     summary: Get a single book by ID
+ *     tags: [Books]
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Book retrieved successfully
+ *       404:
+ *         description: Book not found
  */
 router.get("/:id", bookController.getBookById);
 
 /**
- * @route   PUT /api/books/:id
- * @desc    Edit a book recommendation
- * @access  Private (Admin Only)
+ * @swagger
+ * /api/books/{id}:
+ *   put:
+ *     summary: Edit a book recommendation
+ *     tags: [Books]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               author:
+ *                 type: string
+ *               category:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Book updated
  */
 router.put(
   "/:id",
@@ -57,30 +125,92 @@ router.put(
 );
 
 /**
- * @route   DELETE /api/books/:id
- * @desc    Delete a book recommendation
- * @access  Private (Admin Only)
+ * @swagger
+ * /api/books/{id}:
+ *   delete:
+ *     summary: Delete a book recommendation
+ *     tags: [Books]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Book deleted
  */
 router.delete("/:id", protect, bookController.deleteBook);
 
 /**
- * @route   POST /api/books/:id/like
- * @desc    Like a book recommendation
- * @access  Private
+ * @swagger
+ * /api/books/{id}/like:
+ *   post:
+ *     summary: Like a book
+ *     tags: [Books]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Book liked
  */
 router.post("/:id/like", protect, bookController.likeBook);
 
 /**
- * @route   POST /api/books/:id/unlike
- * @desc    Unlike a book recommendation
- * @access  Private
+ * @swagger
+ * /api/books/{id}/unlike:
+ *   post:
+ *     summary: Unlike a book
+ *     tags: [Books]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Book unliked
  */
 router.post("/:id/unlike", protect, bookController.unlikeBook);
 
 /**
- * @route   POST /api/books/:id/comment
- * @desc    Add a comment to a book
- * @access  Private
+ * @swagger
+ * /api/books/{id}/comment:
+ *   post:
+ *     summary: Add a comment to a book
+ *     tags: [Books]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [text]
+ *             properties:
+ *               text:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Comment added
  */
 router.post(
   "/:id/comment",
@@ -93,11 +223,28 @@ router.post(
 );
 
 /**
- * @route   DELETE /api/books/:id/comment/:commentId
- * @desc    Remove a comment from a book
- * @access  Private (Owner or Admin Only)
+ * @swagger
+ * /api/books/{id}/comment/{commentId}:
+ *   delete:
+ *     summary: Delete a comment from a book
+ *     tags: [Books]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - name: commentId
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Comment removed
  */
 router.delete("/:id/comment/:commentId", protect, bookController.removeComment);
 
-// ✅ Export the router correctly
 export default router;

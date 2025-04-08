@@ -5,7 +5,7 @@ import Message, { IMessage } from "../models/Message";
 import Notification from "../models/Notification";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
-import { AuthenticatedRequest } from "../types/AuthenticatedRequest";
+import { AuthenticatedRequest } from "../../types/AuthenticatedRequest";
 import { encryptMessage, decryptMessage } from "../../utils/encryption"; // Encryption utils
 import { logger } from "../../utils/winstonLogger"; // Logger
 

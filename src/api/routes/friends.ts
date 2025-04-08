@@ -1,5 +1,5 @@
 import express from "express";
-import { protect } from "../middleware/authMiddleware"; // Corrected import to use named export `protect`
+import { protect } from "../middleware/authMiddleware";
 import {
   sendFriendRequest,
   acceptFriendRequest,
@@ -12,9 +12,35 @@ import handleValidationErrors from "../middleware/handleValidationErrors";
 const router = express.Router();
 
 /**
- * @route   POST /api/friends/request
- * @desc    Send a friend request
- * @access  Private
+ * @swagger
+ * tags:
+ *   name: Friends
+ *   description: Manage friend requests and friend list
+ */
+
+/**
+ * @swagger
+ * /api/friends/request:
+ *   post:
+ *     summary: Send a friend request
+ *     tags: [Friends]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               recipientId:
+ *                 type: string
+ *                 description: MongoDB ID of the user to send request to
+ *     responses:
+ *       200:
+ *         description: Friend request sent
+ *       400:
+ *         description: Invalid input
  */
 router.post(
   "/request",
@@ -24,9 +50,28 @@ router.post(
 );
 
 /**
- * @route   POST /api/friends/accept
- * @desc    Accept a friend request
- * @access  Private
+ * @swagger
+ * /api/friends/accept:
+ *   post:
+ *     summary: Accept a friend request
+ *     tags: [Friends]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               requestId:
+ *                 type: string
+ *                 description: ID of the friend request to accept
+ *     responses:
+ *       200:
+ *         description: Friend request accepted
+ *       400:
+ *         description: Invalid input
  */
 router.post(
   "/accept",
@@ -36,21 +81,54 @@ router.post(
 );
 
 /**
- * @route   POST /api/friends/decline
- * @desc    Decline a friend request
- * @access  Private
+ * @swagger
+ * /api/friends/decline:
+ *   post:
+ *     summary: Decline a friend request
+ *     tags: [Friends]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               requestId:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Friend request declined
+ *       400:
+ *         description: Invalid input
  */
 router.post(
   "/decline",
   protect,
   [check("requestId", "Request ID is required").isMongoId(), handleValidationErrors],
-  sendFriendRequest
+  sendFriendRequest // Note: consider renaming handler to declineFriendRequest
 );
 
 /**
- * @route   DELETE /api/friends/remove/:friendId
- * @desc    Remove a friend
- * @access  Private
+ * @swagger
+ * /api/friends/remove/{friendId}:
+ *   delete:
+ *     summary: Remove a friend
+ *     tags: [Friends]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: friendId
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Friend removed
+ *       400:
+ *         description: Invalid friend ID
  */
 router.delete(
   "/remove/:friendId",
@@ -59,28 +137,57 @@ router.delete(
 );
 
 /**
- * @route   GET /api/friends
- * @desc    Get user's friend list
- * @access  Private
+ * @swagger
+ * /api/friends:
+ *   get:
+ *     summary: Get user's friend list
+ *     tags: [Friends]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of friends
  */
 router.get("/", protect, getFriendsList);
 
 /**
- * @route   GET /api/friends/requests
- * @desc    Get pending friend requests
- * @access  Private
+ * @swagger
+ * /api/friends/requests:
+ *   get:
+ *     summary: Get all pending friend requests
+ *     tags: [Friends]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of pending requests
  */
-router.get("/requests", protect, sendFriendRequest);
+router.get("/requests", protect, sendFriendRequest); // Consider renaming to getPendingRequests
 
 /**
- * @route   DELETE /api/friends/cancel/:requestId
- * @desc    Cancel a sent friend request
- * @access  Private
+ * @swagger
+ * /api/friends/cancel/{requestId}:
+ *   delete:
+ *     summary: Cancel a sent friend request
+ *     tags: [Friends]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: requestId
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Request canceled
+ *       400:
+ *         description: Invalid request ID
  */
 router.delete(
   "/cancel/:requestId",
   protect,
-  acceptFriendRequest
+  acceptFriendRequest // Consider renaming to cancelFriendRequest
 );
 
 export default router;

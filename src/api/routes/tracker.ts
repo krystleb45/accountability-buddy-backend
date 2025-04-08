@@ -1,9 +1,10 @@
 import type { Router, Request, Response, NextFunction } from "express";
 import express from "express";
-import { protect } from "../middleware/authMiddleware"; // Corrected import to use named export `protect`
-import * as TrackerController from "../controllers/TrackerController"; // Correct controller import path
+import { protect } from "../middleware/authMiddleware";
+import * as TrackerController from "../controllers/TrackerController";
 import rateLimit from "express-rate-limit";
 import { logger } from "../../utils/winstonLogger";
+
 const router: Router = express.Router();
 
 /**
@@ -11,7 +12,7 @@ const router: Router = express.Router();
  */
 const trackerRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // Limit to 10 requests per IP per window
+  max: 10,
   message: "Too many requests. Please try again later.",
 });
 
@@ -32,28 +33,67 @@ const handleError = (
 };
 
 /**
- * @route   GET /tracker
- * @desc    Get tracking data for the authenticated user
- * @access  Private
+ * @swagger
+ * tags:
+ *   name: Tracker
+ *   description: Endpoints for tracking user behavior or progress
+ */
+
+/**
+ * @swagger
+ * /tracker:
+ *   get:
+ *     summary: Get tracking data for the authenticated user
+ *     tags: [Tracker]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Tracking data retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal server error
  */
 router.get(
   "/",
   protect,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      // Call controller and pass full request data
       await TrackerController.getTrackingData(req, res, next);
     } catch (error) {
       handleError(error, res, "Error fetching tracking data");
-      next(error); // Ensure errors are passed to middleware
+      next(error);
     }
   },
 );
 
 /**
- * @route   POST /tracker/add
- * @desc    Add tracking data for the authenticated user
- * @access  Private
+ * @swagger
+ * /tracker/add:
+ *   post:
+ *     summary: Add tracking data for the authenticated user
+ *     tags: [Tracker]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             example:
+ *               activityType: "goal"
+ *               description: "Completed 3 goals today"
+ *     responses:
+ *       201:
+ *         description: Tracking data added successfully
+ *       400:
+ *         description: Bad request - missing or invalid tracking data
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal server error
  */
 router.post(
   "/add",
@@ -61,7 +101,6 @@ router.post(
   trackerRateLimiter,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      // Validate request body
       const trackingData = req.body;
       if (!trackingData || Object.keys(trackingData).length === 0) {
         res
@@ -70,7 +109,6 @@ router.post(
         return;
       }
 
-      // Call controller and pass full request data
       await TrackerController.addTrackingData(req, res, next);
     } catch (error) {
       handleError(error, res, "Error adding tracking data");
@@ -80,15 +118,35 @@ router.post(
 );
 
 /**
- * @route   DELETE /tracker/delete/:id
- * @desc    Delete tracking data by ID for the authenticated user
- * @access  Private
+ * @swagger
+ * /tracker/delete/{id}:
+ *   delete:
+ *     summary: Delete tracking data by ID
+ *     tags: [Tracker]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the tracking record to delete
+ *     responses:
+ *       200:
+ *         description: Tracking data deleted successfully
+ *       400:
+ *         description: Missing or invalid ID
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal server error
  */
 router.delete(
   "/delete/:id",
   protect,
   async (
-    req: Request<{ id: string }>, // Explicit ID param type
+    req: Request<{ id: string }>,
     res: Response,
     next: NextFunction,
   ): Promise<void> => {
@@ -100,7 +158,6 @@ router.delete(
         return;
       }
 
-      // Call controller and pass full request data
       await TrackerController.deleteTrackingData(req, res, next);
     } catch (error) {
       handleError(error, res, "Error deleting tracking data");

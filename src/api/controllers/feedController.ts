@@ -5,7 +5,7 @@ import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
 import { logger } from "../../utils/winstonLogger";
 import Feedback from "@src/api/models/Feedback";
-import { RequestWithUser } from "../types/RequestWithUser";
+import { RequestWithUser } from "../../types/RequestWithUser";
 
 // Define reusable request types
 type CreatePostBody = {

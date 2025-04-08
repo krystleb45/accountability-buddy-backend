@@ -2,7 +2,7 @@ import { Request, Response, NextFunction, RequestHandler } from "express";
 import jwt from "jsonwebtoken";
 import { User } from "../models/User";
 import { logger } from "../../utils/winstonLogger";
-import { AuthenticatedRequest } from "../types/AuthenticatedRequest";
+import { AuthenticatedRequest } from "../../types/AuthenticatedRequest";
 
 // Define a fallback JWT payload structure
 interface JwtPayload {

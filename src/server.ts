@@ -3,41 +3,34 @@ import express from "express";
 import mongoose from "mongoose";
 import compression from "compression";
 import { createServer } from "http";
-import type { Socket } from "socket.io";
 import { Server } from "socket.io";
 import dotenv from "dotenv";
 import cron from "node-cron";
 import cors from "cors";
 import fs from "fs";
-
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import type { Request, Response } from "express";
 
 // ✅ Load Environment Variables
 dotenv.config();
 
-
 // ✅ Utilities
-import { logger } from "./utils/winstonLogger";  // Import the custom logger
+import { logger } from "./utils/winstonLogger";
 import ReminderService from "./api/services/ReminderService";
-import setupSwagger from "./api/config/swaggerConfig";
-
-// 🚀 Startup Log
-console.warn("🚀 Server is starting...");
+import setupSwagger from "./config/swaggerConfig";
 
 // ✅ Middleware
 import { errorHandler } from "./api/middleware/errorHandler";
-import { applySecurityMiddlewares } from "./api/config/securityConfig";
+import { applySecurityMiddlewares } from "./config/securityConfig";
+import { stripeRawBodyParser } from "../src/api/middleware/stripeWebhookParser";
 
-// ✅ Ensure Uploads Directory Exists (For Profile & Cover Images)
-const uploadDirs = ["uploads/profile", "uploads/covers"];
-uploadDirs.forEach((dir) => {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-});
+// ✅ WebSocket Handlers
+import setupSocketHandlers from "../src/sockets/setupSocketHandlers";
 
 // ✅ Routes
 import authRoutes from "./api/routes/auth";
-import userRoutes from "./api/routes/user"; // ✅ Ensure it's properly imported
+import userRoutes from "./api/routes/user";
 import groupRoutes from "./api/routes/group";
 import chatRoutes from "./api/routes/chat";
 import paymentRoutes from "./api/routes/payment";
@@ -50,8 +43,10 @@ import booksRoutes from "./api/routes/books";
 import notificationsRoutes from "./api/routes/notifications";
 import followRoutes from "./api/routes/follow";
 
-// ✅ Stripe Webhook Handler (Requires Raw Body Parsing)
 import { handleStripeWebhook } from "./api/controllers/paymentController";
+
+// 🚀 Startup Log
+console.warn("🚀 Server is starting...");
 
 // ✅ Validate Required Environment Variables
 const requiredEnv = ["MONGO_URI", "PORT", "STRIPE_WEBHOOK_SECRET"];
@@ -62,14 +57,29 @@ requiredEnv.forEach((env) => {
   }
 });
 
+// ✅ Ensure Uploads Directory Exists
+const uploadDirs = ["uploads/profile", "uploads/covers"];
+uploadDirs.forEach((dir) => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+});
+
 // ✅ Initialize Express App
 const app: Application = express();
 const httpServer = createServer(app);
 
 // ✅ Apply Security Middleware
+app.use(helmet());
 applySecurityMiddlewares(app);
 
-// ✅ Apply CORS Middleware
+// ✅ Rate Limiting
+app.use(rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+}));
+
+// ✅ CORS Middleware
 app.use(
   cors({
     origin: process.env.ALLOWED_ORIGINS?.split(",") || ["http://localhost:3000"],
@@ -79,28 +89,16 @@ app.use(
   })
 );
 
-// ✅ Middleware to Store Raw Body for Stripe Webhooks
-app.use((req, res, next) => {
-  if (req.originalUrl === "/api/payments/webhook") {
-    express.raw({ type: "application/json" })(req, res, (err) => {
-      if (err) {
-        res.status(400).send("Invalid request body");
-        return;
-      }
-      (req as any).rawBody = req.body; // ✅ Store raw body before parsing
-      next();
-    });
-  } else {
-    express.json()(req, res, next);
-  }
-});
+// ✅ Stripe Raw Body Middleware
+app.use(stripeRawBodyParser);
 
-// ✅ Apply Additional Middleware
+// ✅ Additional Middleware
+app.use(express.json());
 app.use(compression());
 
 // ✅ API Routes
 app.use("/api/auth", authRoutes);
-app.use("/api/users", userRoutes); // ✅ Ensure this matches frontend API calls
+app.use("/api/users", userRoutes);
 app.use("/api/groups", groupRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/payment", paymentRoutes);
@@ -112,11 +110,14 @@ app.use("/api/blog", blogRoutes);
 app.use("/api/books", booksRoutes);
 app.use("/api/notifications", notificationsRoutes);
 app.use("/api/follow", followRoutes);
+app.get("/api/health", (_req: Request, res: Response) => {
+  res.status(200).json({ status: "ok" });
+});
 
-// ✅ Stripe Webhook Route (Requires **Raw Body Parsing**)
+// ✅ Stripe Webhook Endpoint
 app.post("/api/payments/webhook", express.raw({ type: "application/json" }), handleStripeWebhook);
 
-// ✅ Global Error Handling Middleware
+// ✅ Global Error Handler
 app.use(errorHandler);
 
 // ✅ MongoDB Connection
@@ -131,7 +132,7 @@ mongoose
     process.exit(1);
   });
 
-// ✅ WebSockets (Socket.io) for Real-Time Features
+// ✅ WebSocket Setup
 const io = new Server(httpServer, {
   cors: {
     origin: process.env.ALLOWED_ORIGINS?.split(",") || ["http://localhost:3000"],
@@ -141,40 +142,14 @@ const io = new Server(httpServer, {
   pingTimeout: 60000,
 });
 
-// ✅ Assign `io` to Global Object (Fix TypeScript Errors)
+// ✅ Assign Socket Server to Global
 declare global {
   var io: Server;
 }
 global.io = io;
 
-// ✅ WebSocket Event Handling
-io.on("connection", (socket: Socket): void => {
-  logger.info(`WebSocket connected: ${socket.id}`);
-
-  try {
-    socket.on("sendFriendRequest", ({ senderId, recipientId }) => {
-      io.to(recipientId).emit("friendRequest", { senderId });
-    });
-
-    socket.on("acceptFriendRequest", ({ senderId, recipientId }) => {
-      io.to(senderId).emit("friendAccepted", { recipientId });
-    });
-
-    socket.on("chatMessage", ({ message, groupId, senderId }) => {
-      io.to(groupId).emit("message", { message, senderId });
-    });
-
-    socket.on("markMessagesAsRead", ({ chatId, userId }) => {
-      io.to(chatId).emit("messagesRead", { chatId, userId });
-    });
-
-    socket.on("disconnect", (): void => {
-      logger.info(`WebSocket disconnected: ${socket.id}`);
-    });
-  } catch (error) {
-    logger.error(`WebSocket error: ${(error as Error).message}`);
-  }
-});
+// ✅ Handle WebSocket Events
+setupSocketHandlers(io);
 
 // ✅ Graceful Shutdown
 const shutdown = async (): Promise<void> => {
@@ -192,7 +167,7 @@ const shutdown = async (): Promise<void> => {
 process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
 
-// ✅ Scheduled Tasks (Runs Every Minute)
+// ✅ Reminder Scheduler
 cron.schedule("* * * * *", async (): Promise<void> => {
   logger.info("🔔 Checking for reminders...");
   try {
@@ -202,7 +177,7 @@ cron.schedule("* * * * *", async (): Promise<void> => {
   }
 });
 
-// ✅ Unhandled Errors & Exceptions
+// ✅ Unhandled Rejection & Exceptions
 process.on("unhandledRejection", (reason: unknown, promise: Promise<unknown>): void => {
   logger.error(`❌ Unhandled Rejection at: ${promise}, reason: ${String(reason)}`);
   void shutdown();

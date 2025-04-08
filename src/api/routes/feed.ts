@@ -2,10 +2,10 @@ import type { Router, Response, NextFunction } from "express";
 import express from "express";
 import { check } from "express-validator";
 import rateLimit from "express-rate-limit";
-import { protect } from "../middleware/authMiddleware"; // Using the named export `protect`
+import { protect } from "../middleware/authMiddleware";
 import * as feedController from "../controllers/feedController";
-import type { AuthenticatedRequest } from "../types/AuthenticatedRequest"; // Updated path for your authenticated request type
-import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust path if needed
+import type { AuthenticatedRequest } from "../../types/AuthenticatedRequest";
+import handleValidationErrors from "../middleware/handleValidationErrors";
 
 const router: Router = express.Router();
 
@@ -17,9 +17,44 @@ const rateLimiter = rateLimit({
 });
 
 /**
- * @route   POST /post
- * @desc    Create a new post
- * @access  Private
+ * @swagger
+ * tags:
+ *   name: Feed
+ *   description: User goal progress feed & social interaction
+ */
+
+/**
+ * @swagger
+ * /api/feed/post:
+ *   post:
+ *     summary: Create a new feed post
+ *     tags: [Feed]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - goalId
+ *               - milestone
+ *             properties:
+ *               goalId:
+ *                 type: string
+ *               milestone:
+ *                 type: string
+ *               message:
+ *                 type: string
+ *                 maxLength: 500
+ *     responses:
+ *       201:
+ *         description: Post created
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Unauthorized
  */
 router.post(
   "/post",
@@ -47,9 +82,18 @@ router.post(
 );
 
 /**
- * @route   GET /
- * @desc    Get all posts (feed)
- * @access  Private
+ * @swagger
+ * /api/feed:
+ *   get:
+ *     summary: Get all feed posts
+ *     tags: [Feed]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Posts retrieved
+ *       401:
+ *         description: Unauthorized
  */
 router.get(
   "/",
@@ -65,9 +109,24 @@ router.get(
 );
 
 /**
- * @route   POST /like/:id
- * @desc    Like a post
- * @access  Private
+ * @swagger
+ * /api/feed/like/{id}:
+ *   post:
+ *     summary: Like a feed post
+ *     tags: [Feed]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Post liked
+ *       404:
+ *         description: Post not found
  */
 router.post(
   "/like/:id",
@@ -83,9 +142,24 @@ router.post(
 );
 
 /**
- * @route   DELETE /unlike/:id
- * @desc    Remove a like from a post
- * @access  Private
+ * @swagger
+ * /api/feed/unlike/{id}:
+ *   delete:
+ *     summary: Unlike a post
+ *     tags: [Feed]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Like removed
+ *       404:
+ *         description: Post not found
  */
 router.delete(
   "/unlike/:id",
@@ -101,9 +175,38 @@ router.delete(
 );
 
 /**
- * @route   POST /comment/:id
- * @desc    Add a comment to a post
- * @access  Private
+ * @swagger
+ * /api/feed/comment/{id}:
+ *   post:
+ *     summary: Add a comment to a post
+ *     tags: [Feed]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - text
+ *             properties:
+ *               text:
+ *                 type: string
+ *                 maxLength: 200
+ *     responses:
+ *       200:
+ *         description: Comment added
+ *       400:
+ *         description: Validation error
+ *       404:
+ *         description: Post not found
  */
 router.post(
   "/comment/:id",
@@ -128,9 +231,29 @@ router.post(
 );
 
 /**
- * @route   DELETE /comment/:postId/:commentId
- * @desc    Remove a comment from a post
- * @access  Private
+ * @swagger
+ * /api/feed/comment/{postId}/{commentId}:
+ *   delete:
+ *     summary: Delete a comment from a post
+ *     tags: [Feed]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: commentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Comment deleted
+ *       404:
+ *         description: Comment not found
  */
 router.delete(
   "/comment/:postId/:commentId",

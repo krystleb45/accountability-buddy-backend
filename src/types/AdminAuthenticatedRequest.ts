@@ -1,12 +1,12 @@
-// types/AdminRequest.ts
+// src/types/AdminAuthenticatedRequest.ts
 import { AuthenticatedRequest } from "./AuthenticatedRequest";
-import { IUser } from "../models/User"; // adjust the path as needed
+import { IUser } from "../api/models/User";
 
-export type AdminRequest<
+export type AdminAuthenticatedRequest<
   P = Record<string, string>,
   ResBody = any,
   ReqBody = any,
   ReqQuery = Record<string, any>
 > = Omit<AuthenticatedRequest<P, ResBody, ReqBody, ReqQuery>, "user"> & {
-  user?: Partial<IUser>;
+  user: IUser;
 };

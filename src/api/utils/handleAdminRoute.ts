@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction, RequestHandler } from "express";
 import { createError } from "../middleware/errorHandler";
-import type { AdminAuthenticatedRequest } from "../types/AdminAuthenticatedRequest";
+import type { AdminAuthenticatedRequest } from "../../types/AdminAuthenticatedRequest";
 
 export function handleAdminRoute<T = any>(
   handler: (

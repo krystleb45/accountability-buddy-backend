@@ -5,7 +5,7 @@ import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
 import { logger } from "../../utils/winstonLogger";
 import Redis from "ioredis";
-import { AuthenticatedRequest } from "../types/AuthenticatedRequest";
+import { AuthenticatedRequest } from "../../types/AuthenticatedRequest";
 import { SortOrder } from "mongoose";
 
 

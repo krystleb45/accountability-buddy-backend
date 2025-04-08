@@ -1,12 +1,11 @@
 import type { Router, Request, Response, NextFunction } from "express";
 import express from "express";
 import { check, query } from "express-validator";
-import Gamification from "../models/Gamification"; // Corrected model import path
-import { protect } from "../middleware/authMiddleware"; // Corrected import to use named export `protect`
+import Gamification from "../models/Gamification";
+import { protect } from "../middleware/authMiddleware";
 import rateLimit from "express-rate-limit";
 import { logger } from "../../utils/winstonLogger";
-import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust the path
-
+import handleValidationErrors from "../middleware/handleValidationErrors";
 
 const router: Router = express.Router();
 
@@ -14,31 +13,49 @@ const router: Router = express.Router();
  * Rate limiter to prevent excessive requests to the leaderboard
  */
 const leaderboardLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 10, // Limit each IP to 10 leaderboard requests per minute
+  windowMs: 60 * 1000,
+  max: 10,
   message: "Too many requests, please try again later",
 });
 
-
-
 /**
- * @route   GET /gamification/leaderboard
- * @desc    Get leaderboard with optional pagination
- * @access  Private
+ * @swagger
+ * /gamification/leaderboard:
+ *   get:
+ *     summary: Get the leaderboard
+ *     tags: [Gamification]
+ *     description: Retrieves a paginated leaderboard sorted by level and points.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *         description: Page number (default is 1)
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *         description: Number of results per page (default is 10)
+ *     responses:
+ *       200:
+ *         description: Leaderboard retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
  */
 router.get(
   "/leaderboard",
   protect,
   leaderboardLimiter,
   [
-    query("page")
-      .optional()
-      .isInt({ min: 1 })
-      .withMessage("Page must be a positive integer"),
-    query("limit")
-      .optional()
-      .isInt({ min: 1, max: 100 })
-      .withMessage("Limit must be between 1 and 100"),
+    query("page").optional().isInt({ min: 1 }).withMessage("Page must be a positive integer"),
+    query("limit").optional().isInt({ min: 1, max: 100 }).withMessage("Limit must be between 1 and 100"),
   ],
   handleValidationErrors,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -47,10 +64,10 @@ router.get(
 
     try {
       const leaderboard = await Gamification.find()
-        .sort({ level: -1, points: -1 }) // Sort by level, then points
+        .sort({ level: -1, points: -1 })
         .skip((page - 1) * limit)
         .limit(limit)
-        .populate("userId", "name email"); // Populate user data
+        .populate("userId", "name email");
 
       const totalUsers = await Gamification.countDocuments();
 
@@ -65,24 +82,53 @@ router.get(
       });
     } catch (error) {
       logger.error(`Error fetching leaderboard: ${(error as Error).message}`, { error });
-      next(error); // Use `next()` for error handling
+      next(error);
     }
-  },
+  }
 );
 
 /**
  * Rate limiter for adding points
  */
 const addPointsLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // Limit each IP to 10 requests per window
+  windowMs: 15 * 60 * 1000,
+  max: 10,
   message: "Too many requests. Please try again later.",
 });
 
 /**
- * @route   POST /gamification/add-points
- * @desc    Add points to a user's gamification profile
- * @access  Private
+ * @swagger
+ * /gamification/add-points:
+ *   post:
+ *     summary: Add points to a user's gamification profile
+ *     tags: [Gamification]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - userId
+ *               - points
+ *             properties:
+ *               userId:
+ *                 type: string
+ *                 example: "60d0fe4f5311236168a109ca"
+ *               points:
+ *                 type: integer
+ *                 example: 100
+ *     responses:
+ *       200:
+ *         description: Points added successfully
+ *       400:
+ *         description: Validation error
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Internal server error
  */
 router.post(
   "/add-points",
@@ -104,10 +150,9 @@ router.post(
           success: false,
           message: "User not found in gamification system",
         });
-        return; // Ensure code path exits here
+        return;
       }
 
-      // Add points and update level
       await userGamification.addPoints(points);
 
       res.status(200).json({
@@ -116,9 +161,9 @@ router.post(
       });
     } catch (error) {
       logger.error(`Error adding points: ${(error as Error).message}`, { error });
-      next(error); // Use `next()` to handle errors properly
+      next(error);
     }
-  },
+  }
 );
 
 export default router;

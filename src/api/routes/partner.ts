@@ -2,10 +2,10 @@ import type { Router, Request, Response, NextFunction } from "express";
 import express from "express";
 import { check } from "express-validator";
 import rateLimit from "express-rate-limit";
-import { protect } from "../middleware/authMiddleware"; // Corrected import to use named export `protect`
+import { protect } from "../middleware/authMiddleware";
 import * as partnerController from "../controllers/partnerController";
-import { logger } from "../../utils/winstonLogger";import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust the path
-
+import { logger } from "../../utils/winstonLogger";
+import handleValidationErrors from "../middleware/handleValidationErrors";
 
 const router: Router = express.Router();
 
@@ -13,8 +13,8 @@ const router: Router = express.Router();
  * Rate Limiter to prevent abuse
  */
 const rateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // Limit to 10 requests per window
+  windowMs: 15 * 60 * 1000,
+  max: 10,
   message: {
     success: false,
     message: "Too many requests. Please try again later.",
@@ -25,9 +25,7 @@ const rateLimiter = rateLimit({
  * Validation for Partner Notifications
  */
 const validatePartnerInput = [
-  check("partnerId", "Partner ID is required and must be a valid Mongo ID")
-    .notEmpty()
-    .isMongoId(),
+  check("partnerId", "Partner ID is required and must be a valid Mongo ID").notEmpty().isMongoId(),
   check("goal", "Goal title is required").notEmpty(),
   check("milestone", "Milestone title is required").notEmpty(),
 ];
@@ -36,20 +34,39 @@ const validatePartnerInput = [
  * Validation for Adding a Partner
  */
 const validateAddPartnerInput = [
-  check("partnerId", "Partner ID is required and must be a valid Mongo ID")
-    .notEmpty()
-    .isMongoId(),
-  check("userId", "User ID is required and must be a valid Mongo ID")
-    .notEmpty()
-    .isMongoId(),
+  check("partnerId", "Partner ID is required and must be a valid Mongo ID").notEmpty().isMongoId(),
+  check("userId", "User ID is required and must be a valid Mongo ID").notEmpty().isMongoId(),
 ];
 
-
-
 /**
- * @route   POST /partner/notify
- * @desc    Notify partner about a goal milestone
- * @access  Private
+ * @swagger
+ * /api/partner/notify:
+ *   post:
+ *     summary: Notify a partner about a goal milestone
+ *     tags: [Partner Support]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [partnerId, goal, milestone]
+ *             properties:
+ *               partnerId:
+ *                 type: string
+ *               goal:
+ *                 type: string
+ *               milestone:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Partner notified successfully
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Unauthorized
  */
 router.post(
   "/notify",
@@ -59,23 +76,42 @@ router.post(
   handleValidationErrors,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      // Call the controller function with req, res, and next
-      await partnerController.notifyPartner(req, res, next); // Pass 3 arguments directly
-
-      // Success response is already handled in the controller
+      await partnerController.notifyPartner(req, res, next);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : "An unknown error occurred";
       logger.error(`Error notifying partner: ${errorMessage}`);
-      next(err); // Forward error to middleware
+      next(err);
     }
   },
 );
 
-
 /**
- * @route   POST /partner/add
- * @desc    Add a partner and send a notification
- * @access  Private
+ * @swagger
+ * /api/partner/add:
+ *   post:
+ *     summary: Add a partner and send a notification
+ *     tags: [Partner Support]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [partnerId, userId]
+ *             properties:
+ *               partnerId:
+ *                 type: string
+ *               userId:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Partner added and notified
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Unauthorized
  */
 router.post(
   "/add",
@@ -85,38 +121,43 @@ router.post(
   handleValidationErrors,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      // Call the controller function with req, res, and next
-      await partnerController.addPartnerNotification(req, res, next); // Pass 3 arguments directly
+      await partnerController.addPartnerNotification(req, res, next);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : "An unknown error occurred";
       logger.error(`Error adding partner: ${errorMessage}`);
-      next(err); // Forward error to middleware
+      next(err);
     }
   },
 );
 
-
 /**
- * @route   GET /partner/notifications
- * @desc    Get partner notifications
- * @access  Private
+ * @swagger
+ * /api/partner/notifications:
+ *   get:
+ *     summary: Get all partner notifications for the authenticated user
+ *     tags: [Partner Support]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of partner notifications
+ *       401:
+ *         description: Unauthorized
  */
 router.get(
   "/notifications",
   protect,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      // Pass req, res, and next to the controller function
-      await partnerController.getPartnerNotifications(req, res, next); // Fixed argument mismatch
+      await partnerController.getPartnerNotifications(req, res, next);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : "An unknown error occurred";
       logger.error(`Error fetching partner notifications: ${errorMessage}`, {
         userId: req.user?.id,
       });
-      next(err); // Forward error to middleware
+      next(err);
     }
   },
 );
-
 
 export default router;

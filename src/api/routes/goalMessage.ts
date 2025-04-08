@@ -1,30 +1,61 @@
+/**
+ * @swagger
+ * tags:
+ *   name: Goal Messages
+ *   description: Endpoints for sending and retrieving messages related to specific goals
+ */
+
 import type { Router, Request, Response, NextFunction } from "express";
 import express from "express";
 import { check } from "express-validator";
-import * as goalMessageController from "../controllers/GoalMessageController"; // Controller import
-import { protect } from "../middleware/authMiddleware"; // Corrected import to use named export `protect`
+import * as goalMessageController from "../controllers/GoalMessageController";
+import { protect } from "../middleware/authMiddleware";
 import rateLimit from "express-rate-limit";
 import { logger } from "../../utils/winstonLogger";
-import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust the path
-
+import handleValidationErrors from "../middleware/handleValidationErrors";
 
 const router: Router = express.Router();
 
-/**
- * Rate limiter to prevent excessive message sending.
- */
 const messageLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute window
-  max: 30, // Limit to 30 messages per minute per user
+  windowMs: 60 * 1000,
+  max: 30,
   message: "Too many messages sent, please try again later.",
 });
 
-
-
 /**
- * @route   POST /goal-message/:goalId/send
- * @desc    Send a message related to a specific goal
- * @access  Private
+ * @swagger
+ * /goal-message/{goalId}/send:
+ *   post:
+ *     summary: Send a message related to a specific goal
+ *     tags: [Goal Messages]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: goalId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: MongoDB ID of the goal
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - message
+ *             properties:
+ *               message:
+ *                 type: string
+ *                 maxLength: 500
+ *     responses:
+ *       201:
+ *         description: Message sent successfully
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
  */
 router.post(
   "/:goalId/send",
@@ -40,60 +71,75 @@ router.post(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const { goalId } = req.params;
 
-    // Validate goalId format
     if (!goalId.match(/^[0-9a-fA-F]{24}$/)) {
       res.status(400).json({ success: false, msg: "Invalid goal ID" });
       return;
     }
 
     try {
-      await goalMessageController.sendGoalMessage(req as any, res, next); // Added next
-      res.status(201).json({ success: true, msg: "Message sent successfully." }); // Response message
+      await goalMessageController.sendGoalMessage(req as any, res, next);
+      res.status(201).json({ success: true, msg: "Message sent successfully." });
     } catch (error) {
       logger.error(`Error sending goal message: ${(error as Error).message}`, {
         error,
         goalId,
         userId: req.user?.id,
       });
-      next(error); // Forward the error to middleware
+      next(error);
     }
   },
 );
 
 /**
- * @route   GET /goal-message/:goalId/messages
- * @desc    Retrieve all messages related to a specific goal
- * @access  Private
+ * @swagger
+ * /goal-message/{goalId}/messages:
+ *   get:
+ *     summary: Retrieve all messages related to a specific goal
+ *     tags: [Goal Messages]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: goalId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: MongoDB ID of the goal
+ *     responses:
+ *       200:
+ *         description: List of messages
+ *       400:
+ *         description: Invalid goal ID
+ *       401:
+ *         description: Unauthorized
  */
 router.get(
   "/:goalId/messages",
   protect,
   async (
-    req: Request<{ goalId: string }>, // Explicitly define the 'goalId' parameter
+    req: Request<{ goalId: string }>,
     res: Response,
     next: NextFunction,
   ): Promise<void> => {
     const { goalId } = req.params;
 
-    // Validate goalId format
     if (!goalId.match(/^[0-9a-fA-F]{24}$/)) {
       res.status(400).json({ success: false, msg: "Invalid goal ID" });
-      return; // Ensure early exit
+      return;
     }
 
     try {
-      const messages = await goalMessageController.getGoalMessages(req as any, res, next); // Pass 'next'
-      res.status(200).json({ success: true, data: messages }); // Return fetched messages
+      const messages = await goalMessageController.getGoalMessages(req as any, res, next);
+      res.status(200).json({ success: true, data: messages });
     } catch (error) {
       logger.error(`Error fetching goal messages: ${(error as Error).message}`, {
         error,
         goalId,
         userId: req.user?.id,
       });
-      next(error); // Forward the error to middleware
+      next(error);
     }
   },
 );
-
 
 export default router;

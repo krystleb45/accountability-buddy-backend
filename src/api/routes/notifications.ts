@@ -2,9 +2,9 @@ import type { Router } from "express";
 import express from "express";
 import { check } from "express-validator";
 import rateLimit from "express-rate-limit";
-import { protect } from "../middleware/authMiddleware"; // Corrected import to use named export `protect`
+import { protect } from "../middleware/authMiddleware"; // Corrected import
 import * as NotificationController from "../controllers/NotificationController";
-import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust the path
+import handleValidationErrors from "../middleware/handleValidationErrors";
 
 const router: Router = express.Router();
 
@@ -23,9 +23,39 @@ const notificationLimiter = rateLimit({
 });
 
 /**
- * @route   POST /api/notifications
- * @desc    Send a notification
- * @access  Private
+ * @swagger
+ * /api/notifications:
+ *   post:
+ *     summary: Send a notification
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - receiverId
+ *               - message
+ *               - type
+ *             properties:
+ *               receiverId:
+ *                 type: string
+ *                 description: MongoDB ObjectId of the receiver
+ *               message:
+ *                 type: string
+ *               type:
+ *                 type: string
+ *                 enum: [friend_request, message, group_invite, blog_activity, goal_milestone]
+ *     responses:
+ *       200:
+ *         description: Notification sent successfully
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Unauthorized
  */
 router.post(
   "/",
@@ -47,16 +77,49 @@ router.post(
 );
 
 /**
- * @route   GET /api/notifications
- * @desc    Get notifications for the authenticated user
- * @access  Private
+ * @swagger
+ * /api/notifications:
+ *   get:
+ *     summary: Get all notifications for the authenticated user
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of notifications
+ *       401:
+ *         description: Unauthorized
  */
 router.get("/", protect, NotificationController.getNotifications);
 
 /**
- * @route   PATCH /api/notifications/read
- * @desc    Mark notifications as read
- * @access  Private
+ * @swagger
+ * /api/notifications/read:
+ *   patch:
+ *     summary: Mark notifications as read
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - notificationIds
+ *             properties:
+ *               notificationIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: Notifications marked as read
+ *       400:
+ *         description: Invalid payload
+ *       401:
+ *         description: Unauthorized
  */
 router.patch(
   "/read",
@@ -67,9 +130,27 @@ router.patch(
 );
 
 /**
- * @route   DELETE /api/notifications/:notificationId
- * @desc    Delete a specific notification
- * @access  Private
+ * @swagger
+ * /api/notifications/{notificationId}:
+ *   delete:
+ *     summary: Delete a specific notification
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: notificationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID of the notification to delete
+ *     responses:
+ *       200:
+ *         description: Notification deleted
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Notification not found
  */
 router.delete("/:notificationId", protect, NotificationController.deleteNotification);
 

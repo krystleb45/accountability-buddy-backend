@@ -3,25 +3,19 @@ import express from "express";
 import { check } from "express-validator";
 import sanitize from "mongo-sanitize";
 import rateLimit from "express-rate-limit";
-import { protect } from "../middleware/authMiddleware"; // Corrected import to use named export `protect`
-import * as sessionController from "../controllers/SessionController"; // Ensure named import for controller methods
-import { logger } from "../../utils/winstonLogger";import handleValidationErrors from "../middleware/handleValidationErrors"; // Adjust the path
-
+import { protect } from "../middleware/authMiddleware";
+import * as sessionController from "../controllers/SessionController";
+import { logger } from "../../utils/winstonLogger";
+import handleValidationErrors from "../middleware/handleValidationErrors";
 
 const router: Router = express.Router();
 
-/**
- * Rate limiter to prevent abuse of session-related actions.
- */
 const sessionLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20, // Limit each IP to 20 session-related requests per window
+  windowMs: 15 * 60 * 1000,
+  max: 20,
   message: "Too many session requests from this IP, please try again later.",
 });
 
-/**
- * Middleware to sanitize user input.
- */
 const sanitizeInput = (req: Request, _res: Response, next: NextFunction): void => {
   try {
     req.query = sanitize(req.query);
@@ -33,12 +27,29 @@ const sanitizeInput = (req: Request, _res: Response, next: NextFunction): void =
   }
 };
 
-
-
 /**
- * @route   POST /session/login
- * @desc    Log in a user and create a session
- * @access  Public
+ * @swagger
+ * /api/session/login:
+ *   post:
+ *     summary: Log in a user and create a session
+ *     tags: [Session]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Successful login and session creation
  */
 router.post(
   "/login",
@@ -50,139 +61,135 @@ router.post(
   sanitizeInput,
   handleValidationErrors,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    const { email, password } = req.body;
-
     try {
+      const { email, password } = req.body;
       await sessionController.login(email, password, req, res);
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "Unexpected error occurred";
-      logger.error(`Error during login: ${errorMessage}`);
-      next(error); // Pass error to middleware
-    }
-  },
-);
-
-/**
- * @route   POST /session/logout
- * @desc    Log out the user and end the session
- * @access  Private
- */
-router.post(
-  "/logout",
-  protect,
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      await sessionController.logout(req, res);
-      res.json({ success: true, msg: "Logged out successfully" });
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "Unexpected error occurred";
-      logger.error(`Error during logout: ${errorMessage}`);
+    } catch (error) {
+      logger.error(`Error during login: ${(error as Error).message}`);
       next(error);
     }
   },
 );
 
 /**
- * @route   POST /session/refresh
- * @desc    Refresh the session to extend its expiration
- * @access  Private
+ * @swagger
+ * /api/session/logout:
+ *   post:
+ *     summary: Log out the user and end the session
+ *     tags: [Session]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Logged out successfully
  */
-router.post(
-  "/refresh",
-  protect,
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      await sessionController.refreshSession(req, res);
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "Unexpected error occurred";
-      logger.error(`Error refreshing session: ${errorMessage}`);
-      next(error);
-    }
-  },
-);
+router.post("/logout", protect, async (req, res, next) => {
+  try {
+    await sessionController.logout(req, res);
+    res.json({ success: true, msg: "Logged out successfully" });
+  } catch (error) {
+    logger.error(`Error during logout: ${(error as Error).message}`);
+    next(error);
+  }
+});
 
 /**
- * @route   GET /session
- * @desc    Get current user's active sessions
- * @access  Private
+ * @swagger
+ * /api/session/refresh:
+ *   post:
+ *     summary: Refresh session expiration
+ *     tags: [Session]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Session refreshed successfully
  */
-router.get(
-  "/",
-  protect,
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const userId = req.user?.id as string; // Explicitly cast user ID to string
-
-      // Fetch all sessions for the current user
-      const sessions = await sessionController.getUserSessions(userId); // New controller method
-      res.status(200).json({ success: true, sessions });
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unexpected error occurred";
-      logger.error(`Error fetching user sessions: ${errorMessage}`);
-      next(error);
-    }
-  },
-);
+router.post("/refresh", protect, async (req, res, next) => {
+  try {
+    await sessionController.refreshSession(req, res);
+  } catch (error) {
+    logger.error(`Error refreshing session: ${(error as Error).message}`);
+    next(error);
+  }
+});
 
 /**
- * @route   DELETE /session/:sessionId
- * @desc    Delete a specific session by session ID
- * @access  Private
+ * @swagger
+ * /api/session:
+ *   get:
+ *     summary: Get current user's active sessions
+ *     tags: [Session]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of active sessions
  */
-router.delete(
-  "/:sessionId",
-  protect,
-  async (
-    req: Request<{ sessionId: string }>, // Explicitly define sessionId as string
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> => {
-    const { sessionId } = req.params; // Extract sessionId
-    const userId = req.user?.id as string; // Explicitly cast user ID to string
-
-    try {
-      // Call the controller method with explicit parameters
-      await sessionController.deleteSession(sessionId, userId);
-      res.json({ success: true, msg: "Session ended successfully" });
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unexpected error occurred";
-      logger.error(`Error ending session: ${errorMessage}`);
-      next(error); // Pass error to middleware
-    }
-  },
-);
-
-
+router.get("/", protect, async (req, res, next) => {
+  try {
+    const userId = req.user?.id as string;
+    const sessions = await sessionController.getUserSessions(userId);
+    res.status(200).json({ success: true, sessions });
+  } catch (error) {
+    logger.error(`Error fetching user sessions: ${(error as Error).message}`);
+    next(error);
+  }
+});
 
 /**
- * @route   DELETE /session/all
- * @desc    Delete all user sessions except the current one
- * @access  Private
+ * @swagger
+ * /api/session/{sessionId}:
+ *   delete:
+ *     summary: Delete a specific session by ID
+ *     tags: [Session]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: sessionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID of the session to delete
+ *     responses:
+ *       200:
+ *         description: Session ended successfully
  */
-router.delete(
-  "/all",
-  protect,
-  async (
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> => {
-    try {
-      const userId = req.user?.id as string; // Explicitly cast user ID to string
-      const sessionId = req.session.id as string; // Explicitly cast session ID to string
+router.delete("/:sessionId", protect, async (req, res, next) => {
+  try {
+    const sessionId = req.params.sessionId;
+    const userId = req.user?.id as string;
+    await sessionController.deleteSession(sessionId, userId);
+    res.json({ success: true, msg: "Session ended successfully" });
+  } catch (error) {
+    logger.error(`Error ending session: ${(error as Error).message}`);
+    next(error);
+  }
+});
 
-      await sessionController.deleteAllSessions(userId, sessionId); // Pass IDs
-      res.json({ success: true, msg: "All other sessions ended successfully" });
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unexpected error occurred";
-      logger.error(`Error ending all sessions: ${errorMessage}`);
-      next(error);
-    }
-  },
-);
-
+/**
+ * @swagger
+ * /api/session/all:
+ *   delete:
+ *     summary: Delete all sessions except the current one
+ *     tags: [Session]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: All other sessions ended successfully
+ */
+router.delete("/all", protect, async (req, res, next) => {
+  try {
+    const userId = req.user?.id as string;
+    const sessionId = req.session.id as string;
+    await sessionController.deleteAllSessions(userId, sessionId);
+    res.json({ success: true, msg: "All other sessions ended successfully" });
+  } catch (error) {
+    logger.error(`Error ending all sessions: ${(error as Error).message}`);
+    next(error);
+  }
+});
 
 export default router;

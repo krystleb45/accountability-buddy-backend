@@ -174,8 +174,6 @@ const UserSchema: Schema<IUser> = new Schema(
 );
 
 // Indexes
-UserSchema.index({ email: 1 });
-UserSchema.index({ username: 1 });
 UserSchema.index({ interests: 1 });
 UserSchema.index({ activeStatus: 1 });
 

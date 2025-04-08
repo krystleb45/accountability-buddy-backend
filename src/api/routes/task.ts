@@ -1,9 +1,10 @@
 import type { Router, Request, Response, NextFunction } from "express";
 import express from "express";
 import { check, validationResult } from "express-validator";
-import { protect } from "../middleware/authMiddleware"; // Corrected import to use named export `protect`
 import sanitize from "mongo-sanitize";
-import { logger } from "../../utils/winstonLogger";import {
+import { protect } from "../middleware/authMiddleware";
+import { logger } from "../../utils/winstonLogger";
+import {
   createTask,
   updateTask,
   deleteTask,
@@ -11,27 +12,53 @@ import { logger } from "../../utils/winstonLogger";import {
   getAllTasks,
 } from "../controllers/TaskController";
 
-
 const router: Router = express.Router();
 
 /**
- * Error handler for unexpected errors.
+ * @swagger
+ * tags:
+ *   name: Tasks
+ *   description: Task management endpoints (CRUD)
+ */
+
+/**
+ * Error handler
  */
 const handleError = (
   error: unknown,
   res: Response,
   defaultMessage: string,
 ): void => {
-  const errorMessage =
-    error instanceof Error ? error.message : "Unexpected error occurred.";
+  const errorMessage = error instanceof Error ? error.message : "Unexpected error occurred.";
   logger.error(`${defaultMessage}: ${errorMessage}`);
   res.status(500).json({ success: false, msg: defaultMessage, error: errorMessage });
 };
 
 /**
- * @route   POST /tasks
- * @desc    Create a new task
- * @access  Private
+ * @swagger
+ * /tasks:
+ *   post:
+ *     summary: Create a new task
+ *     tags: [Tasks]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               dueDate:
+ *                 type: string
+ *                 format: date
+ *     responses:
+ *       201:
+ *         description: Task created successfully
+ *       400:
+ *         description: Validation error
  */
 router.post(
   "/",
@@ -53,7 +80,7 @@ router.post(
 
     try {
       const sanitizedBody = sanitize(req.body);
-      const newTask = await createTask(req.user?.id as string, sanitizedBody); // Fixed call
+      const newTask = await createTask(req.user?.id as string, sanitizedBody);
       res.status(201).json({ success: true, data: newTask });
     } catch (error) {
       handleError(error, res, "Error creating task");
@@ -62,56 +89,89 @@ router.post(
   },
 );
 
-
 /**
- * @route   GET /tasks
- * @desc    Get all tasks for the user
- * @access  Private
+ * @swagger
+ * /tasks:
+ *   get:
+ *     summary: Get all tasks for the authenticated user
+ *     tags: [Tasks]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of user tasks
  */
-router.get(
-  "/",
-  protect,
-  async (
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> => {
-    try {
-      await getAllTasks(req, res, next); // Pass all required arguments
-    } catch (error) {
-      handleError(error, res, "Error fetching tasks");
-    }
-  },
-);
-
+router.get("/", protect, async (req, res, next) => {
+  try {
+    await getAllTasks(req, res, next);
+  } catch (error) {
+    handleError(error, res, "Error fetching tasks");
+  }
+});
 
 /**
- * @route   GET /tasks/:id
- * @desc    Get a task by ID
- * @access  Private
+ * @swagger
+ * /tasks/{id}:
+ *   get:
+ *     summary: Get a specific task by ID
+ *     tags: [Tasks]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Task ID
+ *     responses:
+ *       200:
+ *         description: Task retrieved
+ *       404:
+ *         description: Task not found
  */
-router.get(
-  "/:id",
-  protect,
-  async (
-    req: Request<{ id: string }>, // Explicitly define ID param type
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> => {
-    try {
-      await getTaskById(req, res, next); // Pass all required arguments
-    } catch (error) {
-      handleError(error, res, "Error fetching task");
-      next(error);
-    }
-  },
-);
+router.get("/:id", protect, async (req, res, next) => {
+  try {
+    await getTaskById(req as Request<{ id: string }>, res, next);
 
+  } catch (error) {
+    handleError(error, res, "Error fetching task");
+    next(error);
+  }
+});
 
 /**
- * @route   PUT /tasks/:id
- * @desc    Update a task by ID
- * @access  Private
+ * @swagger
+ * /tasks/{id}:
+ *   put:
+ *     summary: Update a task by ID
+ *     tags: [Tasks]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Task ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               dueDate:
+ *                 type: string
+ *                 format: date
+ *     responses:
+ *       200:
+ *         description: Task updated successfully
+ *       400:
+ *         description: Validation error
  */
 router.put(
   "/:id",
@@ -132,37 +192,43 @@ router.put(
     }
 
     try {
-      // Pass the request, response, and next function directly
       await updateTask(req, res, next);
     } catch (error) {
       handleError(error, res, "Error updating task");
-      next(error); // Pass error to middleware
+      next(error);
     }
   },
 );
 
 /**
- * @route   DELETE /tasks/:id
- * @desc    Delete a task by ID
- * @access  Private
+ * @swagger
+ * /tasks/{id}:
+ *   delete:
+ *     summary: Delete a task by ID
+ *     tags: [Tasks]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Task ID
+ *     responses:
+ *       200:
+ *         description: Task deleted successfully
+ *       404:
+ *         description: Task not found
  */
-router.delete(
-  "/:id",
-  protect,
-  async (
-    req: Request<{ id: string }>, // Explicitly define ID param type
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> => {
-    try {
-      // Pass req, res, and next to the controller
-      await deleteTask(req, res, next);
-    } catch (error) {
-      handleError(error, res, "Error deleting task");
-      next(error); // Pass error to middleware
-    }
-  },
-);
+router.delete("/:id", protect, async (req, res, next) => {
+  try {
+    await deleteTask(req as Request<{ id: string }>, res, next);
 
+  } catch (error) {
+    handleError(error, res, "Error deleting task");
+    next(error);
+  }
+});
 
 export default router;

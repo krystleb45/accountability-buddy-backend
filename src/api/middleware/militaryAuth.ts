@@ -1,6 +1,6 @@
 import type { Response, NextFunction } from "express";
 import MilitaryUser from "../models/MilitarySupport";
-import { logger } from "../../utils/winstonLogger";import type { MilitaryRequest, IMilitaryUser } from "../types/CustomRequest"; // Import the required types
+import { logger } from "../../utils/winstonLogger";import type { MilitaryRequest, IMilitaryUser } from "../../types/CustomRequest"; // Import the required types
 
 /**
  * Middleware for verifying military user authentication and access.

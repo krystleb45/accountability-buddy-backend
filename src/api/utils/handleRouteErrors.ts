@@ -1,6 +1,6 @@
 // src/utils/handleRouteErrors.ts
 import type { Request, Response, NextFunction, RequestHandler } from "express";
-import type { AdminAuthenticatedRequest } from "../types/AdminAuthenticatedRequest";
+import type { AdminAuthenticatedRequest } from "../../types/AdminAuthenticatedRequest";
 // Removed: import { createError } from "../middleware/errorHandler";
 
 /**

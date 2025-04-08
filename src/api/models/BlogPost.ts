@@ -18,7 +18,7 @@ export interface IBlogPost extends Document {
   imageUrl?: string;
   author: mongoose.Types.ObjectId;
   likes: mongoose.Types.ObjectId[];
-  comments: IComment[];  // Using the IComment interface here
+  comments: IComment[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -51,7 +51,7 @@ const BlogPostSchema = new Schema<IBlogPost>(
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      index: true, // Optimize query performance
+      index: true, // ✅ Already indexed — no need to re-index manually
     },
     likes: [
       {
@@ -69,7 +69,7 @@ const BlogPostSchema = new Schema<IBlogPost>(
     ],
   },
   {
-    timestamps: true, // Automatically creates `createdAt` and `updatedAt`
+    timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
   }
@@ -84,10 +84,9 @@ BlogPostSchema.virtual("commentCount").get(function () {
   return this.comments.length;
 });
 
-// ✅ Indexing for faster retrieval
+// ✅ Indexing (without duplicate for `author`)
 BlogPostSchema.index({ title: 1, category: 1, createdAt: -1 });
-BlogPostSchema.index({ author: 1 }); // Optimized lookup for user blogs
-BlogPostSchema.index({ createdAt: -1 }); // Speed up latest blogs queries
+BlogPostSchema.index({ createdAt: -1 });
 
 // ✅ Middleware to sanitize input before saving
 BlogPostSchema.pre<IBlogPost>("save", function (next) {
@@ -99,5 +98,4 @@ BlogPostSchema.pre<IBlogPost>("save", function (next) {
 
 // Export the BlogPost model
 const BlogPost: Model<IBlogPost> = mongoose.model<IBlogPost>("BlogPost", BlogPostSchema);
-
 export default BlogPost;

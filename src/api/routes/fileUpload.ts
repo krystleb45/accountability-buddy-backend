@@ -2,18 +2,19 @@ import type { Router, Request, Response, NextFunction } from "express";
 import express from "express";
 import type { FileFilterCallback } from "multer";
 import multer from "multer";
-import * as fileUploadController from "../controllers/FileUploadController"; // Corrected controller import path
-import { protect } from "../middleware/authMiddleware"; // Corrected import to use named export `protect`
+import * as fileUploadController from "../controllers/FileUploadController";
+import { protect } from "../middleware/authMiddleware";
 import rateLimit from "express-rate-limit";
 import { logger } from "../../utils/winstonLogger";
+
 const router: Router = express.Router();
 
 /**
  * Rate limiter to prevent excessive file uploads.
  */
 const uploadLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // Limit each IP to 5 uploads per window
+  windowMs: 15 * 60 * 1000,
+  max: 5,
   message: "Too many uploads, please try again later",
 });
 
@@ -21,14 +22,9 @@ const uploadLimiter = rateLimit({
  * Multer configuration for file uploads.
  */
 const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, "uploads/"); // Set the directory for uploads (ensure this directory exists)
-  },
-  filename: (_req, file, cb) => {
-    cb(null, `${Date.now()}-${file.originalname}`); // Set unique filenames
-  },
+  destination: (_req, _file, cb) => cb(null, "uploads/"),
+  filename: (_req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`),
 });
-
 
 /**
  * File filter for allowed types.
@@ -44,14 +40,33 @@ const fileFilter = (_req: Request, file: Express.Multer.File, cb: FileFilterCall
 
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // Limit file size to 5MB
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter,
 });
 
 /**
- * @route   POST /file/upload
- * @desc    Upload a file
- * @access  Private
+ * @swagger
+ * /file/upload:
+ *   post:
+ *     summary: Upload a file
+ *     tags: [Files]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       201:
+ *         description: File uploaded successfully
+ *       400:
+ *         description: No file uploaded or validation error
  */
 router.post(
   "/upload",
@@ -61,24 +76,39 @@ router.post(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     if (!req.file) {
       res.status(400).json({ success: false, msg: "No file uploaded" });
-      return Promise.resolve(); // Ensures the function returns Promise<void>
-    }    
-
+      return Promise.resolve();
+    }
     try {
-      await fileUploadController.saveFileMetadata(req, res, next); // Process file
+      await fileUploadController.saveFileMetadata(req, res, next);
     } catch (error) {
       logger.error(`Error uploading file: ${(error as Error).message}`, { error });
-      next(error); // Pass error to error-handling middleware
+      next(error);
     }
   },
 );
 
-
-
 /**
- * @route   GET /file/download/:fileId
- * @desc    Download a file by ID
- * @access  Private
+ * @swagger
+ * /file/download/{fileId}:
+ *   get:
+ *     summary: Download a file by ID
+ *     tags: [Files]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: fileId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: MongoDB file ID
+ *     responses:
+ *       200:
+ *         description: File downloaded successfully
+ *       400:
+ *         description: Invalid file ID
+ *       404:
+ *         description: File not found
  */
 router.get(
   "/download/:fileId",
@@ -86,28 +116,41 @@ router.get(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { fileId } = req.params;
-
-      // Validate file ID format
       if (!fileId.match(/^[0-9a-fA-F]{24}$/)) {
-        logger.warn(`Invalid file ID: ${fileId}`);
         const error = new Error("Invalid file ID");
-        (error as any).status = 400; // Attach status code
-        throw error; // Forward error to middleware
+        (error as any).status = 400;
+        throw error;
       }
-
-      // Call controller to handle download
       await fileUploadController.downloadFile(req, res, next);
     } catch (error) {
       logger.error(`Error downloading file: ${(error as Error).message}`, { error });
-      next(error); // Forward error to middleware
+      next(error);
     }
   },
 );
 
 /**
- * @route   DELETE /file/delete/:fileId
- * @desc    Delete a file by ID
- * @access  Private
+ * @swagger
+ * /file/delete/{fileId}:
+ *   delete:
+ *     summary: Delete a file by ID
+ *     tags: [Files]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: fileId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: MongoDB file ID
+ *     responses:
+ *       200:
+ *         description: File deleted successfully
+ *       400:
+ *         description: Invalid file ID
+ *       404:
+ *         description: File not found
  */
 router.delete(
   "/delete/:fileId",
@@ -115,26 +158,18 @@ router.delete(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { fileId } = req.params;
-
-      // Validate file ID format
       if (!fileId.match(/^[0-9a-fA-F]{24}$/)) {
-        logger.warn(`Invalid file ID: ${fileId}`);
         const error = new Error("Invalid file ID");
-        (error as any).status = 400; // Attach status code
-        throw error; // Forward error to middleware
+        (error as any).status = 400;
+        throw error;
       }
-
-      // Call controller to handle file deletion
       await fileUploadController.deleteFile(req, res, next);
-
-      // Success response
       res.status(200).json({ success: true, msg: "File deleted successfully" });
     } catch (error) {
       logger.error(`Error deleting file: ${(error as Error).message}`, { error });
-      next(error); // Forward error to middleware
+      next(error);
     }
   },
 );
-
 
 export default router;

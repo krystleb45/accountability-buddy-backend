@@ -2,7 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
 import { createError } from "../middleware/errorHandler";
-import type { AuthenticatedRequest, AnalyticsRequestBody } from "../types/AuthenticatedRequest";
+import type { AuthenticatedRequest, AnalyticsRequestBody } from "../../types/AuthenticatedRequest";
 
 /**
  * Fetch user-specific analytics

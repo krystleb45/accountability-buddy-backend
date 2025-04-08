@@ -1,34 +1,29 @@
-import type { Response, NextFunction, Router, Request, RequestHandler } from "express";
+import type { Response, NextFunction, Router, RequestHandler, Request } from "express";
 import express from "express";
 import { check, validationResult } from "express-validator";
 import AuditLog from "../models/AuditLog";
-import { protect } from "../middleware/authMiddleware"; // Use named export `protect`
+import { protect } from "../middleware/authMiddleware";
 import { roleBasedAccessControl } from "../middleware/roleBasedAccessControl";
 import { logger } from "../../utils/winstonLogger";
-import type { IUser } from "../models/User"; // Import unified IUser
-
-// Define a local AuthenticatedRequest type that matches what the protect middleware attaches.
-type AuthenticatedRequest = Request & {
-  user?: Pick<
-    IUser,
-    "id" | "email" | "role" | "isAdmin" | "trial_start_date" | "subscription_status" | "next_billing_date"
-  > & { permissions?: string[] };
-};
+import type { IUser } from "../models/User";
 
 const router: Router = express.Router();
+
+type AuthenticatedRequest = Request & {
+  user?: Pick<IUser, "id" | "email" | "role" | "isAdmin" | "trial_start_date" | "subscription_status" | "next_billing_date"> & {
+    permissions?: string[];
+  };
+};
 
 const isAdmin = roleBasedAccessControl(["admin"]);
 const isAdminOrAuditor = roleBasedAccessControl(["admin", "auditor"]);
 
-/**
- * Utility function to handle errors in routes
- */
 const handleRouteErrors = (
   handler: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>
 ): RequestHandler => {
-  return async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+  return async (req, res, next) => {
     try {
-      await handler(req, res, next);
+      await handler(req as AuthenticatedRequest, res, next);
     } catch (error) {
       logger.error(`❌ Error occurred: ${(error as Error).message}`);
       next(error);
@@ -37,9 +32,25 @@ const handleRouteErrors = (
 };
 
 /**
- * @route   GET /api/audit/logs
- * @desc    Get all audit logs (Admin or Auditor only)
- * @access  Private
+ * @swagger
+ * tags:
+ *   name: Audit Logs
+ *   description: Admin and Auditor access to system activity logs
+ */
+
+/**
+ * @swagger
+ * /api/audit/logs:
+ *   get:
+ *     summary: Get all audit logs
+ *     tags: [Audit Logs]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of all audit logs
+ *       404:
+ *         description: No audit logs found
  */
 router.get(
   "/logs",
@@ -58,9 +69,25 @@ router.get(
 );
 
 /**
- * @route   GET /api/audit/logs/:userId
- * @desc    Get audit logs for a specific user (Admin or Auditor only)
- * @access  Private
+ * @swagger
+ * /api/audit/logs/{userId}:
+ *   get:
+ *     summary: Get audit logs for a specific user
+ *     tags: [Audit Logs]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: MongoDB ID of the user
+ *     responses:
+ *       200:
+ *         description: Logs retrieved for specified user
+ *       404:
+ *         description: No logs found for this user
  */
 router.get(
   "/logs/:userId",
@@ -87,9 +114,25 @@ router.get(
 );
 
 /**
- * @route   DELETE /api/audit/logs/:logId
- * @desc    Delete a specific audit log entry (Admin only)
- * @access  Private
+ * @swagger
+ * /api/audit/logs/{logId}:
+ *   delete:
+ *     summary: Delete an audit log
+ *     tags: [Audit Logs]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: logId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: MongoDB ID of the log
+ *     responses:
+ *       200:
+ *         description: Log deleted successfully
+ *       404:
+ *         description: Log not found
  */
 router.delete(
   "/logs/:logId",

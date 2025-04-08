@@ -2,44 +2,63 @@ import type { Request, Response, Router } from "express";
 import express from "express";
 import { check, validationResult } from "express-validator";
 import rateLimit from "express-rate-limit";
-import mongoose from "mongoose"; // For ObjectId validation
+import mongoose from "mongoose";
 import CollaborationGoal from "../models/CollaborationGoal";
-import { protect } from "../middleware/authMiddleware"; // Corrected import to use named export `protect`
+import { protect } from "../middleware/authMiddleware";
 import catchAsync from "../utils/catchAsync";
 
 const router: Router = express.Router();
 
-// Utility to validate MongoDB ObjectID
-const isValidObjectId = (id: string): boolean =>
-  mongoose.Types.ObjectId.isValid(id);
+const isValidObjectId = (id: string): boolean => mongoose.Types.ObjectId.isValid(id);
 
-// Middleware for validating goal creation inputs
 const validateGoalCreation = [
   check("goalTitle", "Goal title is required").notEmpty(),
   check("description", "Description is required").notEmpty(),
   check("participants", "Participants must be an array").isArray(),
-  check(
-    "target",
-    "Target is required and must be a number greater than 0",
-  ).isInt({ min: 1 }),
+  check("target", "Target is required and must be a number greater than 0").isInt({ min: 1 }),
 ];
 
-// Middleware for progress update validation
 const validateProgressUpdate = [
   check("progress", "Progress must be a number").isInt({ min: 0 }),
 ];
 
-// Rate limiter to prevent abuse
 const rateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // Limit each IP to 10 requests per window
+  windowMs: 15 * 60 * 1000,
+  max: 10,
   message: "Too many requests. Please try again later.",
 });
 
 /**
- * @route   POST /create
- * @desc    Create a new collaboration goal
- * @access  Private
+ * @swagger
+ * /api/collaboration/create:
+ *   post:
+ *     summary: Create a new collaboration goal
+ *     tags: [Collaboration]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [goalTitle, description, participants, target]
+ *             properties:
+ *               goalTitle:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               participants:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               target:
+ *                 type: integer
+ *     responses:
+ *       201:
+ *         description: Goal created
+ *       400:
+ *         description: Validation failed
  */
 router.post(
   "/create",
@@ -54,9 +73,8 @@ router.post(
     }
 
     const { goalTitle, description, participants, target } = req.body;
-
-    // Validate user authentication
     const userId = req.user?.id;
+
     if (!userId) {
       res.status(401).json({ success: false, message: "Unauthorized" });
       return;
@@ -65,7 +83,7 @@ router.post(
     const newGoal = new CollaborationGoal({
       goalTitle,
       description,
-      createdBy: new mongoose.Types.ObjectId(userId), // Explicitly set ObjectId
+      createdBy: new mongoose.Types.ObjectId(userId),
       participants: [
         new mongoose.Types.ObjectId(userId),
         ...participants.map((p: string) => new mongoose.Types.ObjectId(p)),
@@ -75,13 +93,39 @@ router.post(
 
     await newGoal.save();
     res.status(201).json({ success: true, goal: newGoal });
-  }),
+  })
 );
 
 /**
- * @route   PUT /:id/update-progress
- * @desc    Update progress on a collaboration goal
- * @access  Private
+ * @swagger
+ * /api/collaboration/{id}/update-progress:
+ *   put:
+ *     summary: Update progress on a collaboration goal
+ *     tags: [Collaboration]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Goal ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [progress]
+ *             properties:
+ *               progress:
+ *                 type: integer
+ *     responses:
+ *       200:
+ *         description: Progress updated
+ *       403:
+ *         description: Unauthorized
  */
 router.put(
   "/:id/update-progress",
@@ -97,9 +141,8 @@ router.put(
 
     const { id } = req.params;
     const { progress } = req.body;
-
-    // Validate user authentication
     const userId = req.user?.id;
+
     if (!userId) {
       res.status(401).json({ success: false, message: "Unauthorized" });
       return;
@@ -111,22 +154,16 @@ router.put(
     }
 
     const goal = await CollaborationGoal.findById(id);
-
     if (!goal) {
       res.status(404).json({ success: false, message: "Goal not found" });
       return;
     }
 
-    // Ensure only participants or the creator can update progress
     if (
-      !goal.participants.some((p) =>
-        p.equals(new mongoose.Types.ObjectId(userId)),
-      ) &&
+      !goal.participants.some((p) => p.equals(new mongoose.Types.ObjectId(userId))) &&
       !goal.createdBy.equals(new mongoose.Types.ObjectId(userId))
     ) {
-      res
-        .status(403)
-        .json({ success: false, message: "Not authorized to update this goal" });
+      res.status(403).json({ success: false, message: "Not authorized to update this goal" });
       return;
     }
 
@@ -134,13 +171,22 @@ router.put(
     await goal.save();
 
     res.status(200).json({ success: true, goal });
-  }),
+  })
 );
 
 /**
- * @route   GET /my-goals
- * @desc    Fetch all collaboration goals for the authenticated user
- * @access  Private
+ * @swagger
+ * /api/collaboration/my-goals:
+ *   get:
+ *     summary: Get all collaboration goals for the logged-in user
+ *     tags: [Collaboration]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of collaboration goals
+ *       404:
+ *         description: No goals found
  */
 router.get(
   "/my-goals",
@@ -148,7 +194,6 @@ router.get(
   protect,
   catchAsync(async (req: Request, res: Response): Promise<void> => {
     const userId = req.user?.id;
-
     if (!userId) {
       res.status(401).json({ success: false, message: "Unauthorized" });
       return;
@@ -167,13 +212,28 @@ router.get(
     }
 
     res.status(200).json({ success: true, goals });
-  }),
+  })
 );
 
 /**
- * @route   GET /:id
- * @desc    Fetch a specific collaboration goal by ID
- * @access  Private
+ * @swagger
+ * /api/collaboration/{id}:
+ *   get:
+ *     summary: Get a specific collaboration goal by ID
+ *     tags: [Collaboration]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Goal details
+ *       403:
+ *         description: Not authorized to view this goal
  */
 router.get(
   "/:id",
@@ -197,11 +257,8 @@ router.get(
       return;
     }
 
-    // Ensure only participants or the creator can view the goal
     if (
-      !goal.participants.some((p) =>
-        p.equals(new mongoose.Types.ObjectId(userId)),
-      ) &&
+      !goal.participants.some((p) => p.equals(new mongoose.Types.ObjectId(userId))) &&
       !goal.createdBy.equals(new mongoose.Types.ObjectId(userId))
     ) {
       res.status(403).json({ success: false, message: "Not authorized to view this goal" });
@@ -209,7 +266,7 @@ router.get(
     }
 
     res.status(200).json({ success: true, goal });
-  }),
+  })
 );
 
 export default router;
