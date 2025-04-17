@@ -1,7 +1,7 @@
 import type { Socket } from "socket.io";
 import { Server as SocketIOServer } from "socket.io";
 import type http from "http";
-import logger from "../api/config/logging";
+import logger from "./logging";
 import { verifyJWT } from "../api/utils/jwtUtils";
 import Chat from "../api/models/Chat";
 import Message from "../api/models/Message";

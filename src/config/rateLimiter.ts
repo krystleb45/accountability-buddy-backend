@@ -1,8 +1,8 @@
 import rateLimit from "express-rate-limit";
 import RedisStore from "rate-limit-redis";
-import redisClient from "../../config/redisClient";
+import redisClient from "./redisClient";
 import type { Request, Response } from "express";
-import { logger } from "../../utils/winstonLogger";
+import { logger } from "../utils/winstonLogger";
 // Validate environment variables and set defaults
 const maxRequests = parseInt(process.env.RATE_LIMIT_MAX || "100", 10);
 const windowMinutes = parseInt(process.env.RATE_LIMIT_WINDOW_MINUTES || "15", 10);

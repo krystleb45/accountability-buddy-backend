@@ -40,6 +40,9 @@ build/
 .env
 .env.local
 .env.*.local
+.env.development
+.env.test
+.env.production
 
 # ==========================
 # Editor directories and files
@@ -47,6 +50,7 @@ build/
 .idea/
 .vscode/
 *.swp
+*.code-workspace
 
 # ==========================
 # Operating system files
@@ -89,8 +93,8 @@ yarn.lock
 # ==========================
 # Dependency directories for other tools
 # ==========================
-/.parcel-cache/
-/.pnpm-store/
+.parcel-cache/
+.pnpm-store/
 
 # ==========================
 # Generated IDE settings
@@ -103,6 +107,8 @@ yarn.lock
 # ==========================
 # Other specific tools
 # ==========================
-/.vercel/
+.vercel/
 .netlify/
 out/
+.swc/
+.turbo/

@@ -1,6 +1,6 @@
 import mongoose, { ConnectOptions } from "mongoose";
 import dotenv from "dotenv";
-import { logger } from "../../utils/winstonLogger"; // ✅ Correct import for logger
+import { logger } from "../utils/winstonLogger"; // ✅ Correct import for logger
 
 dotenv.config();
 

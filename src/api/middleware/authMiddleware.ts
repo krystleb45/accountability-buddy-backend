@@ -28,13 +28,21 @@ export const protect: RequestHandler = async (
     const token = authHeader.split(" ")[1];
     let decoded: JwtPayload;
 
+    const accessTokenSecret = process.env.ACCESS_TOKEN_SECRET;
+    if (!accessTokenSecret) {
+      logger.error("Missing ACCESS_TOKEN_SECRET in environment");
+      res.status(500).json({ success: false, message: "Server error: Token secret missing" });
+      return;
+    }
+
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET || "default_secret") as JwtPayload;
+      decoded = jwt.verify(token, accessTokenSecret) as JwtPayload;
     } catch (err) {
       logger.error(`❌ Invalid token: ${(err as Error).message}`);
       res.status(401).json({ success: false, message: "Unauthorized: Invalid token." });
       return;
     }
+
 
     const user = await User.findById(decoded.id)
       .select(

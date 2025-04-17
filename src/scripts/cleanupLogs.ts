@@ -3,6 +3,8 @@ import mongoose from "mongoose";
 import AuditLog from "../api/models/AuditLog";
 import dotenv from "dotenv";
 import { logger } from "../utils/winstonLogger";
+import { loadEnvironment } from "../utils/loadEnv";
+loadEnvironment();
 
 
 dotenv.config();

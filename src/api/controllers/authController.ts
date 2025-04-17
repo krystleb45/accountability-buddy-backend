@@ -14,6 +14,10 @@ const generateTokens = (userId: string): { accessToken: string; refreshToken: st
   const accessTokenSecret: Secret = process.env.ACCESS_TOKEN_SECRET as Secret;
   const refreshTokenSecret: Secret = process.env.REFRESH_TOKEN_SECRET as Secret;
 
+  // 🧪 Debug Logging (for development only)
+  logger.debug(`ACCESS_TOKEN_SECRET: ${accessTokenSecret}`);
+  logger.debug(`REFRESH_TOKEN_SECRET: ${refreshTokenSecret}`);
+
   if (!accessTokenSecret || !refreshTokenSecret) {
     throw new Error("JWT secrets are missing. Check your environment variables.");
   }
@@ -23,7 +27,7 @@ const generateTokens = (userId: string): { accessToken: string; refreshToken: st
     accessTokenSecret,
     { expiresIn: process.env.ACCESS_TOKEN_EXPIRES_IN ?? "15m" } as SignOptions
   );
-  
+
   const refreshToken = jwt.sign(
     { id: userId },
     refreshTokenSecret,
@@ -32,6 +36,7 @@ const generateTokens = (userId: string): { accessToken: string; refreshToken: st
 
   return { accessToken, refreshToken };
 };
+
 
 /**
  * @desc    Register a new user
@@ -55,12 +60,9 @@ export const register = catchAsync(
       return;
     }
 
-    const hashedPassword = await bcrypt.hash(
-      password,
-      parseInt(process.env.SALT_ROUNDS ?? "12", 10)
-    );
-
-    const newUser = new User({ email, password: hashedPassword, username });
+    // ❌ Removed manual bcrypt.hash()
+    // ✅ Let UserSchema handle hashing
+    const newUser = new User({ email, password, username });
     await newUser.save();
 
     const { accessToken, refreshToken } = generateTokens(newUser._id.toString());
@@ -71,6 +73,7 @@ export const register = catchAsync(
     });
   }
 );
+
 
 /**
  * @desc    User login
@@ -86,18 +89,26 @@ export const login = catchAsync(
     const { email, password } = req.body;
 
     if (!email || !password) {
+      logger.warn("Login failed: missing email or password");
       return next(createError("Email and password are required", 400));
     }
 
     const user = await User.findOne({ email }).select("+password");
+
     if (!user) {
+      logger.warn(`Login failed: user not found for email ${email}`);
       return next(createError("Invalid credentials", 400));
     }
 
+    console.warn("Login attempt: ", { password, userPassword: user.password });
+
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
+      logger.warn(`Login failed: password mismatch for email ${email}`);
       return next(createError("Invalid credentials", 400));
     }
+
+    logger.info(`Login successful for user ${email}`);
 
     const { accessToken, refreshToken } = generateTokens(user._id.toString());
 
@@ -107,6 +118,7 @@ export const login = catchAsync(
     });
   }
 );
+
 
 /**
  * @desc    Refresh authentication tokens

@@ -8,7 +8,7 @@ import {
   deleteUserAccount,
 } from "../controllers/AdminController";
 import { protect } from "../middleware/authMiddleware";
-import roleMiddleware from "../middleware/adminMiddleware";
+import checkPermission from "../middleware/adminMiddleware"; // ✅ supports single or multiple permissions
 import { PERMISSIONS } from "../../constants/roles";
 import type { AdminAuthenticatedRequest } from "../../types/AdminAuthenticatedRequest";
 
@@ -52,7 +52,7 @@ const handleRouteErrors =
 router.get(
   "/users",
   protect,
-  roleMiddleware(PERMISSIONS.MANAGE_USERS),
+  checkPermission(PERMISSIONS.MANAGE_USERS), // ✅ Array OK
   handleRouteErrors(async (req, res, next) => {
     await getAllUsers(req, res, next);
   })
@@ -96,7 +96,7 @@ router.patch(
   "/users/role",
   [
     protect,
-    roleMiddleware(PERMISSIONS.EDIT_SETTINGS),
+    checkPermission(PERMISSIONS.EDIT_SETTINGS), // ✅ Array OK
     check("userId", "User ID is required and must be valid").notEmpty().isMongoId(),
     check("role", "Role is required").notEmpty().isString(),
   ],
@@ -107,6 +107,7 @@ router.patch(
       res.status(400).json({ success: false, errors: errors.array() });
       return;
     }
+
     await updateUserRole(req, res, next);
     res.status(200).json({ success: true, message: "User role updated successfully" });
   })
@@ -139,7 +140,10 @@ router.patch(
  */
 router.delete(
   "/users/:userId",
-  [protect, roleMiddleware(PERMISSIONS.MANAGE_USERS)],
+  [
+    protect,
+    checkPermission(PERMISSIONS.MANAGE_USERS), // ✅ Array OK
+  ],
   handleRouteErrors(async (req, res, next) => {
     await deleteUserAccount(req, res, next);
     logger.info(`User account deleted. UserID: ${req.params.userId}`);

@@ -5,7 +5,15 @@ import "winston-daily-rotate-file";
 
 // ✅ Define log directory and level
 const logDir = process.env.LOG_DIR || "logs";
-const logLevel = process.env.LOG_LEVEL || "info";
+const env = process.env.NODE_ENV || "development";
+const logLevel =
+  process.env.LOG_LEVEL ||
+  (env === "development"
+    ? "debug"
+    : env === "test"
+      ? "warn"
+      : "info");
+
 
 // ✅ Ensure log directory exists
 if (!fs.existsSync(logDir)) {

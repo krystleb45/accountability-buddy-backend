@@ -2,41 +2,54 @@
 import mongoose from "mongoose";
 import { User } from "../api/models/User";
 import dotenv from "dotenv";
+import bcrypt from "bcryptjs";
 import { logger } from "../utils/winstonLogger";
+import { loadEnvironment } from "../utils/loadEnv";
 
-dotenv.config();
+loadEnvironment();
+
+dotenv.config(); // ✅ Load environment variables
 
 const seedUsers = async (): Promise<void> => {
   if (!process.env.MONGO_URI) {
-    logger.error("MONGO_URI is not defined in environment variables.");
+    logger.error("❌ MONGO_URI is not defined in environment variables.");
     process.exit(1);
   }
 
   try {
     await mongoose.connect(process.env.MONGO_URI);
-    logger.info("Connected to MongoDB");
+    logger.info("✅ Connected to MongoDB");
 
+    // Clear all users
+    await User.deleteMany({});
+    logger.info("✅ Cleared all existing users.");
+
+    // Seed users with hashed passwords
     const users = [
-      { email: "admin@example.com", password: "password123", role: "admin" },
-      { email: "user@example.com", password: "password123", role: "user" },
+      {
+        email: "admin@example.com",
+        username: "admin",
+        password: await bcrypt.hash("password123", 10),
+        role: "admin",
+      },
+      {
+        email: "user@example.com",
+        username: "testuser",
+        password: await bcrypt.hash("password123", 10),
+        role: "user",
+      },
     ];
 
-    for (const user of users) {
-      const existingUser = await User.findOne({ email: user.email });
-      if (!existingUser) {
-        await User.create(user);
-        logger.info(`Created user: ${user.email}`);
-      } else {
-        logger.info(`User already exists: ${user.email}`);
-      }
-    }
+    await User.insertMany(users);
+    users.forEach((user) => logger.info(`✅ Created user: ${user.email}`));
 
-    logger.info("Users seeded successfully");
+    logger.info("🎉 Users seeded successfully.");
   } catch (error) {
-    logger.error(`Error seeding users: ${(error as Error).message}`);
+    logger.error(`❌ Error seeding users: ${(error as Error).message}`);
+    process.exit(1);
   } finally {
     await mongoose.disconnect();
-    logger.info("Disconnected from MongoDB");
+    logger.info("🔌 Disconnected from MongoDB");
   }
 };
 

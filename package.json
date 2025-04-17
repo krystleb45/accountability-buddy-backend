@@ -4,15 +4,41 @@
   "description": "Backend for the Accountability Buddy platform",
   "main": "index.js",
   "scripts": {
-    "test": "jest --coverage",
-    "build": "tsc --build",
-    "start": "node dist/index.js",
-    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --ext .ts --fix",
-    "format": "prettier --write .",
-    "prepare": "husky install"
-  },
+  "dev": "cross-env NODE_ENV=development nodemon src/server.ts",
+  "test": "cross-env NODE_ENV=test jest",
+  "build": "tsc --build",
+  "start": "cross-env NODE_ENV=production node dist/index.js",
+  "lint": "eslint .",
+  "lint:fix": "eslint . --ext .ts --fix",
+  "format": "prettier --write .",
+  "prepare": "husky install",
+
+ 
+  "seed:users": "ts-node src/scripts/seedUsers.ts",
+  "seed:roles": "ts-node src/scripts/seedRoles.ts",
+  "cleanup:logs": "ts-node src/scripts/cleanupLogs.ts",
+  "cleanup:roles": "ts-node src/scripts/cleanupRoles.ts",
+  "cleanup:users": "ts-node src/scripts/cleanupUsers.ts",            
+  "cleanup:all": "npm run cleanup:users && npm run cleanup:roles && npm run cleanup:logs", 
+
+  
+  "seed:all": "npm run cleanup:all && npm run seed:roles && npm run seed:users", 
+
+  
+  "seed:dev": "cross-env NODE_ENV=development ts-node src/scripts/seedUsers.ts",
+  "seed:test": "cross-env NODE_ENV=test ts-node src/scripts/seedUsers.ts",
+  "seed:prod": "cross-env NODE_ENV=production ts-node src/scripts/seedUsers.ts",
+
+  
+  "cleanup:dev": "cross-env NODE_ENV=development ts-node src/scripts/cleanupRoles.ts",
+  "cleanup:test": "cross-env NODE_ENV=test ts-node src/scripts/cleanupRoles.ts",
+
+  
+  "reset:dev": "npm run seed:all",                 
+  "reset:test": "npm run cleanup:all && npm run seed:test", 
+  "reset:prod": "npm run cleanup:all && npm run seed:prod"  
+},
+
   "keywords": [
     "accountability",
     "backend",
@@ -29,6 +55,7 @@
     "@sentry/node": "^9.10.1",
     "@types/newrelic": "^9.14.8",
     "amqplib": "^0.10.5",
+    "aws-sdk": "^2.1692.0",
     "bcryptjs": "^2.4.3",
     "bull": "^4.16.3",
     "compression": "^1.7.5",
@@ -37,6 +64,7 @@
     "cors": "^2.8.5",
     "csurf": "^1.2.2",
     "date-fns": "^2.30.0",
+    "dotenv-flow": "^4.1.0",
     "express-mongo-sanitize": "^2.2.0",
     "express-rate-limit": "^7.5.0",
     "express-session": "^1.18.1",
@@ -119,7 +147,6 @@
     "@typescript-eslint/eslint-plugin": "^8.20.0",
     "@typescript-eslint/parser": "^8.20.0",
     "cross-env": "^7.0.3",
-    "dotenv": "^16.4.7",
     "eslint": "^9.18.0",
     "eslint-plugin-prettier": "^5.2.1",
     "express": "^4.21.2",
@@ -127,6 +154,7 @@
     "ioredis-mock": "^8.9.0",
     "jest": "^29.7.0",
     "lint-staged": "^13.0.6",
+    "nodemon": "^3.1.9",
     "prettier": "^3.4.2",
     "supertest": "^6.3.4",
     "ts-jest": "^29.2.5",
