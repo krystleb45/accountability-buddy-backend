@@ -4,41 +4,30 @@
   "description": "Backend for the Accountability Buddy platform",
   "main": "index.js",
   "scripts": {
-  "dev": "cross-env NODE_ENV=development nodemon src/server.ts",
-  "test": "cross-env NODE_ENV=test jest",
-  "build": "tsc --build",
-  "start": "cross-env NODE_ENV=production node dist/index.js",
-  "lint": "eslint .",
-  "lint:fix": "eslint . --ext .ts --fix",
-  "format": "prettier --write .",
-  "prepare": "husky install",
-
- 
-  "seed:users": "ts-node src/scripts/seedUsers.ts",
-  "seed:roles": "ts-node src/scripts/seedRoles.ts",
-  "cleanup:logs": "ts-node src/scripts/cleanupLogs.ts",
-  "cleanup:roles": "ts-node src/scripts/cleanupRoles.ts",
-  "cleanup:users": "ts-node src/scripts/cleanupUsers.ts",            
-  "cleanup:all": "npm run cleanup:users && npm run cleanup:roles && npm run cleanup:logs", 
-
-  
-  "seed:all": "npm run cleanup:all && npm run seed:roles && npm run seed:users", 
-
-  
-  "seed:dev": "cross-env NODE_ENV=development ts-node src/scripts/seedUsers.ts",
-  "seed:test": "cross-env NODE_ENV=test ts-node src/scripts/seedUsers.ts",
-  "seed:prod": "cross-env NODE_ENV=production ts-node src/scripts/seedUsers.ts",
-
-  
-  "cleanup:dev": "cross-env NODE_ENV=development ts-node src/scripts/cleanupRoles.ts",
-  "cleanup:test": "cross-env NODE_ENV=test ts-node src/scripts/cleanupRoles.ts",
-
-  
-  "reset:dev": "npm run seed:all",                 
-  "reset:test": "npm run cleanup:all && npm run seed:test", 
-  "reset:prod": "npm run cleanup:all && npm run seed:prod"  
-},
-
+    "dev": "cross-env NODE_ENV=development nodemon src/server.ts",
+    "test": "cross-env NODE_ENV=test jest",
+    "build": "tsc --build",
+    "start": "cross-env NODE_ENV=production node dist/index.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --ext .ts --fix",
+    "format": "prettier --write .",
+    "prepare": "husky install",
+    "seed:users": "ts-node src/scripts/seedUsers.ts",
+    "seed:roles": "ts-node src/scripts/seedRoles.ts",
+    "cleanup:logs": "ts-node src/scripts/cleanupLogs.ts",
+    "cleanup:roles": "ts-node src/scripts/cleanupRoles.ts",
+    "cleanup:users": "ts-node src/scripts/cleanupUsers.ts",
+    "cleanup:all": "npm run cleanup:users && npm run cleanup:roles && npm run cleanup:logs",
+    "seed:all": "npm run cleanup:all && npm run seed:roles && npm run seed:users",
+    "seed:dev": "cross-env NODE_ENV=development ts-node src/scripts/seedUsers.ts",
+    "seed:test": "cross-env NODE_ENV=test ts-node src/scripts/seedUsers.ts",
+    "seed:prod": "cross-env NODE_ENV=production ts-node src/scripts/seedUsers.ts",
+    "cleanup:dev": "cross-env NODE_ENV=development ts-node src/scripts/cleanupRoles.ts",
+    "cleanup:test": "cross-env NODE_ENV=test ts-node src/scripts/cleanupRoles.ts",
+    "reset:dev": "npm run seed:all",
+    "reset:test": "npm run cleanup:all && npm run seed:test",
+    "reset:prod": "npm run cleanup:all && npm run seed:prod"
+  },
   "keywords": [
     "accountability",
     "backend",
@@ -103,7 +92,6 @@
     "stripe": "^17.5.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
-    "ts-node": "^10.9.2",
     "twilio": "^5.4.0",
     "web-push": "^3.6.7",
     "winston-daily-rotate-file": "^5.0.0",
@@ -128,7 +116,7 @@
     "@types/mongoose": "^5.11.96",
     "@types/morgan": "^1.9.9",
     "@types/multer": "^1.4.12",
-    "@types/node": "^18.15.11",
+    "@types/node": "^18.19.86",
     "@types/node-cron": "^3.0.11",
     "@types/nodemailer": "^6.4.17",
     "@types/passport": "^1.0.17",
@@ -158,8 +146,9 @@
     "prettier": "^3.4.2",
     "supertest": "^6.3.4",
     "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
-    "typescript": "^5.7.2",
+    "typescript": "^5.7.3",
     "winston": "^3.17.0"
   },
   "husky": {
