@@ -12,7 +12,7 @@ import compression from "compression";
 import { createServer } from "http";
 import { Server } from "socket.io";
 declare global {
-   
+
   var io: Server;
 }
 import cron from "node-cron";
@@ -32,6 +32,7 @@ import setupSocketHandlers from "./sockets/setupSocketHandlers";
 
 import authRoutes from "./api/routes/auth";
 import userRoutes from "./api/routes/user";
+import { authenticateJwt } from "./api/middleware/authJwt";
 import groupRoutes from "./api/routes/group";
 import chatRoutes from "./api/routes/chat";
 import paymentRoutes from "./api/routes/payment";
@@ -45,6 +46,7 @@ import notificationsRoutes from "./api/routes/notifications";
 import followRoutes from "./api/routes/follow";
 import adminRoutes from "./api/routes/adminRoutes";
 import { handleStripeWebhook } from "./api/controllers/paymentController";
+import recommendationRoutes from "./api/routes/recommendationRoutes";
 
 void (async (): Promise<void> => {
   try {
@@ -83,6 +85,18 @@ void (async (): Promise<void> => {
     );
     app.use(stripeRawBodyParser);
     app.use(express.json());
+    app.use((req, _res, next) => {
+      const cookies = req.headers.cookie || "";
+      if (cookies.includes("next-auth.session-token")) {
+        logger.debug("🔑 Session cookie received:", cookies);
+      }
+      next();
+    });
+
+    // ─── JWT‑Auth Middleware ────────────────────────────────────────────────
+    // Every /api/* will now attempt to decode a Bearer token and set req.user.id
+    app.use("/api", authenticateJwt);
+
     app.use(compression());
 
     app.use("/api/auth", authRoutes);
@@ -99,6 +113,8 @@ void (async (): Promise<void> => {
     app.use("/api/notifications", notificationsRoutes);
     app.use("/api/follow", followRoutes);
     app.use("/api/admin", adminRoutes);
+    app.use("/api/recommendations", recommendationRoutes);
+
 
     app.get("/api/health", (_req: Request, res: Response) => {
       res.status(200).json({ status: "ok" });
@@ -123,7 +139,7 @@ void (async (): Promise<void> => {
       },
       pingTimeout: 60000,
     });
-    
+
     global.io = io;
     setupSocketHandlers(io);
 
