@@ -77,7 +77,7 @@ export const voteOnPoll = catchAsync(
       return next(new Error("This poll has expired"));
     }
 
-    
+
 
     // Check if the user has already voted
     const hasVoted = poll.options.some((option) =>

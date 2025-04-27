@@ -47,7 +47,7 @@ export const getLeaderboard = catchAsync(
       completedMilestones: -1,
       totalPoints: -1,
     };
-    
+
 
     const leaderboard = await Leaderboard.find()
       .sort(sortCriteria)
@@ -93,7 +93,7 @@ export const getUserLeaderboardPosition = catchAsync(
       completedMilestones: -1,
       totalPoints: -1,
     };
-    
+
     const leaderboard = await Leaderboard.find()
       .sort(sortCriteria)
       .populate("user", "username profilePicture");

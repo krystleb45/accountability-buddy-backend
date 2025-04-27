@@ -1,5 +1,6 @@
 import { SecretsManager } from "aws-sdk";
 import { config as dotenvConfig } from "dotenv";
+import { logger } from "./winstonLogger";  // use your logger, not console
 
 dotenvConfig(); // fallback to .env
 
@@ -11,7 +12,7 @@ export async function loadSecretsFromAWS(): Promise<void> {
   const secretName = process.env.AWS_SECRET_NAME;
 
   if (!secretName) {
-    console.warn("⚠️ No AWS_SECRET_NAME provided. Skipping secrets loading.");
+    logger.warn("⚠️ No AWS_SECRET_NAME provided. Skipping secrets loading.");
     return;
   }
 
@@ -20,12 +21,13 @@ export async function loadSecretsFromAWS(): Promise<void> {
     const secrets = JSON.parse(data.SecretString || "{}");
 
     for (const [key, value] of Object.entries(secrets)) {
-      (process.env as any)[key as string] = value;
+      (process.env as any)[key] = value;
     }
 
-    console.warn("✅ AWS secrets loaded successfully.");
+    logger.info("✅ AWS secrets loaded successfully.");
   } catch (error) {
-    console.error("❌ Failed to load AWS secrets:", error);
-    process.exit(1);
+    // Let startServer’s catch handle the exit & show the stack
+    logger.error("❌ Failed to load AWS secrets:", error);
+    throw error;
   }
 }

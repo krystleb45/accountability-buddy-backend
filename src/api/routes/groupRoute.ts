@@ -193,8 +193,7 @@ router.get(
   checkSubscription("trial"),
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const groups = await groupController.getUserGroups(req, res, next);
-      res.json({ success: true, groups });
+      const groups = await groupController.getMyGroups(req, res, next);      res.json({ success: true, groups });
     } catch (err) {
       logger.error("Error fetching user groups", { error: err, userId: req.user?.id });
       next(err);

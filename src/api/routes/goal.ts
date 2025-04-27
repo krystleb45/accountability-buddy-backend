@@ -2,8 +2,7 @@ import { Router } from "express";
 import express from "express";
 import { protect } from "../middleware/authMiddleware";
 import checkSubscription from "../middleware/checkSubscription";
-import goalController from "../controllers/GoalController";
-
+import * as goalController from "../controllers/GoalController";
 const router: Router = express.Router();
 
 /**

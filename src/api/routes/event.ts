@@ -1,3 +1,4 @@
+// src/api/routes/events.ts
 import type { Router, Request, Response } from "express";
 import express from "express";
 import { check, validationResult } from "express-validator";
@@ -5,7 +6,7 @@ import rateLimit from "express-rate-limit";
 import mongoose from "mongoose";
 import Event from "../models/Event";
 import { protect } from "../middleware/authMiddleware";
-import catchAsync from "../utils/catchAsync";
+import * as eventController from "../controllers/EventController";
 
 const router: Router = express.Router();
 
@@ -29,6 +30,12 @@ const rateLimiter = rateLimit({
   max: 10,
   message: "Too many requests. Please try again later.",
 });
+
+// ─── Join an Event ────────────────────────────────────────────────────────────
+router.post("/:eventId/join", protect, eventController.joinEvent);
+
+// ─── Leave an Event ───────────────────────────────────────────────────────────
+router.post("/:eventId/leave", protect, eventController.leaveEvent);
 
 /**
  * @swagger
@@ -73,7 +80,7 @@ router.post(
   rateLimiter,
   protect,
   validateEventCreation,
-  catchAsync(async (req: Request, res: Response): Promise<void> => {
+  async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       res.status(400).json({ success: false, errors: errors.array() });
@@ -97,7 +104,7 @@ router.post(
 
     await newEvent.save();
     res.status(201).json({ success: true, event: newEvent });
-  })
+  }
 );
 
 /**
@@ -136,7 +143,7 @@ router.put(
   rateLimiter,
   protect,
   validateEventProgress,
-  catchAsync(async (req: Request, res: Response): Promise<void> => {
+  async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       res.status(400).json({ success: false, errors: errors.array() });
@@ -159,7 +166,7 @@ router.put(
     }
 
     const isAuthorized =
-      event.participants.some((p) => p.user.toString() === userId.toString()) ||
+      event.participants.some((p) => p.user.toString() === userId) ||
       event.createdBy.equals(new mongoose.Types.ObjectId(userId));
 
     if (!isAuthorized) {
@@ -171,7 +178,7 @@ router.put(
     await event.save();
 
     res.status(200).json({ success: true, event });
-  })
+  }
 );
 
 /**
@@ -190,7 +197,7 @@ router.get(
   "/my-events",
   rateLimiter,
   protect,
-  catchAsync(async (req: Request, res: Response): Promise<void> => {
+  async (req: Request, res: Response) => {
     const userId = req.user?.id;
 
     const events = await Event.find({
@@ -206,7 +213,7 @@ router.get(
     }
 
     res.status(200).json({ success: true, events });
-  })
+  }
 );
 
 /**
@@ -231,7 +238,7 @@ router.get(
   "/:id",
   rateLimiter,
   protect,
-  catchAsync(async (req: Request, res: Response): Promise<void> => {
+  async (req: Request, res: Response) => {
     const { id } = req.params;
     const userId = req.user?.id;
 
@@ -250,7 +257,7 @@ router.get(
     }
 
     const isAuthorized =
-      event.participants.some((p) => p.user.toString() === userId.toString()) ||
+      event.participants.some((p) => p.user.toString() === userId) ||
       event.createdBy.equals(new mongoose.Types.ObjectId(userId));
 
     if (!isAuthorized) {
@@ -259,7 +266,7 @@ router.get(
     }
 
     res.status(200).json({ success: true, event });
-  })
+  }
 );
 
 export default router;

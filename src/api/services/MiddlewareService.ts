@@ -2,40 +2,44 @@ import type { Request, Response, NextFunction } from "express";
 import type { JwtPayload } from "jsonwebtoken";
 import jwt from "jsonwebtoken";
 import { CustomError } from "../services/errorHandler"; // Centralized error handling
-import { User } from "../models/User"; // User model for authorization
+import { IUser, User } from "../models/User"; // User model for authorization
 import { logger } from "../../utils/winstonLogger";
 
 export const MiddlewareService = {
   /**
    * Authenticate a user via JWT.
-   * Verifies the token and attaches the user payload to the request.
-   * @param req - Express Request object.
-   * @param res - Express Response object.
-   * @param next - Express NextFunction.
+   * Verifies the token, loads the full IUser, and attaches it to req.user.
    */
-  authenticateToken(req: Request, _res: Response, next: NextFunction): void {
+  async authenticateToken(
+    req: Request,
+    _res: Response,
+    next: NextFunction
+  ): Promise<void> {
     const token = req.headers.authorization?.split(" ")[1];
     if (!token) {
       return next(new CustomError("Authentication token missing", 401));
     }
-  
+
     try {
-      const secretKey = process.env.JWT_SECRET || "your_jwt_secret";
-      const payload = jwt.verify(token, secretKey) as JwtPayload;
-  
-      // Updated to include missing properties with default values.
-      req.user = {
-        id: payload.userId,
-        role: payload.role,       // Role from JWT payload
-        email: payload.email,     // Email from JWT payload
-        isAdmin: false,           // Default value; adjust if needed
-        subscription_status: "trial", // Default value; adjust if needed
-      };
-  
-      next();
-    } catch (error) {
-      logger.error("Token authentication failed:", error);
-      next(new CustomError("Invalid or expired token", 403));
+      const secretKey = process.env.JWT_SECRET!;
+      const payload = jwt.verify(token, secretKey) as JwtPayload & { userId: string };
+
+      // 1) Lookup the full user document (minus password)
+      const userDoc = await User.findById(payload.userId)
+        .select("-password")
+        .exec();
+
+      if (!userDoc) {
+        return next(new CustomError("User not found", 404));
+      }
+
+      // 2) Attach it as IUser
+      req.user = userDoc as IUser;
+
+      return next();
+    } catch (err) {
+      logger.error("Token authentication failed:", err);
+      return next(new CustomError("Invalid or expired token", 403));
     }
   },
 
@@ -52,11 +56,11 @@ export const MiddlewareService = {
         if (!user) {
           return next(new CustomError("User not found", 404));
         }
-  
+
         if (!roles.includes(user.role)) {
           return next(new CustomError("Access denied", 403));
         }
-  
+
         next();
       } catch (error) {
         logger.error("Authorization failed:", error);
@@ -99,7 +103,7 @@ export const MiddlewareService = {
   ): void {
     const statusCode = (err as CustomError).statusCode || 500;
     const message = err.message || "Internal Server Error";
-  
+
     logger.error(`Error: ${message} | StatusCode: ${statusCode}`);
     res.status(statusCode).json({
       success: false,

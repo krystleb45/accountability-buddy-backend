@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import Group, { IGroup } from "../models/Group";
+import Group, { IGroup } from "../models/g";
 import Notification from "../models/Notification";
 import { logger } from "../../utils/winstonLogger";
 import { Socket } from "socket.io";
@@ -131,7 +131,7 @@ class GroupService {
         count: unreadCount,
       });
     }
-      
+
 
     await group.save();
 

@@ -1,6 +1,6 @@
 import type { Server, Socket } from "socket.io";
 import Chat from "../api/models/Chat"; // Chat model for storing messages
-import Group from "../api/models/Group"; // Group model for managing groups
+import Group from "../api/models/g"; // Group model for managing groups
 import { User } from "../api/models/User"; // User model for user details
 import { logger } from "../utils/winstonLogger";
 
@@ -31,27 +31,27 @@ const chatSocket = (io: Server, socket: Socket): void => {
   socket.on("joinRoom", async (data: JoinRoomData) => {
     try {
       const { roomId, userId } = data;
-  
+
       if (!roomId || !userId) {
         socket.emit("error", "Room ID and User ID are required.");
         return; // Exit early if validation fails
       }
-  
+
       const user = await User.findById(userId);
       if (!user) {
         socket.emit("error", "User not found.");
         return; // Exit early if user is not found
       }
-  
+
       const room = await Group.findById(roomId);
       if (!room) {
         socket.emit("error", "Room not found.");
         return; // Exit early if room is not found
       }
-  
+
       void socket.join(roomId);
       logger.info(`User ${userId} joined room ${roomId}`);
-  
+
       socket.to(roomId).emit("userJoined", { userId, username: user.username, roomId });
       return; // Explicitly return at the end of the successful path
     } catch (error) {
@@ -60,7 +60,7 @@ const chatSocket = (io: Server, socket: Socket): void => {
       return; // Explicitly return from the catch block
     }
   });
-  
+
 
   /**
    * Handle user leaving a chat room
@@ -68,27 +68,27 @@ const chatSocket = (io: Server, socket: Socket): void => {
   socket.on("leaveRoom", async (data: LeaveRoomData) => {
     try {
       const { roomId, userId } = data;
-  
+
       if (!roomId || !userId) {
         socket.emit("error", "Room ID and User ID are required.");
         return; // Exit early if validation fails
       }
-  
+
       const user = await User.findById(userId);
       if (!user) {
         socket.emit("error", "User not found.");
         return; // Exit early if user is not found
       }
-  
+
       const room = await Group.findById(roomId);
       if (!room) {
         socket.emit("error", "Room not found.");
         return; // Exit early if room is not found
       }
-  
+
       void socket.leave(roomId);
       logger.info(`User ${userId} left room ${roomId}`);
-  
+
       // Notify others in the room that the user has left
       socket.to(roomId).emit("userLeft", { userId, username: user.username, roomId });
       return; // Explicitly return after successfully handling the event
@@ -98,7 +98,7 @@ const chatSocket = (io: Server, socket: Socket): void => {
       return; // Explicitly return from the catch block
     }
   });
-  
+
 
   /**
    * Handle sending a message
@@ -106,38 +106,38 @@ const chatSocket = (io: Server, socket: Socket): void => {
   socket.on("sendMessage", async (data: SendMessageData) => {
     try {
       const { roomId, userId, message } = data;
-  
+
       if (!message || !roomId || !userId) {
         socket.emit("error", "Message, Room ID, and User ID are required.");
         return; // Exit early if validation fails
       }
-  
+
       const user = await User.findById(userId);
       if (!user) {
         socket.emit("error", "User not found.");
         return; // Exit early if user is not found
       }
-  
+
       const room = await Group.findById(roomId);
       if (!room) {
         socket.emit("error", "Room not found.");
         return; // Exit early if room is not found
       }
-  
+
       const newMessage = await Chat.create({
         message,
         sender: userId,
         group: roomId,
         createdAt: new Date(),
       });
-  
+
       io.to(roomId).emit("newMessage", {
         message: newMessage.messages,
         sender: { id: user._id, username: user.username },
         roomId,
         createdAt: newMessage.createdAt,
       });
-  
+
       logger.info(`Message sent by user ${user.username} in room ${roomId}`);
       return; // Explicitly return at the end of the successful path
     } catch (error) {
@@ -146,7 +146,7 @@ const chatSocket = (io: Server, socket: Socket): void => {
       return; // Explicitly return from the catch block
     }
   });
-  
+
 
   /**
    * Fetch chat history
@@ -154,22 +154,22 @@ const chatSocket = (io: Server, socket: Socket): void => {
   socket.on("fetchChatHistory", async (data: FetchChatHistoryData) => {
     try {
       const { roomId } = data;
-  
+
       if (!roomId) {
         socket.emit("error", "Room ID is required.");
         return; // Exit early if validation fails
       }
-  
+
       const room = await Group.findById(roomId);
       if (!room) {
         socket.emit("error", "Room not found.");
         return; // Exit early if room is not found
       }
-  
+
       const chatHistory = await Chat.find({ group: roomId })
         .populate("sender", "username")
         .sort({ createdAt: 1 });
-  
+
       socket.emit("chatHistory", chatHistory);
       logger.info(`Fetched chat history for room ${roomId}`);
       return; // Explicitly return after successfully handling the event
@@ -179,7 +179,7 @@ const chatSocket = (io: Server, socket: Socket): void => {
       return; // Explicitly return from the catch block
     }
   });
-  
+
 
   /**
    * Handle user disconnection

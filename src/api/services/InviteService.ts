@@ -1,5 +1,5 @@
 import GroupInvitation from "../models/GroupInvitation";
-import Group from "../models/Group";
+import Group from "../models/g";
 import NotificationService from "./NotificationService";
 import { logger } from "../../utils/winstonLogger";
 import mongoose from "mongoose";
@@ -38,11 +38,11 @@ const sendGroupInvitation = async (
     recipient: recipientId,
     status: "pending",
   });
-  
+
   // Log or use the invitation object
   console.warn(`Invitation sent: ${invitation._id}`);
 
-  
+
   // Send notification to the recipient
   await NotificationService.sendInAppNotification(
     recipientId,

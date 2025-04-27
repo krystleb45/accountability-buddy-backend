@@ -1,39 +1,41 @@
+// src/server.ts
 import dotenvFlow from "dotenv-flow";
 dotenvFlow.config(); // Load env vars based on NODE_ENV
 
 import { validateEnv } from "./utils/validateEnv";
-validateEnv(); // ✅ stop boot if critical vars are missing
+validateEnv(); // Exit if any required env var is missing
 
 import { loadSecretsFromAWS } from "./utils/loadSecrets";
-import type { Application, Request, Response } from "express";
+import type { Application } from "express";
 import express from "express";
 import mongoose from "mongoose";
 import compression from "compression";
-import { createServer } from "http";
-import { Server } from "socket.io";
-declare global {
-
-  var io: Server;
-}
-import cron from "node-cron";
-import cors from "cors";
-import fs from "fs";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+import cors from "cors";
+import mongoSanitize from "express-mongo-sanitize";
+import xssClean from "xss-clean";
+import hpp from "hpp";
+import morgan from "morgan";
+import bodyParser from "body-parser";
+import { createServer } from "http";
+import { Server } from "socket.io";
 
-import { logger } from "./utils/winstonLogger";
-import ReminderService from "./api/services/ReminderService";
-import setupSwagger from "./config/swaggerConfig";
-import { errorHandler } from "./api/middleware/errorHandler";
-import { applySecurityMiddlewares } from "./config/securityConfig";
+declare global {
+  var io: Server;
+}
+
 import { stripeRawBodyParser } from "./api/middleware/stripeWebhookParser";
+import { authenticateJwt } from "./api/middleware/authJwt";
+import { errorHandler } from "./api/middleware/errorHandler";
+import setupSwagger from "./config/swaggerConfig";
+import { applySecurityMiddlewares } from "./config/securityConfig";
+import { logger } from "./utils/winstonLogger";
 
-import setupSocketHandlers from "./sockets/setupSocketHandlers";
-
+// Route imports
 import authRoutes from "./api/routes/auth";
 import userRoutes from "./api/routes/user";
-import { authenticateJwt } from "./api/middleware/authJwt";
-import groupRoutes from "./api/routes/group";
+import groupRoutes from "./api/routes/groupRoute";
 import chatRoutes from "./api/routes/chat";
 import paymentRoutes from "./api/routes/payment";
 import subscriptionRoutes from "./api/routes/subscription";
@@ -45,61 +47,79 @@ import booksRoutes from "./api/routes/books";
 import notificationsRoutes from "./api/routes/notifications";
 import followRoutes from "./api/routes/follow";
 import adminRoutes from "./api/routes/adminRoutes";
-import { handleStripeWebhook } from "./api/controllers/paymentController";
 import recommendationRoutes from "./api/routes/recommendationRoutes";
+import achievementRoutes from "./api/routes/achievement";
+import activityRoutes from "./api/routes/activity";
+import badgeRoutes from "./api/routes/badgeRoutes";
+import challengeRoutes from "./api/routes/challenge";
+import feedRoutes from "./api/routes/feed";
+import progressRoutes from "./api/routes/progress";
+import searchRoutes from "./api/routes/search";
+// **New** admin‐reports router:
+import adminReports from "./api/routes/adminReports";
 
-void (async (): Promise<void> => {
+async function startServer(): Promise<void> {
   try {
-    if (process.env.NODE_ENV === "production") {
-      await loadSecretsFromAWS();
-    }
+    console.log("⏱️  startServer BEGIN");
 
-    console.warn("🚀 Server is starting...");
+    console.log("⏱️  before loadSecretsFromAWS");
+    await loadSecretsFromAWS();
+    console.log("✔️   after loadSecretsFromAWS");
 
-    const requiredEnv = ["MONGO_URI", "PORT", "STRIPE_WEBHOOK_SECRET"];
-    requiredEnv.forEach((env) => {
-      if (!process.env[env]) {
-        logger.error(`❌ Missing required environment variable: ${env}`);
-        process.exit(1);
-      }
-    });
+    console.log("⏱️  before mongoose.connect");
+    await mongoose.connect(process.env.MONGO_URI!);
+    console.log("✔️   after mongoose.connect");
 
-    const uploadDirs = ["uploads/profile", "uploads/covers"];
-    uploadDirs.forEach((dir) => {
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    });
-
+    console.log("⏱️  before express init");
     const app: Application = express();
-    const httpServer = createServer(app);
+    console.log("✔️   after express init");
 
+    console.log("⏱️  before Socket.IO init");
+    const httpServer = createServer(app);
+    global.io = new Server(httpServer, {
+      cors: {
+        origin: process.env.ALLOWED_ORIGINS?.split(",") || ["http://localhost:3000"],
+      },
+    });
+    console.log("✔️   after Socket.IO init");
+
+    console.log("⏱️  before middleware");
     app.use(helmet());
     applySecurityMiddlewares(app);
+    app.use(mongoSanitize());
+    app.use(xssClean());
+    app.use(hpp());
     app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
     app.use(
       cors({
         origin: process.env.ALLOWED_ORIGINS?.split(",") || ["http://localhost:3000"],
-        methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allowedHeaders: ["Content-Type", "Authorization"],
         credentials: true,
+        methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
       })
     );
     app.use(stripeRawBodyParser);
-    app.use(express.json());
-    app.use((req, _res, next) => {
-      const cookies = req.headers.cookie || "";
-      if (cookies.includes("next-auth.session-token")) {
-        logger.debug("🔑 Session cookie received:", cookies);
-      }
-      next();
-    });
-
-    // ─── JWT‑Auth Middleware ────────────────────────────────────────────────
-    // Every /api/* will now attempt to decode a Bearer token and set req.user.id
-    app.use("/api", authenticateJwt);
-
+    app.use(bodyParser.json());
+    app.use(bodyParser.urlencoded({ extended: true }));
     app.use(compression());
+    console.log("✔️   after middleware");
 
+    console.log("⏱️  before request logging setup");
+    app.use(
+      morgan("dev", {
+        stream: { write: (msg) => logger.info(msg.trim()) },
+      })
+    );
+    console.log("✔️   after request logging setup");
+
+    console.log("⏱️  before mounting public routes");
     app.use("/api/auth", authRoutes);
+    console.log("✔️   after mounting public routes");
+
+    console.log("⏱️  before JWT guard");
+    app.use("/api", authenticateJwt);
+    console.log("✔️   after JWT guard");
+
+    console.log("⏱️  before mounting other API routes");
     app.use("/api/users", userRoutes);
     app.use("/api/groups", groupRoutes);
     app.use("/api/chat", chatRoutes);
@@ -113,79 +133,39 @@ void (async (): Promise<void> => {
     app.use("/api/notifications", notificationsRoutes);
     app.use("/api/follow", followRoutes);
     app.use("/api/admin", adminRoutes);
+    // **New admin reports endpoint**
+    app.use("/api/admin/reports", adminReports);
     app.use("/api/recommendations", recommendationRoutes);
+    app.use("/api/achievements", achievementRoutes);
+    app.use("/api/activities", activityRoutes);
+    app.use("/api/badges", badgeRoutes);
+    app.use("/api/challenges", challengeRoutes);
+    app.use("/api/feed", feedRoutes);
+    app.use("/api/progress", progressRoutes);
+    app.use("/api/search", searchRoutes);
+    console.log("✔️   after mounting other API routes");
 
-
-    app.get("/api/health", (_req: Request, res: Response) => {
-      res.status(200).json({ status: "ok" });
-    });
-
-    app.post("/api/payments/webhook", express.raw({ type: "application/json" }), handleStripeWebhook);
+    console.log("⏱️  before error handler & Swagger");
     app.use(errorHandler);
+    setupSwagger(app);
+    console.log("✔️   after error handler & Swagger");
 
-    logger.debug(`Connecting to MongoDB with URI: ${process.env.MONGO_URI}`);
-    await mongoose.connect(process.env.MONGO_URI as string, {
-      serverSelectionTimeoutMS: 15000,
-      connectTimeoutMS: 15000,
-      maxPoolSize: 10,
-    });
-    logger.info("✅ MongoDB connected successfully");
-
-    const io = new Server(httpServer, {
-      cors: {
-        origin: process.env.ALLOWED_ORIGINS?.split(",") || ["http://localhost:3000"],
-        methods: ["GET", "POST"],
-        credentials: true,
-      },
-      pingTimeout: 60000,
-    });
-
-    global.io = io;
-    setupSocketHandlers(io);
-
-    const shutdown = async (): Promise<void> => {
-      try {
-        logger.info("🚀 Graceful shutdown initiated...");
-        await mongoose.connection.close();
-        logger.info("✅ MongoDB connection closed.");
-        process.exit(0);
-      } catch (error) {
-        logger.error(`❌ Error during shutdown: ${error}`);
-        process.exit(1);
-      }
-    };
-
-    process.on("SIGTERM", shutdown);
-    process.on("SIGINT", shutdown);
-
-    cron.schedule("* * * * *", async (): Promise<void> => {
-      logger.info("🔔 Checking for reminders...");
-      try {
-        await ReminderService.checkReminders();
-      } catch (err) {
-        logger.error(`❌ Error during reminder check: ${(err as Error).message}`);
-      }
-    });
-
-    process.on("unhandledRejection", (reason, promise) => {
-      logger.error(`❌ Unhandled Rejection at: ${promise}, reason: ${String(reason)}`);
-      void shutdown();
-    });
-
-    process.on("uncaughtException", (error) => {
-      logger.error(`❌ Uncaught Exception: ${error.message}`);
-      void shutdown();
-    });
-
+    console.log("⏱️  before httpServer.listen");
     const PORT = parseInt(process.env.PORT || "5000", 10);
     httpServer.listen(PORT, () => {
-      logger.info(`🚀 Server running in ${process.env.NODE_ENV || "development"} on port ${PORT}`);
+      console.log(`🚀 LISTENING on port ${PORT}`);
+      logger.info(`Server running on port ${PORT}`);
     });
-
-    setupSwagger(app);
+    console.log("✔️   after httpServer.listen");
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    logger.error(`❌ Fatal server startup error: ${message}`);
+    console.error("💥 Startup caught error:", err);
+    logger.error("❌ Fatal server startup error:", err instanceof Error ? err : String(err));
     process.exit(1);
   }
-})();
+}
+
+startServer().catch((err) => {
+  console.error("💥 startServer failed:", err);
+  logger.error("❌ Server failed to start:", err);
+  process.exit(1);
+});

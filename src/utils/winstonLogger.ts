@@ -89,9 +89,9 @@ logger.on("error", (err) => {
 });
 
 // ✅ Flush logs before exiting
-process.on("exit", () => {
-  logger.info("Logger shutdown.");
-  logger.end();
-});
+//process.on("exit", () => {
+//  logger.info("Logger shutdown.");
+//  logger.end();
+//});
 
 export { logger, logStructured };

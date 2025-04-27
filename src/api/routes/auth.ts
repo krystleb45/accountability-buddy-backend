@@ -3,12 +3,12 @@ import express from "express";
 import { check, validationResult } from "express-validator";
 import rateLimit from "express-rate-limit";
 
-import { login, register, refreshToken } from "../controllers/authController";
+import * as authController from "../controllers/authController";
 import { protect } from "../middleware/authMiddleware";
 import type { AuthenticatedRequest } from "../../types/AuthenticatedRequest";
 import { logger } from "../../utils/winstonLogger";
-import { ParamsDictionary } from "express-serve-static-core";
-import { ParsedQs } from "qs";
+import type { ParamsDictionary } from "express-serve-static-core";
+import type { ParsedQs } from "qs";
 
 const router: Router = express.Router();
 
@@ -18,14 +18,19 @@ const authLimiter = rateLimit({
   message: "Too many authentication attempts. Please try again later.",
 });
 
+// Wraps an async handler and logs+forwards errors
 const handleRouteErrors = (
   handler: (req: Request, res: Response, next: NextFunction) => Promise<void>
 ) => {
-  return async (req: Request<ParamsDictionary, any, any, ParsedQs, Record<string, any>>, res: Response<any, Record<string, any>>, next: (arg0: unknown) => void): Promise<void> => {
+  return async (
+    req: Request<ParamsDictionary, any, any, ParsedQs, Record<string, any>>,
+    res: Response<any, Record<string, any>>,
+    next: NextFunction
+  ): Promise<void> => {
     try {
       await handler(req, res, next);
     } catch (error) {
-      logger.error(`Error occurred: ${(error as Error).message}`);
+      logger.error(`Auth route error: ${(error as Error).message}`);
       next(error);
     }
   };
@@ -76,10 +81,10 @@ router.post(
   handleRouteErrors(async (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      res.status(400).json({ errors: errors.array() });
+      res.status(400).json({ success: false, errors: errors.array() });
       return;
     }
-    await login(req, res, next);
+    await authController.login(req, res, next);
   })
 );
 
@@ -123,10 +128,10 @@ router.post(
   handleRouteErrors(async (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      res.status(400).json({ errors: errors.array() });
+      res.status(400).json({ success: false, errors: errors.array() });
       return;
     }
-    await register(req, res, next);
+    await authController.register(req, res, next);
   })
 );
 
@@ -136,6 +141,17 @@ router.post(
  *   post:
  *     summary: Refresh JWT token
  *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - refreshToken
+ *             properties:
+ *               refreshToken:
+ *                 type: string
  *     responses:
  *       200:
  *         description: Token refreshed successfully
@@ -147,10 +163,10 @@ router.post(
   handleRouteErrors(async (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      res.status(400).json({ errors: errors.array() });
+      res.status(400).json({ success: false, errors: errors.array() });
       return;
     }
-    await refreshToken(req, res, next);
+    await authController.refreshToken(req, res, next);
   })
 );
 
@@ -171,22 +187,20 @@ router.post(
 router.get(
   "/me",
   protect,
-  handleRouteErrors(async (req: Request, res: Response): Promise<void> => {
-    const typedReq = req as AuthenticatedRequest;
-
-    if (!typedReq.user) {
+  handleRouteErrors(async (req, res) => {
+    const authReq = req as AuthenticatedRequest;
+    if (!authReq.user) {
       res.status(401).json({ success: false, message: "Unauthorized" });
       return;
     }
-
     res.status(200).json({
       success: true,
       data: {
-        id: typedReq.user.id,
-        email: typedReq.user.email,
-        role: typedReq.user.role,
-        isAdmin: typedReq.user.isAdmin || false,
-        permissions: typedReq.user.permissions || [],
+        id: authReq.user.id,
+        email: authReq.user.email,
+        role: authReq.user.role,
+        isAdmin: authReq.user.isAdmin || false,
+        permissions: authReq.user.permissions || [],
       },
     });
   })

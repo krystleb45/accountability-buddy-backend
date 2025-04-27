@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import mongoose, { Types } from "mongoose";
-import Group from "../models/Group";
+import Group from "../models/g";
 import Invitation from "../models/Invitation"; // Assuming you have an Invitation model
 import NotificationService from "../services/NotificationService";
 import catchAsync from "../utils/catchAsync";
@@ -14,37 +14,37 @@ export const sendGroupInvitation = catchAsync(async (
   const { groupId } = req.params;
   const { recipientId } = req.body;
   const senderId = req.user?.id;
-  
+
   if (!senderId || !recipientId || !groupId) {
     sendResponse(res, 400, false, "Sender, recipient, and group ID are required.");
     return;
   }
-  
+
   // Ensure group exists
   const group = await Group.findById(groupId);
   if (!group) {
     sendResponse(res, 404, false, "Group not found.");
     return;
   }
-  
+
   // Check if the user is already a member of the group
   if (group.members.includes(new Types.ObjectId(recipientId))) {
     sendResponse(res, 400, false, "User is already a member of the group.");
     return;
   }
-  
+
   // Check if an invitation already exists
   const existingInvitation = await Invitation.findOne({
     groupId,
     recipient: new Types.ObjectId(recipientId),
     status: "pending", // Only check for pending invitations
   });
-  
+
   if (existingInvitation) {
     sendResponse(res, 400, false, "Invitation already exists.");
     return;
   }
-  
+
   // Create a new invitation
   const invitation = await Invitation.create({
     groupId,
@@ -52,10 +52,10 @@ export const sendGroupInvitation = catchAsync(async (
     recipient: recipientId,
     status: "pending", // Invitation is pending until accepted or rejected
   });
-  
+
   // Notify the recipient about the invitation
   await NotificationService.sendInAppNotification(recipientId, `${senderId} has invited you to join the group.`);
-  
+
   sendResponse(res, 201, true, "Invitation sent successfully.", {
     invitation: invitation.toObject(), // Optionally return the invitation object
   });

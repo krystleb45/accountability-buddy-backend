@@ -33,8 +33,8 @@ export const getResources = catchAsync(async (_req, res, next) => {
 export const getDisclaimer = catchAsync(async (_req, res, next) => {
   try {
     const disclaimerText = `
-      Disclaimer: The information provided in this platform is for support purposes only 
-      and does not replace professional medical, legal, or mental health advice. 
+      Disclaimer: The information provided in this platform is for support purposes only
+      and does not replace professional medical, legal, or mental health advice.
       If you are in crisis, please contact emergency services or a licensed professional immediately.
     `;
 
@@ -50,25 +50,31 @@ export const getDisclaimer = catchAsync(async (_req, res, next) => {
  * @access  Private (Military Only)
  */
 export const sendMessage = catchAsync(async (req, res, next) => {
-  try {
-    const { chatId, text } = req.body;
-    const userId = req.user?.id;
+  const { chatroomId, message } = req.body as { chatroomId?: string; message?: string };
+  const userId = req.user?.id;
 
-    if (!chatId || !text || text.trim() === "") {
-      throw createError("Chat ID and message text are required", 400);
-    }
-
-    const message = await Message.create({
-      user: userId,
-      text,
-      timestamp: new Date(),
-    });
-
-    sendResponse(res, 201, true, "Message sent successfully", { message });
-  } catch (error) {
-    next(error);
+  if (!chatroomId || !message || message.trim() === "") {
+    return next(
+      createError("chatroomId and message text are required", 400)
+    );
   }
+
+  // ensure the chatroom exists (optional guard)
+  const room = await MilitarySupportChatroom.findById(chatroomId);
+  if (!room) {
+    return next(createError("Chatroom not found", 404));
+  }
+
+  const newMsg = await Message.create({
+    chatroom: chatroomId,
+    user: userId,
+    text: message.trim(),
+    timestamp: new Date(),
+  });
+
+  sendResponse(res, 201, true, "Message sent successfully", { message: newMsg });
 });
+
 
 /**
  * @desc    Get all military support chatrooms

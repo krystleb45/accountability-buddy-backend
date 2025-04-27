@@ -1,219 +1,135 @@
+// src/api/controllers/groupController.ts
+import { Request, Response } from "express";
 import mongoose from "mongoose";
-import { Response, NextFunction } from "express";
-import Group, { IGroup } from "../models/Group";
-import Notification from "../models/Notification";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
-import { createError } from "../middleware/errorHandler";
-
-// ✅ Import correct custom RequestWithUser type
-import { RequestWithUser } from "../../types/RequestWithUser"; 
-
+import Group from "../models/Group"; // make sure this points at your group model
 
 /**
  * @desc Create a new group
- * @route POST /api/groups
+ * @route POST /group/create
  * @access Private
  */
 export const createGroup = catchAsync(
-  async (
-    req: RequestWithUser<{ name: string; members: string[] }>,
-    res: Response
-  ): Promise<void> => {
-    const { name, members } = req.body;
-    const userId = req.user?.id;
+  async (req: Request, res: Response): Promise<void> => {
+    const { name, interests, inviteOnly } = req.body;
+    const createdBy = req.user!.id;
 
-    if (!name || !name.trim()) {
-      throw createError("Group name is required", 400);
-    }
-
-    const uniqueMembers = [...new Set([userId, ...members])].map(
-      (id) => new mongoose.Types.ObjectId(String(id))
-    );
-
-    const newGroup: IGroup = await Group.create({
+    const group = await Group.create({
       name,
-      members: uniqueMembers,
-      createdBy: new mongoose.Types.ObjectId(userId),
+      interests,
+      inviteOnly,
+      createdBy: new mongoose.Types.ObjectId(createdBy),
     });
 
-    // ✅ Notify members they have been added to the group
-    const notifications = uniqueMembers.map((memberId) => ({
-      user: memberId,
-      message: `You have been added to the group: ${name}`,
-      type: "info",
-      read: false,
-      link: `/groups/${newGroup._id.toHexString()}`,
-    }));
-    await Notification.insertMany(notifications);
-
-    sendResponse(res, 201, true, "Group created successfully", {
-      group: { ...newGroup.toObject(), _id: newGroup._id.toHexString() },
-    });
+    sendResponse(res, 201, true, "Group created successfully", { group });
   }
 );
 
 /**
- * @desc Get user groups
- * @route GET /api/groups/my-groups
- * @access Private
- */
-export const getUserGroups = catchAsync(
-  async (req: RequestWithUser, res: Response, next: NextFunction): Promise<void> => {
-    const userId = req.user?.id;
-
-    if (!userId) {
-      return next(createError("Unauthorized access", 401));
-    }
-
-    const groups = await Group.find({ members: userId }).sort({ createdAt: -1 });
-
-    sendResponse(res, 200, true, "User groups fetched successfully", { groups });
-  }
-);
-
-/**
- * @desc Join a group
- * @route POST /api/groups/join
+ * @desc Join an existing group
+ * @route POST /group/join
  * @access Private
  */
 export const joinGroup = catchAsync(
-  async (req: RequestWithUser<{ groupId: string }>, res: Response): Promise<void> => {
+  async (req: Request<{}, {}, { groupId: string }>, res: Response): Promise<void> => {
     const { groupId } = req.body;
-    const userId = req.user?.id;
+    const userId = req.user!.id;
 
     if (!mongoose.Types.ObjectId.isValid(groupId)) {
-      throw createError("Invalid group ID format", 400);
+      sendResponse(res, 400, false, "Invalid group ID");
+      return;
     }
 
-    const group: IGroup | null = await Group.findById(groupId);
+    const group = await Group.findById(groupId);
     if (!group) {
       sendResponse(res, 404, false, "Group not found");
       return;
     }
 
-    const userObjectId = new mongoose.Types.ObjectId(userId);
-
-    if (group.members.some((id) => id.equals(userObjectId))) {
-      sendResponse(res, 400, false, "You are already a member of this group");
-      return;
-    }
-
-    group.members.push(userObjectId);
-    await group.save();
-
-    // ✅ Notify group members that someone joined
-    const notifications = group.members.map((memberId) => ({
-      user: memberId,
-      message: `${userId} has joined the group: ${group.name}`,
-      type: "info",
-      read: false,
-      link: `/groups/${group._id.toHexString()}`,
-    }));
-    await Notification.insertMany(notifications);
-
-    sendResponse(res, 200, true, "Joined the group successfully", {
-      group: { ...group.toObject(), _id: group._id.toHexString() },
-    });
-
-    // WebSocket: Join the user to the group chat
-    global.io.to(groupId).emit("userJoined", { userId, groupId });
+    await group.addMember(new mongoose.Types.ObjectId(userId));
+    sendResponse(res, 200, true, "Joined group successfully", { group });
   }
 );
 
 /**
  * @desc Leave a group
- * @route POST /api/groups/leave
+ * @route POST /group/leave
  * @access Private
  */
 export const leaveGroup = catchAsync(
-  async (req: RequestWithUser<{ groupId: string }>, res: Response): Promise<void> => {
+  async (req: Request<{}, {}, { groupId: string }>, res: Response): Promise<void> => {
     const { groupId } = req.body;
-    const userId = req.user?.id;
+    const userId = req.user!.id;
 
     if (!mongoose.Types.ObjectId.isValid(groupId)) {
-      throw createError("Invalid group ID format", 400);
+      sendResponse(res, 400, false, "Invalid group ID");
+      return;
     }
 
-    const group: IGroup | null = await Group.findById(groupId);
-
+    const group = await Group.findById(groupId);
     if (!group) {
       sendResponse(res, 404, false, "Group not found");
       return;
     }
 
-    group.members = group.members.filter(
-      (member) => !member.equals(new mongoose.Types.ObjectId(userId))
-    );
-
-    await group.save();
-
-    // ✅ Notify group members that someone left
-    const notifications = group.members.map((memberId) => ({
-      user: memberId,
-      message: `${userId} has left the group: ${group.name}`,
-      type: "warning",
-      read: false,
-      link: `/groups/${group._id.toHexString()}`,
-    }));
-    await Notification.insertMany(notifications);
-
-    sendResponse(res, 200, true, "Left the group successfully", {
-      group: { ...group.toObject(), _id: group._id.toHexString() },
-    });
-
-    // WebSocket: Remove the user from the group chat
-    global.io.to(groupId).emit("userLeft", { userId, groupId });
+    await group.removeMember(new mongoose.Types.ObjectId(userId));
+    sendResponse(res, 200, true, "Left group successfully", { group });
   }
 );
 
 /**
- * @desc Delete a group
- * @route DELETE /api/groups/:groupId
+ * @desc Get all groups the logged-in user has joined
+ * @route GET /group/my-groups
  * @access Private
  */
+export const getMyGroups = catchAsync(
+  async (_req: Request, res: Response): Promise<void> => {
+    const userId = _req.user!.id;
+    const groups = await Group.find({ members: userId }).sort({ createdAt: -1 });
+    sendResponse(res, 200, true, "Your groups retrieved successfully", { groups });
+  }
+);
+
+/**
+ * @desc Delete a group (only creator or admin)
+ * @route DELETE /group/:groupId
+ * @access Private/Admin or Creator
+ */
 export const deleteGroup = catchAsync(
-  async (req: RequestWithUser<{ groupId: string }>, res: Response): Promise<void> => {
-    const { groupId } = req.params as { groupId: string };
-    const userId = req.user?.id;
+  async (req: Request<{ groupId: string }>, res: Response): Promise<void> => {
+    const { groupId } = req.params;
+    const userId = req.user!.id;
 
     if (!mongoose.Types.ObjectId.isValid(groupId)) {
-      throw createError("Invalid group ID format", 400);
+      sendResponse(res, 400, false, "Invalid group ID");
+      return;
     }
 
-    const group: IGroup | null = await Group.findById(groupId);
-
+    const group = await Group.findById(groupId);
     if (!group) {
       sendResponse(res, 404, false, "Group not found");
       return;
     }
 
-    if (!group.createdBy.equals(new mongoose.Types.ObjectId(userId))) {
-      sendResponse(res, 403, false, "You are not authorized to delete this group");
+    // Only creator or admin can delete
+    if (
+      group.createdBy.toString() !== userId &&
+      req.user!.role !== "admin"
+    ) {
+      sendResponse(res, 403, false, "Not authorized to delete this group");
       return;
     }
 
     await group.deleteOne();
-
-    // ✅ Notify all group members that the group was deleted
-    const notifications = group.members.map((memberId) => ({
-      user: memberId,
-      message: `The group "${group.name}" has been deleted.`,
-      type: "alert",
-      read: false,
-      link: "/groups",
-    }));
-    await Notification.insertMany(notifications);
-
     sendResponse(res, 200, true, "Group deleted successfully");
   }
 );
 
-// ✅ Export all controllers properly
 export default {
   createGroup,
-  getUserGroups,
   joinGroup,
   leaveGroup,
+  getMyGroups,
   deleteGroup,
 };

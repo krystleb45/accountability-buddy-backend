@@ -6,7 +6,7 @@ import { protect } from "../middleware/authMiddleware";
 import rateLimit from "express-rate-limit";
 import { logger } from "../../utils/winstonLogger";
 import handleValidationErrors from "../middleware/handleValidationErrors";
-
+import gamificationController from "../controllers/gamificationController";
 const router: Router = express.Router();
 
 /**
@@ -86,7 +86,31 @@ router.get(
     }
   }
 );
+// leaderboard...
+router.get(
+  "/leaderboard",
+  protect,
+  rateLimit({ windowMs: 60_000, max: 10, message: "Too many requests" }),
+  [
+    query("page").optional().isInt({ min: 1 }),
+    query("limit").optional().isInt({ min: 1, max: 100 }),
+  ],
+  handleValidationErrors,
+  gamificationController.getLeaderboard
+);
 
+// add-points...
+router.post(
+  "/add-points",
+  protect,
+  rateLimit({ windowMs: 15 * 60_000, max: 10, message: "Too many requests" }),
+  [
+    check("userId", "Valid userId is required").notEmpty().isMongoId(),
+    check("points", "Points must be >=1").isInt({ min: 1 }),
+  ],
+  handleValidationErrors,
+  gamificationController.addPoints
+);
 /**
  * Rate limiter for adding points
  */

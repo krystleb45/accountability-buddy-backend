@@ -3,16 +3,21 @@ import { check } from "express-validator";
 import rateLimit from "express-rate-limit";
 import { protect } from "../middleware/authMiddleware";
 import validationMiddleware from "../middleware/validationMiddleware";
-import {
-  logActivity,
-  getUserActivities,
-  deleteActivity,
-} from "../controllers/ActivityController";
 import express from "express";
+
+import {
+  getUserActivities,
+  getActivityById,      // NEW
+  createActivity,       // NEW
+  updateActivity,       // NEW
+  deleteActivity,
+  logActivity,
+  joinActivity,         // NEW
+  leaveActivity,        // NEW
+} from "../controllers/ActivityController";
 
 const router: Router = express.Router();
 
-// ✅ Rate Limiter to prevent spam logging
 const rateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
@@ -23,77 +28,66 @@ const rateLimiter = rateLimit({
 });
 
 /**
- * @swagger
- * tags:
- *   name: Activity
- *   description: User activity logging and management
- */
-
-/**
- * @swagger
- * /api/activity:
- *   get:
- *     summary: Get user activities
- *     tags: [Activity]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: type
- *         schema:
- *           type: string
- *         description: Filter by activity type
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *         description: Page number for pagination
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *         description: Number of items per page
- *     responses:
- *       200:
- *         description: List of activities retrieved successfully
- *       401:
- *         description: Unauthorized
+ * GET /api/activity
+ * List (with optional ?page & ?limit)
  */
 router.get("/", protect, getUserActivities);
 
 /**
- * @swagger
- * /api/activity/log:
- *   post:
- *     summary: Log a user activity
- *     tags: [Activity]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - type
- *             properties:
- *               type:
- *                 type: string
- *                 example: login
- *               description:
- *                 type: string
- *                 example: User logged in from web
- *               metadata:
- *                 type: object
- *                 example: { ip: "192.168.1.1", browser: "Chrome" }
- *     responses:
- *       201:
- *         description: Activity logged successfully
- *       400:
- *         description: Bad request or validation error
- *       401:
- *         description: Unauthorized
+ * GET /api/activity/:activityId
+ * Fetch a single activity
+ */
+router.get("/:activityId", protect, getActivityById);
+
+/**
+ * POST /api/activity
+ * Create a new activity
+ */
+router.post(
+  "/",
+  protect,
+  rateLimiter,
+  validationMiddleware([
+    check("title").notEmpty().withMessage("Title is required"),
+    check("description").optional().isString(),
+    // any other fields...
+  ]),
+  createActivity
+);
+
+/**
+ * PUT /api/activity/:activityId
+ * Update an existing activity
+ */
+router.put(
+  "/:activityId",
+  protect,
+  rateLimiter,
+  validationMiddleware([
+    check("title").optional().isString(),
+    check("description").optional().isString(),
+  ]),
+  updateActivity
+);
+
+/**
+ * DELETE /api/activity/:activityId
+ * Soft-delete an activity
+ */
+router.delete("/:activityId", protect, deleteActivity);
+
+/**
+ * POST /api/activity/:activityId/join
+ */
+router.post("/:activityId/join", protect, joinActivity);
+
+/**
+ * POST /api/activity/:activityId/leave
+ */
+router.post("/:activityId/leave", protect, leaveActivity);
+
+/**
+ * (Optional) Legacy log endpoint—can redirect to createActivity or kept for audit
  */
 router.post(
   "/log",
@@ -102,36 +96,11 @@ router.post(
     rateLimiter,
     validationMiddleware([
       check("type").notEmpty().withMessage("Activity type is required."),
-      check("description").optional().isString().withMessage("Description must be a string."),
-      check("metadata").optional().isObject().withMessage("Metadata must be an object."),
+      check("description").optional().isString(),
+      check("metadata").optional().isObject(),
     ]),
   ],
   logActivity
 );
-
-/**
- * @swagger
- * /api/activity/{activityId}:
- *   delete:
- *     summary: Delete a user activity by ID (soft delete)
- *     tags: [Activity]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: activityId
- *         required: true
- *         schema:
- *           type: string
- *         description: ID of the activity to delete
- *     responses:
- *       200:
- *         description: Activity deleted successfully
- *       400:
- *         description: Invalid activity ID
- *       401:
- *         description: Unauthorized
- */
-router.delete("/:activityId", protect, deleteActivity);
 
 export default router;

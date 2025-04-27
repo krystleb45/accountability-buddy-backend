@@ -1,14 +1,15 @@
+// src/controllers/partnerController.ts
 import type { Request, Response, NextFunction } from "express";
-import Notification from "../models/Notification"; // Ensure this matches your model export
+import Notification from "../models/Notification";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
 import sanitize from "mongo-sanitize";
 import { logger } from "../../utils/winstonLogger";
 
 /**
- * @desc Notify a partner about a goal milestone
- * @route POST /api/partner/notify
- * @access Private
+ * @desc    Notify a partner about a goal milestone
+ * @route   POST /api/partner/notify
+ * @access  Private
  */
 export const notifyPartner = catchAsync(
   async (
@@ -16,74 +17,74 @@ export const notifyPartner = catchAsync(
     res: Response,
     next: NextFunction,
   ): Promise<void> => {
-    // Extract and sanitize inputs
     const { partnerId, goal, milestone } = sanitize(req.body);
-    const userId = req.user?.id;
+    const senderId = req.user?.id;
 
-    // Validate required fields
-    if (!partnerId || !goal || !milestone || !userId) {
-      sendResponse(res, 400, false, "Partner ID, goal, and milestone are required.");
+    if (!senderId || !partnerId || !goal || !milestone) {
+      sendResponse(res, 400, false, "partnerId, goal and milestone are required.");
       return;
     }
 
     try {
-      // Create notification for partner
       const notification = await Notification.create({
+        sender: senderId,
         user: partnerId,
-        message: `Your partner (User ID: ${userId}) made progress on the milestone "${milestone}" for the goal "${goal}".`,
+        message: `Your partner (User ${senderId}) progressed on milestone "${milestone}" of goal "${goal}".`,
         type: "partner-notification",
+        read: false,
       });
 
-      // Send success response
       sendResponse(res, 200, true, "Partner notified successfully.", { notification });
-    } catch (error) {
-      logger.error("Error notifying partner", {
-        error,
-        partnerId,
-        userId,
-      });
-      next(error); // Forward the error to middleware
+    } catch (err) {
+      logger.error("Error in notifyPartner:", { error: err, partnerId, senderId });
+      next(err);
     }
-  },
+  }
 );
 
 
 /**
- * @desc Add a partner and send a notification
- * @route POST /api/partner/add
- * @access Private
+ * @desc    Add a partner and send a notification
+ * @route   POST /api/partner/add
+ * @access  Private
  */
 export const addPartnerNotification = catchAsync(
   async (
-    req: Request<{}, {}, { partnerId: string; userId: string }>,
+    req: Request<{}, {}, { partnerId: string }>,
     res: Response,
-    _next: NextFunction,
+    next: NextFunction,
   ): Promise<void> => {
-    const { partnerId, userId } = sanitize(req.body);
-    const senderId = req.user?.id; // Get sender ID from authenticated user
+    const { partnerId } = sanitize(req.body);
+    const senderId = req.user?.id;
 
-    // Validate inputs
-    if (!partnerId || !userId || !senderId) {
-      sendResponse(res, 400, false, "Partner ID, User ID, and Sender ID are required.");
+    if (!senderId || !partnerId) {
+      sendResponse(res, 400, false, "partnerId is required.");
       return;
     }
 
-    // Create partner notification
-    const notification = await Notification.create({
-      user: partnerId,
-      message: `You have been added as a partner by User ID: ${senderId}.`,
-      type: "partner-notification",
-    });
+    try {
+      // Here you could insert logic to actually link partner <-> user
+      const notification = await Notification.create({
+        sender: senderId,
+        user: partnerId,
+        message: `User ${senderId} has added you as a partner.`,
+        type: "partner-notification",
+        read: false,
+      });
 
-    sendResponse(res, 200, true, "Partner added and notified successfully.", { notification });
-  },
+      sendResponse(res, 200, true, "Partner added and notified successfully.", { notification });
+    } catch (err) {
+      logger.error("Error in addPartnerNotification:", { error: err, partnerId, senderId });
+      next(err);
+    }
+  }
 );
 
 
 /**
- * @desc Get partner notifications
- * @route GET /api/partner/notifications
- * @access Private
+ * @desc    Get all partner notifications for the authenticated user
+ * @route   GET /api/partner/notifications
+ * @access  Private
  */
 export const getPartnerNotifications = catchAsync(
   async (
@@ -92,42 +93,45 @@ export const getPartnerNotifications = catchAsync(
     next: NextFunction,
   ): Promise<void> => {
     const userId = req.user?.id;
-    const page = parseInt(req.query.page || "1", 10);
-    const limit = parseInt(req.query.limit || "10", 10);
+    const page = Math.max(1, parseInt(req.query.page || "1", 10));
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || "10", 10)));
+
+    if (!userId) {
+      sendResponse(res, 401, false, "Unauthorized");
+      return;
+    }
 
     try {
-      // Fetch partner notifications
-      const notifications = await Notification.find({ user: userId, type: "partner-notification" })
-        .sort({ createdAt: -1 })
-        .skip((page - 1) * limit)
-        .limit(limit);
+      const [notifications, total] = await Promise.all([
+        Notification.find({ user: userId, type: "partner-notification" })
+          .sort({ createdAt: -1 })
+          .skip((page - 1) * limit)
+          .limit(limit),
+        Notification.countDocuments({ user: userId, type: "partner-notification" }),
+      ]);
 
-      const totalNotifications = await Notification.countDocuments({
-        user: userId,
-        type: "partner-notification",
-      });
-
-      // Handle no notifications case
-      if (!notifications || notifications.length === 0) {
+      if (notifications.length === 0) {
         sendResponse(res, 404, false, "No partner notifications found.");
         return;
       }
 
-      // Send success response
       sendResponse(res, 200, true, "Partner notifications fetched successfully.", {
         notifications,
         pagination: {
-          total: totalNotifications,
+          total,
           currentPage: page,
-          totalPages: Math.ceil(totalNotifications / limit),
+          totalPages: Math.ceil(total / limit),
         },
       });
-    } catch (error) {
-      logger.error("Error fetching partner notifications", {
-        error,
-        userId,
-      });
-      next(error); // Pass the error to middleware
+    } catch (err) {
+      logger.error("Error in getPartnerNotifications:", { error: err, userId });
+      next(err);
     }
-  },
+  }
 );
+
+export default {
+  notifyPartner,
+  addPartnerNotification,
+  getPartnerNotifications,
+};

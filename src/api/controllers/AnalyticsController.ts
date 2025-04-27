@@ -1,26 +1,48 @@
-import type { Request, Response, NextFunction } from "express";
+import type { Request, Response } from "express";
+import { User } from "../models/User";
+import Report from "../models/Report";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
 import { createError } from "../middleware/errorHandler";
-import type { AuthenticatedRequest, AnalyticsRequestBody } from "../../types/AuthenticatedRequest";
+import { PERMISSIONS } from "../../constants/roles";
+import type { AdminAuthenticatedRequest } from "../../types/AdminAuthenticatedRequest";
 
 /**
- * Fetch user-specific analytics
+ * GET  /api/admin/analytics
+ * Dashboard overview: total users, active users, total reports
+ */
+export const getDashboardAnalytics = catchAsync(
+  async (_req: Request, res: Response): Promise<void> => {
+    const totalUsers   = await User.countDocuments();
+    const activeUsers  = await User.countDocuments({ active: true });
+    const reportsCount = await Report.countDocuments();
+
+    sendResponse(res, 200, true, "Dashboard analytics fetched successfully", {
+      totalUsers,
+      activeUsers,
+      reports: reportsCount,
+    });
+  }
+);
+
+/**
+ * GET  /api/admin/analytics/users
+ * Detailed user analytics (placeholder)
  */
 export const getUserAnalytics = catchAsync(
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    // Cast req to our custom type
-    const authReq = req as AuthenticatedRequest;
-    const userId = authReq.user?.id;
-    if (!userId) {
-      return next(createError("User ID is required", 400));
+  async (req: AdminAuthenticatedRequest, res: Response): Promise<void> => {
+    const currentUser = req.user!;
+    if (!PERMISSIONS.VIEW_ANALYTICS.includes(currentUser.role)) {
+      throw createError("Access denied. Insufficient privileges.", 403);
     }
 
-    // Placeholder logic for user analytics (replace with actual implementation)
+    // TODO: replace with real user analytics logic
     const analytics = {
-      totalGoals: 10, // Example value
-      completedGoals: 7,
-      pendingTasks: 15,
+      totalUsersByRole: {
+        admin: 5,
+        member: 200,
+      },
+      newSignupsLastWeek: 12,
     };
 
     sendResponse(res, 200, true, "User analytics fetched successfully", { analytics });
@@ -28,51 +50,71 @@ export const getUserAnalytics = catchAsync(
 );
 
 /**
- * Fetch global analytics
+ * GET  /api/admin/analytics/goals
+ * GET  /api/admin/analytics/posts
+ * Global goal/post analytics (placeholder)
  */
 export const getGlobalAnalytics = catchAsync(
-  async (_req: Request, res: Response, _next: NextFunction): Promise<void> => {
-    // No custom properties needed here; simply use the standard Request.
-    const analytics = {
-      totalUsers: 500,
-      totalGoals: 1000,
-      totalTasks: 4000,
+  async (_req: AdminAuthenticatedRequest, res: Response): Promise<void> => {
+    // TODO: replace with real goal/post analytics logic
+    const data = {
+      totalGoalsCreated: 1500,
+      totalPosts: 3200,
     };
 
-    sendResponse(res, 200, true, "Global analytics fetched successfully", { analytics });
+    sendResponse(res, 200, true, "Global analytics fetched successfully", { data });
   }
 );
 
 /**
- * Fetch custom analytics based on request body
+ * GET  /api/admin/analytics/financial
+ * Financial analytics (placeholder)
+ */
+export const getFinancialAnalytics = catchAsync(
+  async (req: AdminAuthenticatedRequest, res: Response): Promise<void> => {
+    const currentUser = req.user!;
+    if (!PERMISSIONS.EDIT_SETTINGS.includes(currentUser.role)) {
+      throw createError("Access denied. Only Super Admins can view financial analytics.", 403);
+    }
+
+    // TODO: replace with real financial analytics logic
+    const analytics = {
+      totalRevenue: 12500,
+      monthlyRecurringRevenue: 4200,
+    };
+
+    sendResponse(res, 200, true, "Financial analytics fetched successfully", { analytics });
+  }
+);
+
+/**
+ * POST /api/admin/analytics/custom
+ * Custom analytics based on date range + metric
  */
 export const getCustomAnalytics = catchAsync(
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    // Cast req to our custom type so we can use the AnalyticsRequestBody type for req.body.
-    const authReq = req as AuthenticatedRequest<{}, any, AnalyticsRequestBody>;
-    const { startDate, endDate, metric } = authReq.body;
+  async (
+    req: AdminAuthenticatedRequest<{}, any, { startDate: string; endDate: string; metric: string }>,
+    res: Response
+  ): Promise<void> => {
+    const { startDate, endDate, metric } = req.body;
 
-    // Validate request body fields
+    // Validate inputs
     if (!startDate || !endDate || !metric) {
-      return next(createError("Missing required fields: startDate, endDate, or metric", 400));
+      throw createError("Missing required fields: startDate, endDate, metric", 400);
     }
-
-    // Ensure the values are valid date strings
     if (isNaN(Date.parse(startDate)) || isNaN(Date.parse(endDate))) {
-      return next(createError("Invalid date format. Expected ISO 8601 format.", 400));
+      throw createError("Invalid date format. Expected ISO 8601.", 400);
     }
-
-    // Ensure metric is a valid string
     if (typeof metric !== "string" || metric.trim().length === 0) {
-      return next(createError("Metric must be a non-empty string.", 400));
+      throw createError("Metric must be a non-empty string.", 400);
     }
 
-    // Placeholder for custom analytics logic (replace with actual implementation)
+    // TODO: replace with your custom analytics computation
     const analytics = {
-      metric,
-      data: Math.floor(Math.random() * 1000), // Example: Randomly generated metric data
       startDate,
       endDate,
+      metric,
+      value: Math.floor(Math.random() * 1000),
     };
 
     sendResponse(res, 200, true, "Custom analytics fetched successfully", { analytics });

@@ -42,7 +42,7 @@
     "@types/**/*.d.ts",
     "jest.setup.ts",
     "jest.config.js"
-, "@types/socket.d.ts.ts"  ],
+, "@types/socket.d.ts.ts", "src/utils/emailSender.ts"  ],
   "exclude": [
     "node_modules",
     "dist",

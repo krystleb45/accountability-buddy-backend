@@ -35,7 +35,7 @@ const GroupSchema = new Schema<IGroup>(
       {
         type: Schema.Types.ObjectId,
         ref: "User",
-        
+
       },
     ],
     createdBy: {

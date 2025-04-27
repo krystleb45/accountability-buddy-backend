@@ -1,19 +1,22 @@
-import type { Router, Request, Response, NextFunction } from "express";
-import express from "express";
-import { signupNewsletter } from "../controllers/NewsletterController"; // Corrected controller import path
+// src/api/routes/newsletterRoute.ts
+import { Router, Request, Response, NextFunction } from "express";
 import rateLimit from "express-rate-limit";
+import { protect, restrictTo } from "../middleware/authMiddleware";
+import {
+  signupNewsletter,
+  unsubscribeNewsletter,
+  getSubscribers,
+} from "../controllers/NewsletterController";
 import { logger } from "../../utils/winstonLogger";
 
-const router: Router = express.Router();
+const router = Router();
 
-/**
- * Rate limiting to prevent abuse (e.g., bots signing up with many emails).
- */
+// Rate limiter for signup
 const newsletterRateLimiter = rateLimit({
   windowMs: 10 * 60 * 1000, // 10 minutes
-  max: 50, // Limit each IP to 50 requests per windowMs
-  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  max: 50,                  // 50 requests per window
+  standardHeaders: true,
+  legacyHeaders: false,
   message: {
     success: false,
     message: "Too many signup attempts from this IP, please try again later.",
@@ -21,48 +24,67 @@ const newsletterRateLimiter = rateLimit({
 });
 
 /**
- * @swagger
- * /api/newsletter/signup:
- *   post:
- *     summary: Subscribe to the newsletter
- *     tags: [Newsletter]
- *     description: Allows a user to subscribe to the Accountability Buddy newsletter.
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               email:
- *                 type: string
- *                 format: email
- *                 example: user@example.com
- *     responses:
- *       200:
- *         description: Successfully subscribed to the newsletter
- *       400:
- *         description: Invalid request or email already exists
- *       429:
- *         description: Too many requests (rate limited)
- *       500:
- *         description: Internal server error
+ * @route   POST /api/newsletter/signup
+ * @desc    Subscribe to the newsletter
+ * @access  Public
  */
 router.post(
   "/signup",
-  newsletterRateLimiter, // Apply rate limiting middleware
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  newsletterRateLimiter,
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
-      await signupNewsletter(req, res, next); // Pass required arguments
-    } catch (error) {
-      logger.error(`Newsletter signup error: ${(error as Error).message}`, {
-        error,
+      await signupNewsletter(req, res, next);
+    } catch (err) {
+      logger.error(`Newsletter signup error: ${(err as Error).message}`, {
+        error: err,
         ip: req.ip,
         email: req.body.email,
       });
-      next(error); // Forward error to error handler
+      next(err);
     }
-  },
+  }
+);
+
+/**
+ * @route   GET /api/newsletter/unsubscribe
+ * @desc    Unsubscribe from the newsletter (via token query)
+ * @access  Public
+ */
+router.get(
+  "/unsubscribe",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await unsubscribeNewsletter(req, res, next);
+    } catch (err) {
+      logger.error(`Newsletter unsubscribe error: ${(err as Error).message}`, {
+        error: err,
+        token: req.query.token,
+      });
+      next(err);
+    }
+  }
+);
+
+/**
+ * @route   GET /api/newsletter/subscribers
+ * @desc    Get all subscribers (admin only)
+ * @access  Private/Admin
+ */
+router.get(
+  "/subscribers",
+  protect,
+  restrictTo("admin"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await getSubscribers(req, res, next);
+    } catch (err) {
+      logger.error(`Error fetching subscribers: ${(err as Error).message}`, {
+        error: err,
+        userId: req.user?.id,
+      });
+      next(err);
+    }
+  }
 );
 
 export default router;

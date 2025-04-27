@@ -7,6 +7,9 @@ import bcrypt from "bcryptjs";
 import { subDays } from "date-fns";
 import Goal from "../models/Goal";
 import Streak from "../models/Streak";
+// src/api/controllers/userController.ts
+import Badge from "../models/Badge";
+
 
 
 export const getUserProfile = catchAsync(async (req: Request, res: Response): Promise<void> => {
@@ -197,7 +200,144 @@ export const updateUserProfile = catchAsync(async (req: Request, res: Response):
 
   sendResponse(res, 200, true, "User profile updated successfully.", { updatedUser });
 });
+/**
+ * NEW: Fetch all users
+ */
+export const fetchAllUsers = catchAsync(async (_req: Request, res: Response) => {
+  const users = await User.find().select("-password");
+  // map to whatever shape you need, or return raw
+  sendResponse(res, 200, true, "All users fetched successfully", { users });
+});
 
+/**
+ * NEW: Block a user
+ */
+export const blockUser = catchAsync(async (req: Request, res: Response) => {
+  const { userId } = req.params;
+  if (!mongoose.isValidObjectId(userId)) {
+    sendResponse(res, 400, false, "Invalid user ID format.");
+    return;
+  }
+  const user = await User.findByIdAndUpdate(userId, { active: false }, { new: true }).select("-password");
+  if (!user) {
+    sendResponse(res, 404, false, "User not found.");
+    return;
+  }
+  sendResponse(res, 200, true, "User blocked successfully.", { user });
+});
+
+/**
+ * NEW: Unblock a user
+ */
+export const unblockUser = catchAsync(async (req: Request, res: Response) => {
+  const { userId } = req.params;
+  if (!mongoose.isValidObjectId(userId)) {
+    sendResponse(res, 400, false, "Invalid user ID format.");
+    return;
+  }
+  const user = await User.findByIdAndUpdate(userId, { active: true }, { new: true }).select("-password");
+  if (!user) {
+    sendResponse(res, 404, false, "User not found.");
+    return;
+  }
+  sendResponse(res, 200, true, "User unblocked successfully.", { user });
+});
+
+/**
+ * NEW: Fetch all badges
+ */
+export const fetchBadges = catchAsync(async (_req: Request, res: Response) => {
+  // Pull from the default-exported model
+  const badges = await Badge.find().lean();
+  sendResponse(res, 200, true, "Badges fetched successfully", { badges });
+});
+
+
+/**
+ * NEW: Fetch badges for a specific user
+ */
+export const fetchUserBadges = catchAsync(async (req: Request, res: Response) => {
+  const { userId } = req.params;
+  if (!mongoose.isValidObjectId(userId)) {
+    sendResponse(res, 400, false, "Invalid user ID format.");
+    return;
+  }
+  const user = await User.findById(userId).populate("badges");
+  if (!user) {
+    sendResponse(res, 404, false, "User not found.");
+    return;
+  }
+
+  // Ensure badges is at least an empty array
+  const badges = Array.isArray(user.badges) ? user.badges : [];
+  sendResponse(res, 200, true, "User badges fetched successfully", { badges });
+});
+
+/**
+ * NEW: Award a badge to a user
+ */
+export const awardBadge = catchAsync(async (req: Request, res: Response) => {
+  const { userId, badgeId } = req.body;
+  if (!mongoose.isValidObjectId(userId) || !mongoose.isValidObjectId(badgeId)) {
+    sendResponse(res, 400, false, "Invalid ID format.");
+    return;
+  }
+  const user = await User.findById(userId);
+  if (!user) {
+    sendResponse(res, 404, false, "User not found.");
+    return;
+  }
+
+  // Initialize badges array if undefined
+  if (!Array.isArray(user.badges)) {
+    user.badges = [];
+  }
+
+  const hasBadge = user.badges.some((id) => id.toString() === badgeId);
+  if (!hasBadge) {
+    user.badges.push(new mongoose.Types.ObjectId(badgeId));
+    await user.save();
+  }
+
+  sendResponse(res, 200, true, "Badge awarded successfully.", { badges: user.badges });
+});
+
+
+/**
+ * NEW: Get last check-in info
+ */
+export const getLastCheckIn = catchAsync(async (req: Request, res: Response) => {
+  const userId = req.user?.id!;
+  const user = await User.findById(userId).select("streakCount lastGoalCompletedAt");
+  sendResponse(res, 200, true, "Last check-in fetched successfully", {
+    userId,
+    lastCheckIn: user?.lastGoalCompletedAt,
+    streak: user?.streakCount,
+  });
+});
+
+/**
+ * NEW: Log daily check-in
+ */
+export const logCheckIn = catchAsync(async (req: Request, res: Response) => {
+  const userId = req.user?.id!;
+  const user = await User.findById(userId).select("streakCount lastGoalCompletedAt");
+  if (!user) {
+    sendResponse(res, 404, false, "User not found.");
+    return;
+  }
+  // simple daily increment logic
+  user.streakCount = (user.lastGoalCompletedAt?.toDateString() === new Date().toDateString())
+    ? user.streakCount
+    : user.streakCount + 1;
+  user.lastGoalCompletedAt = new Date();
+  await user.save();
+  sendResponse(res, 200, true, "Check-in logged successfully", {
+    userId,
+    lastCheckIn: user.lastGoalCompletedAt,
+    streak: user.streakCount,
+  });
+});
 export const getFeaturedAchievements = catchAsync(async (req: Request, res: Response): Promise<void> => {
   if (!req.user) {
     sendResponse(res, 401, false, "Unauthorized request.");

@@ -1,19 +1,13 @@
-import type { Router, Request, Response } from "express";
-import express from "express";
-import type { IRole } from "../models/Role";
-import Role from "../models/Role";
-import { roleBasedAccessControl } from "../middleware/roleBasedAccessControl";
+// src/api/routes/roles.ts
+import { Router } from "express";
 import { protect } from "../middleware/authMiddleware";
+import { roleBasedAccessControl } from "../middleware/roleBasedAccessControl";
 import rateLimit from "express-rate-limit";
-import { logger } from "../../utils/winstonLogger";
+import * as RoleCtrl from "../controllers/RoleController";
 
-const router: Router = express.Router();
-
-/**
- * Rate limiter to prevent abuse of the roles route.
- */
-const rateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+const router = Router();
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
   max: 10,
   message: "Too many requests. Please try again later.",
 });
@@ -21,8 +15,8 @@ const rateLimiter = rateLimit({
 /**
  * @swagger
  * tags:
- *   - name: Roles
- *     description: Manage user roles and permissions
+ *   name: Roles
+ *   description: Manage user roles and permissions
  */
 
 /**
@@ -36,71 +30,130 @@ const rateLimiter = rateLimit({
  *     responses:
  *       201:
  *         description: Roles seeded successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 message:
- *                   type: string
- *                 data:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       roleName:
- *                         type: string
- *                       permissions:
- *                         type: array
- *                         items:
- *                           type: string
  *       401:
  *         description: Unauthorized
  *       403:
- *         description: Forbidden - Only admins can access
+ *         description: Forbidden
  *       500:
- *         description: Server error while seeding roles
+ *         description: Server error
  */
 router.post(
   "/seed",
   protect,
   roleBasedAccessControl(["admin"]),
-  rateLimiter,
-  async (_req: Request, res: Response): Promise<void> => {
-    try {
-      const roles = [
-        { roleName: "admin", permissions: ["manage_users", "view_reports"] },
-        { roleName: "user", permissions: ["view_content"] },
-      ];
+  limiter,
+  RoleCtrl.seedRoles
+);
 
-      const seededRoles: IRole[] = [];
+/**
+ * @swagger
+ * /api/roles:
+ *   get:
+ *     summary: Get all roles
+ *     tags: [Roles]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Roles fetched successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       500:
+ *         description: Server error
+ */
+router.get(
+  "/",
+  protect,
+  roleBasedAccessControl(["admin"]),
+  limiter,
+  RoleCtrl.getAllRoles
+);
 
-      for (const role of roles) {
-        const existingRole = await Role.findOne({ roleName: role.roleName });
-        if (!existingRole) {
-          const createdRole = (await Role.create(role)) as IRole;
-          seededRoles.push(createdRole);
-        }
-      }
+/**
+ * @swagger
+ * /api/roles/{id}:
+ *   put:
+ *     summary: Update a role's permissions
+ *     tags: [Roles]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Role ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - permissions
+ *             properties:
+ *               permissions:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: Role updated successfully
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Role not found
+ *       500:
+ *         description: Server error
+ */
+router.put(
+  "/:id",
+  protect,
+  roleBasedAccessControl(["admin"]),
+  limiter,
+  RoleCtrl.updateRole
+);
 
-      res.status(201).json({
-        success: true,
-        message: "Roles seeded successfully.",
-        data: seededRoles,
-      });
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error occurred";
-      logger.error(`Role seeding error: ${errorMessage}`);
-      res.status(500).json({
-        success: false,
-        message: "Error seeding roles.",
-        error: errorMessage,
-      });
-    }
-  }
+/**
+ * @swagger
+ * /api/roles/{id}:
+ *   delete:
+ *     summary: Delete a role
+ *     tags: [Roles]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Role ID
+ *     responses:
+ *       200:
+ *         description: Role deleted successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Role not found
+ *       500:
+ *         description: Server error
+ */
+router.delete(
+  "/:id",
+  protect,
+  roleBasedAccessControl(["admin"]),
+  limiter,
+  RoleCtrl.deleteRole
 );
 
 export default router;

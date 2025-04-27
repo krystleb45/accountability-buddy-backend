@@ -1,11 +1,12 @@
 import type { Router, Request, Response, NextFunction } from "express";
 import express from "express";
 import { check } from "express-validator";
-import * as feedbackController from "../controllers/FeedbackController";
-import { protect } from "../middleware/authMiddleware";
 import rateLimit from "express-rate-limit";
-import { logger } from "../../utils/winstonLogger";
+import { protect } from "../middleware/authMiddleware";
 import handleValidationErrors from "../middleware/handleValidationErrors";
+import { logger } from "../../utils/winstonLogger";
+
+import feedbackController from "../controllers/FeedbackController";
 
 const router: Router = express.Router();
 
@@ -60,18 +61,16 @@ router.post(
   protect,
   feedbackLimiter,
   [
-    check("message", "Feedback message is required")
-      .notEmpty()
-      .isLength({ max: 1000 }),
+    check("message", "Feedback message is required").notEmpty().isLength({ max: 1000 }),
     check("type", "Invalid feedback type").isIn(["bug", "feature-request", "other"]),
+    handleValidationErrors,
   ],
-  handleValidationErrors,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       await feedbackController.submitFeedback(req as any, res, next);
-    } catch (error) {
-      logger.error(`Error submitting feedback: ${(error as Error).message}`, { error });
-      next(error);
+    } catch (err) {
+      logger.error(`Error submitting feedback: ${(err as Error).message}`, { err });
+      next(err);
     }
   }
 );
@@ -95,11 +94,10 @@ router.get(
   protect,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const feedback = feedbackController.getUserFeedback(req as any, res, next);
-      res.status(200).json({ success: true, data: feedback });
-    } catch (error) {
-      logger.error(`Error fetching feedback: ${(error as Error).message}`, { error });
-      next(error);
+      await feedbackController.getUserFeedback(req as any, res, next);
+    } catch (err) {
+      logger.error(`Error fetching feedback: ${(err as Error).message}`, { err });
+      next(err);
     }
   }
 );
@@ -132,21 +130,17 @@ router.delete(
   protect,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const { feedbackId } = req.params;
-
     if (!feedbackId.match(/^[0-9a-fA-F]{24}$/)) {
       res.status(400).json({ success: false, msg: "Invalid feedback ID" });
       return;
     }
-
     try {
-      await feedbackController.deleteFeedback(req as any, res, next); // ✅ await it!
-      res.status(200).json({ success: true, msg: "Feedback deleted successfully" });
-    } catch (error) {
-      logger.error(`Error deleting feedback: ${(error as Error).message}`, { error });
-      next(error);
+      await feedbackController.deleteFeedback(req as any, res, next);
+    } catch (err) {
+      logger.error(`Error deleting feedback: ${(err as Error).message}`, { err });
+      next(err);
     }
   }
 );
-
 
 export default router;

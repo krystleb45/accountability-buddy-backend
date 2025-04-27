@@ -1,4 +1,5 @@
-import type { Request, Response, NextFunction, Router } from "express";
+// src/api/routes/goalAnalytics.ts
+import type { Router, Request, Response, NextFunction } from "express";
 import express from "express";
 import { check, query, validationResult } from "express-validator";
 import goalAnalyticsController from "../controllers/goalAnalyticsController";
@@ -14,12 +15,13 @@ const router: Router = express.Router();
  *   description: Endpoints for tracking and analyzing user goals
  */
 
-const handleRouteErrors =
-  (handler: (req: Request, res: Response, next: NextFunction) => Promise<void>) =>
+// A small helper to catch promise rejections from async handlers
+const wrap =
+  (fn: (req: Request, res: Response, next: NextFunction) => Promise<void>) =>
     (req: Request, res: Response, next: NextFunction): void => {
-      handler(req, res, next).catch((error) => {
-        logger.error(`Error occurred: ${(error as Error).message}`);
-        next(error);
+      fn(req, res, next).catch((err) => {
+        logger.error(`Error in GoalAnalytics route: ${(err as Error).message}`);
+        next(err);
       });
     };
 
@@ -40,15 +42,15 @@ const handleRouteErrors =
 router.get(
   "/goals",
   protect,
-  handleRouteErrors(async (req: Request, res: Response, next: NextFunction) => {
-    const analytics = goalAnalyticsController.getUserGoalAnalytics(req, res, next);
-    res.json({ success: true, data: analytics });
-  }),
+  wrap(async (req, res, next) => {
+    // Controller will call sendResponse internally
+    await goalAnalyticsController.getUserGoalAnalytics(req, res, next);
+  })
 );
 
 /**
  * @swagger
- * /api/analytics/goals/{id}:
+ * /api/analytics/goals/{goalId}:
  *   get:
  *     summary: Get analytics for a specific goal by ID
  *     tags: [GoalAnalytics]
@@ -56,7 +58,7 @@ router.get(
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: id
+ *         name: goalId
  *         required: true
  *         schema:
  *           type: string
@@ -70,32 +72,18 @@ router.get(
  *         description: Unauthorized
  */
 router.get(
-  "/goals/:id",
-  [
-    protect,
-    check("id", "Goal ID is invalid").isMongoId(),
-  ],
-  handleRouteErrors(async (req: Request, res: Response, next: NextFunction) => {
+  "/goals/:goalId",
+  protect,
+  check("goalId", "Goal ID is invalid").isMongoId(),
+  wrap(async (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      logger.warn(`Validation error: ${JSON.stringify(errors.array())}`);
+      // early return on validation failure
       res.status(400).json({ success: false, errors: errors.array() });
       return;
     }
-
-    const { goalId } = req.params;
-    if (!goalId) {
-      res.status(400).json({ success: false, errors: ["Goal ID is required"] });
-      return;
-    }
-
-    const analytics = goalAnalyticsController.getGoalAnalyticsById(
-      { params: { goalId } } as Request<{ goalId: string }>,
-      res,
-      next,
-    );
-    res.json({ success: true, data: analytics });
-  }),
+    await goalAnalyticsController.getGoalAnalyticsById(req, res, next);
+  })
 );
 
 /**
@@ -131,36 +119,17 @@ router.get(
  */
 router.get(
   "/goals/date-range",
-  [
-    protect,
-    query("startDate")
-      .notEmpty()
-      .withMessage("Start date is required")
-      .isISO8601()
-      .withMessage("Invalid start date format")
-      .toDate(),
-    query("endDate")
-      .notEmpty()
-      .withMessage("End date is required")
-      .isISO8601()
-      .withMessage("Invalid end date format")
-      .toDate(),
-  ],
-  handleRouteErrors(async (req: Request, res: Response, next: NextFunction) => {
+  protect,
+  query("startDate").notEmpty().isISO8601().withMessage("Invalid start date").toDate(),
+  query("endDate").notEmpty().isISO8601().withMessage("Invalid end date").toDate(),
+  wrap(async (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      logger.warn(`Validation error: ${JSON.stringify(errors.array())}`);
       res.status(400).json({ success: false, errors: errors.array() });
       return;
     }
-  
-    await goalAnalyticsController.getGoalAnalyticsByDateRange(
-      req as Request<{ goalId: string }, any, any, { startDate: string; endDate: string }>,
-      res,
-      next,
-    );
-  }),
-  
+    await goalAnalyticsController.getGoalAnalyticsByDateRange(req, res, next);
+  })
 );
 
 export default router;

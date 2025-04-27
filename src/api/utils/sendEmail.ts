@@ -68,16 +68,13 @@ const createTransporter = async (): Promise<nodemailer.Transporter> => {
 const sendEmail = async (options: EmailOptions): Promise<void> => {
   try {
     const transporter = await createTransporter();
-
-    const mailOptions = {
+    await transporter.sendMail({
       from: `"Accountability Buddy" <${process.env.EMAIL_FROM}>`,
       to: options.to,
       subject: options.subject,
       text: options.text,
       html: options.html,
-    };
-
-    await transporter.sendMail(mailOptions);
+    });
   } catch (error) {
     throw new Error(`Unable to send email: ${(error as Error).message}`);
   }
