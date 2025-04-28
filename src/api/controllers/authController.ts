@@ -1,33 +1,11 @@
 // src/api/controllers/authController.ts
 import type { Request, Response, NextFunction } from "express";
-import jwt, { Secret, SignOptions } from "jsonwebtoken";
-import bcrypt from "bcryptjs";
 import { User } from "../models/User";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
 import { createError } from "../middleware/errorHandler";
 import { logger } from "../../utils/winstonLogger";
-
-/** Generate access & refresh tokens */
-const generateTokens = (userId: string): { accessToken: string; refreshToken: string } => {
-  const accessTokenSecret   = process.env.ACCESS_TOKEN_SECRET as Secret;
-  const refreshTokenSecret  = process.env.REFRESH_TOKEN_SECRET as Secret;
-  if (!accessTokenSecret || !refreshTokenSecret) {
-    throw new Error("JWT secrets are missing.");
-  }
-
-  const accessToken = jwt.sign(
-    { id: userId },
-    accessTokenSecret,
-    { expiresIn: process.env.ACCESS_TOKEN_EXPIRES_IN ?? "15m" } as SignOptions
-  );
-  const refreshToken = jwt.sign(
-    { id: userId },
-    refreshTokenSecret,
-    { expiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN ?? "7d" } as SignOptions
-  );
-  return { accessToken, refreshToken };
-};
+import AuthService from "../services/AuthService";
 
 /**
  * @desc    Register a new user
@@ -36,25 +14,30 @@ const generateTokens = (userId: string): { accessToken: string; refreshToken: st
 export const register = catchAsync(
   async (
     req: Request<{}, {}, { email: string; password: string; username: string }>,
-    res: Response
+    res: Response,
+    next: NextFunction
   ): Promise<void> => {
     const { email, password, username } = req.body;
-
     if (!email || !password || !username) {
-      sendResponse(res, 400, false, "All fields are required");
-      return;
+      return next(createError("All fields are required", 400));
     }
 
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      sendResponse(res, 400, false, "User already exists");
-      return;
+    // check duplicate
+    const exists = await User.findOne({ email });
+    if (exists) {
+      return next(createError("User already exists", 400));
     }
 
-    const newUser = new User({ email, password, username });
+    // hash password
+    const hashed = await AuthService.hashPassword(password);
+
+    // create user
+    const newUser = new User({ email, username, password: hashed });
     await newUser.save();
 
-    const { accessToken, refreshToken } = generateTokens(newUser._id.toString());
+    // generate tokens
+    const accessToken  = await AuthService.generateToken({ _id: newUser._id.toString(), role: newUser.role });
+    const refreshToken = await AuthService.refreshToken(accessToken);
 
     sendResponse(
       res,
@@ -63,10 +46,8 @@ export const register = catchAsync(
       "User registered successfully",
       { accessToken, refreshToken }
     );
-    // no return value
   }
 );
-
 
 /**
  * @desc    Log in an existing user
@@ -77,22 +58,30 @@ export const login = catchAsync(
     req: Request<{}, {}, { email: string; password: string }>,
     res: Response,
     next: NextFunction
-  ) => {
+  ): Promise<void> => {
     const { email, password } = req.body;
     if (!email || !password) {
       return next(createError("Email and password are required", 400));
     }
+
     const user = await User.findOne({ email }).select("+password");
-    if (!user || !(await bcrypt.compare(password, user.password))) {
+    if (!user) {
       return next(createError("Invalid credentials", 400));
     }
 
-    const { accessToken, refreshToken } = generateTokens(user._id.toString());
+    const match = await AuthService.comparePassword(password, user.password);
+    if (!match) {
+      return next(createError("Invalid credentials", 400));
+    }
+
+    const accessToken  = await AuthService.generateToken({ _id: user._id.toString(), role: user.role });
+    const refreshToken = await AuthService.refreshToken(accessToken);
+
     sendResponse(res, 200, true, "Login successful", {
-      id: user._id.toString(),
-      name: user.username,
-      email: user.email,
-      role: user.role,
+      id:       user._id.toString(),
+      username: user.username,
+      email:    user.email,
+      role:     user.role,
       accessToken,
       refreshToken,
     });
@@ -106,65 +95,59 @@ export const login = catchAsync(
 export const refreshToken = catchAsync(
   async (
     req: Request<{}, {}, { refreshToken: string }>,
-    res: Response
+    res: Response,
+    next: NextFunction
   ): Promise<void> => {
-    const { refreshToken: token } = req.body;
-    if (!token) {
-      sendResponse(res, 401, false, "Refresh token is required");
-      return;
+    const { refreshToken: oldToken } = req.body;
+    if (!oldToken) {
+      return next(createError("Refresh token is required", 401));
     }
 
     try {
-      const refreshTokenSecret: Secret =
-        process.env.REFRESH_TOKEN_SECRET as Secret;
-      const decoded = jwt.verify(token, refreshTokenSecret) as { id: string };
-      const user = await User.findById(decoded.id);
-
-      if (!user) {
-        sendResponse(res, 401, false, "Invalid refresh token");
-        return;
-      }
-
-      const { accessToken, refreshToken } = generateTokens(user._id.toString());
-
-      sendResponse(
-        res,
-        200,
-        true,
-        "Tokens refreshed successfully",
-        { accessToken, refreshToken }
-      );
-      return;
+      const newToken = await AuthService.refreshToken(oldToken);
+      sendResponse(res, 200, true, "Tokens refreshed successfully", { accessToken: newToken });
     } catch (err) {
       logger.error(`Refresh token error: ${(err as Error).message}`);
-      sendResponse(res, 401, false, "Invalid refresh token");
-      return;
+      return next(createError("Invalid or expired refresh token", 401));
     }
   }
 );
-
 
 /**
  * @desc    Log the user out
  * @route   POST /api/auth/logout
  */
-export const logout = catchAsync(async (_req: Request, res: Response) => {
-  // If you store refresh tokens, revoke it here.
-  sendResponse(res, 200, true, "Logged out successfully");
-});
+export const logout = catchAsync(
+  async (_req: Request, res: Response): Promise<void> => {
+    // If you store refresh tokens, revoke it here.
+    sendResponse(res, 200, true, "Logged out successfully");
+  }
+);
 
 /**
  * @desc    Get current user's profile
  * @route   GET /api/auth/me
  */
-export const getCurrentUser = catchAsync(async (req: Request, res: Response): Promise<void> => {
-  const user = await User.findById(req.user?.id).select("-password");
-  if (!user) {
-    sendResponse(res, 404, false, "User not found");
-    return;
+export const getCurrentUser = catchAsync(
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const userId = req.user?.id;
+    if (!userId) {
+      return next(createError("Not authenticated", 401));
+    }
+
+    const user = await User.findById(userId).select("-password");
+    if (!user) {
+      return next(createError("User not found", 404));
+    }
+
+    sendResponse(res, 200, true, "User details fetched successfully", { user });
   }
+);
 
-  sendResponse(res, 200, true, "User details fetched successfully", { user });
-  // no return value, so the Promise resolves to void
-});
-
+export default {
+  register,
+  login,
+  refreshToken,
+  logout,
+  getCurrentUser,
+};

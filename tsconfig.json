@@ -1,48 +1,67 @@
 {
+  "extends": "../tsconfig.base.json",
+  "references": [
+    { "path": "../shared" }
+  ],
   "compilerOptions": {
-    "target": "ESNext",
+    // ─── Overrides for the backend package ────────────────────────────────────
     "module": "CommonJS",
+    "target": "ESNext",
     "moduleResolution": "node",
     "lib": ["ESNext", "DOM"],
+    "rootDir": "src",
+    "outDir": "dist",
+    "composite": true,
+    "incremental": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+
+    // ─── Strictness & safety ───────────────────────────────────────────────────
     "strict": true,
-    "esModuleInterop": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
     "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true,
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "resolveJsonModule": true,
+    "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "typeRoots": ["./node_modules/@types", "./src/types"],
-    "types": ["node", "express", "cors", "jsonwebtoken", "jest"],
-    "strictPropertyInitialization": true,
+    "resolveJsonModule": true,
+
+    // ─── Unused code checks ────────────────────────────────────────────────────
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-    "isolatedModules": true,
-    "allowJs": false,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "incremental": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
-    "composite": true,
-    "baseUrl": "./",
+
+    // ─── Path aliases ─────────────────────────────────────────────────────────
+    "baseUrl": ".",
     "paths": {
       "@src/*": ["src/*"],
       "@test/*": ["src/test/*"]
-    }
+    },
+
+    // ─── Type roots & only these types (no stray @types/date-fns) ────────────
+    "typeRoots": [
+  "../shared/types",
+  "src/types",
+    "node_modules/@types"
+    ],
+    "types": [
+      "node",
+      "express",
+      "cors",
+      "jsonwebtoken",
+      "jest"
+    ]
   },
+
+  // ─── Files to include & exclude ────────────────────────────────────────────
   "include": [
-    "src/**/*",
+    "src/**/*.ts",
     "src/types/**/*.d.ts",
     "src/test/**/*.ts",
-    "src/types/global.d.ts",
-    "@types/**/*.d.ts",
     "jest.setup.ts",
     "jest.config.js"
-, "@types/socket.d.ts.ts", "src/utils/emailSender.ts"  ],
+  ],
   "exclude": [
     "node_modules",
     "dist",
@@ -53,9 +72,10 @@
     "**/*.spec.js",
     "build",
     "*.mjs",
-    "*.cjs",
-    "build/"
+    "*.cjs"
   ],
+
+  // ─── ts-node for local dev & testing ───────────────────────────────────────
   "ts-node": {
     "transpileOnly": true,
     "files": true

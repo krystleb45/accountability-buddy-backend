@@ -1,162 +1,137 @@
-import sanitize from "mongo-sanitize";
 import type { Document, Model, Types } from "mongoose";
 import mongoose, { Schema } from "mongoose";
+import sanitize from "mongo-sanitize";
 
-// Define the FileUpload interface
-export interface IFileUpload extends Document {
-  userId: Types.ObjectId;
-  filePath: string;
-  fileType: "image/jpeg" | "image/png" | "application/pdf" | "image/gif";
-  fileSize: number;
-  originalName: string;
-  uploadDate: Date;
-  isDeleted: boolean;
-  downloadCount: number;
-  sharedWith: Types.ObjectId[]; // New field for shared users
-  getFileDetails: () => FileDetails;
-  isImage: boolean; // Virtual field
+// --- Comment Subdocument Interface ---
+export interface IFeedComment extends Document {
+  _id: Types.ObjectId;
+  user: Types.ObjectId;
+  text: string;
+  createdAt: Date;
 }
 
-// File details return type
-interface FileDetails {
-  userId: Types.ObjectId;
-  filePath: string;
-  fileType: string;
-  fileSize: number;
-  originalName: string;
-  isDeleted: boolean;
-  downloadCount: number;
-  sharedWith: Types.ObjectId[]; // Include sharedWith in file details
-}
-
-// Define the FileUpload model interface for statics
-interface IFileUploadModel extends Model<IFileUpload> {
-  incrementDownloadCount(fileId: string): Promise<IFileUpload | null>;
-  softDelete(fileId: string): Promise<IFileUpload | null>;
-}
-
-// Define the schema
-const FileUploadSchema: Schema<IFileUpload> = new Schema(
+const FeedCommentSchema = new Schema<IFeedComment>(
   {
-    userId: {
-      type: Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-      index: true,
-    },
-    filePath: {
-      type: String,
-      required: [true, "File path is required"],
-      trim: true,
-      validate: {
-        validator: function (value: string): boolean {
-          return !value.includes("../") && !value.includes("..\\");
-        },
-        message: "Invalid file path",
-      },
-    },
-    fileType: {
-      type: String,
-      required: true,
-      enum: ["image/jpeg", "image/png", "application/pdf", "image/gif"],
-    },
-    fileSize: {
-      type: Number,
-      required: true,
-      validate: {
-        validator: function (value: number): boolean {
-          return value <= 10 * 1024 * 1024;
-        },
-        message: "File size exceeds the 10MB limit",
-      },
-    },
-    originalName: {
-      type: String,
-      trim: true,
-      required: true,
-    },
-    uploadDate: {
-      type: Date,
-      default: Date.now,
-      index: true,
-    },
-    isDeleted: {
-      type: Boolean,
-      default: false,
-    },
-    downloadCount: {
-      type: Number,
-      default: 0,
-    },
-    sharedWith: [
-      {
-        type: Schema.Types.ObjectId,
-        ref: "User",
-        default: [], // Empty array by default
-      },
-    ],
+    user: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    text: { type: String, required: true, trim: true, maxlength: [500, "Comment cannot exceed 500 characters"] },
+    createdAt: { type: Date, default: Date.now }
+  },
+  { _id: true, timestamps: false }
+);
+
+// --- FeedPost Interface ---
+export interface IFeedPost extends Document {
+  user: Types.ObjectId;
+  content: string;
+  likes: Types.ObjectId[];
+  comments: mongoose.Types.DocumentArray<IFeedComment>;
+  createdAt: Date;
+  updatedAt: Date;
+
+  // Virtuals
+  likeCount: number;
+  commentCount: number;
+
+  // Instance methods
+  addLike(userId: Types.ObjectId): Promise<IFeedPost>;
+  removeLike(userId: Types.ObjectId): Promise<IFeedPost>;
+  addComment(userId: Types.ObjectId, text: string): Promise<IFeedComment>;
+  removeComment(commentId: Types.ObjectId): Promise<boolean>;
+}
+
+// --- FeedPost Model Interface ---
+export interface IFeedPostModel extends Model<IFeedPost> {
+  findByUser(userId: Types.ObjectId, limit?: number): Promise<IFeedPost[]>;
+  findRecent(limit?: number): Promise<IFeedPost[]>;
+}
+
+// --- Schema Definition ---
+const FeedPostSchema = new Schema<IFeedPost>(
+  {
+    user: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    content: { type: String, required: true, trim: true, maxlength: [1000, "Post content cannot exceed 1000 characters"] },
+    likes: [{ type: Schema.Types.ObjectId, ref: "User" }],
+    comments: { type: [FeedCommentSchema], default: [] }
   },
   {
     timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
   }
 );
 
-// Pre-save hook to sanitize the file path and original name
-FileUploadSchema.pre<IFileUpload>("save", function (next): void {
-  try {
-    this.filePath = sanitize(this.filePath);
-    this.originalName = sanitize(this.originalName);
-    next();
-  } catch (error) {
-    next(error as Error);
+// --- Indexes ---
+FeedPostSchema.index({ user: 1, createdAt: -1 });
+FeedPostSchema.index({ createdAt: -1 });
+
+// --- Virtuals ---
+FeedPostSchema.virtual("likeCount").get(function (this: IFeedPost): number {
+  return this.likes.length;
+});
+
+FeedPostSchema.virtual("commentCount").get(function (this: IFeedPost): number {
+  return this.comments.length;
+});
+
+// --- Middleware ---
+FeedPostSchema.pre<IFeedPost>("save", function (next: (err?: Error) => void): void {
+  this.content = sanitize(this.content);
+  this.comments.forEach(comment => {
+    comment.text = sanitize(comment.text);
+  });
+  next();
+});
+
+// --- Instance Methods ---
+FeedPostSchema.methods.addLike = async function (this: IFeedPost, userId: Types.ObjectId): Promise<IFeedPost> {
+  if (!this.likes.some(id => id.equals(userId))) {
+    this.likes.push(userId);
+    await this.save();
   }
-});
-
-// Static method to increment download count
-FileUploadSchema.statics.incrementDownloadCount = async function (
-  fileId: string,
-): Promise<IFileUpload | null> {
-  return this.findByIdAndUpdate(
-    fileId,
-    { $inc: { downloadCount: 1 } },
-    { new: true },
-  );
+  return this;
 };
 
-// Static method for soft deletion
-FileUploadSchema.statics.softDelete = async function (
-  fileId: string,
-): Promise<IFileUpload | null> {
-  return this.findByIdAndUpdate(
-    fileId,
-    { isDeleted: true },
-    { new: true },
-  );
+FeedPostSchema.methods.removeLike = async function (this: IFeedPost, userId: Types.ObjectId): Promise<IFeedPost> {
+  this.likes = this.likes.filter(id => !id.equals(userId));
+  await this.save();
+  return this;
 };
 
-// Instance method to get file details
-FileUploadSchema.methods.getFileDetails = function (): FileDetails {
-  return {
-    userId: this.userId,
-    filePath: this.filePath,
-    fileType: this.fileType,
-    fileSize: this.fileSize,
-    originalName: this.originalName,
-    isDeleted: this.isDeleted,
-    downloadCount: this.downloadCount,
-    sharedWith: this.sharedWith,
-  };
+FeedPostSchema.methods.addComment = async function (
+  this: IFeedPost,
+  userId: Types.ObjectId,
+  text: string
+): Promise<IFeedComment> {
+  const comment = this.comments.create({ user: userId, text });
+  this.comments.push(comment);
+  await this.save();
+  return comment;
 };
 
-// Virtual field to check if the file is an image
-FileUploadSchema.virtual("isImage").get(function (): boolean {
-  return ["image/jpeg", "image/png", "image/gif"].includes(this.fileType);
-});
+FeedPostSchema.methods.removeComment = async function (
+  this: IFeedPost,
+  commentId: Types.ObjectId
+): Promise<boolean> {
+  const idx = this.comments.findIndex(c => c._id.equals(commentId));
+  if (idx === -1) return false;
+  this.comments.splice(idx, 1);
+  await this.save();
+  return true;
+};
 
-// Export the FileUpload model
-const FileUpload: IFileUploadModel = mongoose.model<IFileUpload, IFileUploadModel>(
-  "FileUpload",
-  FileUploadSchema,
-);
+// --- Static Methods ---
+FeedPostSchema.statics.findByUser = function (userId: Types.ObjectId, limit = 10): Promise<IFeedPost[]> {
+  return this.find({ user: userId })
+    .sort({ createdAt: -1 })
+    .limit(limit);
+};
 
-export default FileUpload;
+FeedPostSchema.statics.findRecent = function (limit = 10): Promise<IFeedPost[]> {
+  return this.find()
+    .sort({ createdAt: -1 })
+    .limit(limit);
+};
+
+// --- Model Export ---
+export const FeedPost = mongoose.model<IFeedPost, IFeedPostModel>("FeedPost", FeedPostSchema);
+export default FeedPost;

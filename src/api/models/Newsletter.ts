@@ -1,64 +1,105 @@
 import type { Document, Model } from "mongoose";
 import mongoose, { Schema } from "mongoose";
-import validator from "validator"; // Use validator for email validation
+import validator from "validator";
+import crypto from "crypto";
 
-// Define the interface for the Newsletter document
+// --- Interface for Newsletter Document ---
 export interface INewsletter extends Document {
   email: string;
   subscribedAt: Date;
   status: "subscribed" | "unsubscribed";
-  unsubscribeToken?: string;
+  unsubscribeToken: string;
+  createdAt: Date;
+  updatedAt: Date;
+
+  // Instance methods
+  unsubscribe(token: string): Promise<INewsletter>;
+  regenerateUnsubscribeToken(): Promise<INewsletter>;
 }
 
-// Extend the model interface for custom static methods
-interface INewsletterModel extends Model<INewsletter> {
+// --- Model Interface for Statics ---
+export interface INewsletterModel extends Model<INewsletter> {
   findOrCreate(email: string): Promise<INewsletter>;
+  findSubscribed(): Promise<INewsletter[]>;
+  findUnsubscribed(): Promise<INewsletter[]>;
 }
 
-// Define the schema
-const newsletterSchema: Schema<INewsletter> = new Schema<INewsletter>(
+// --- Schema Definition ---
+const NewsletterSchema = new Schema<INewsletter, INewsletterModel>(
   {
     email: {
       type: String,
       required: [true, "Email is required"],
-      unique: true, // Ensure no duplicate email entries
+      unique: true,
       trim: true,
-      lowercase: true, // Always store email in lowercase
+      lowercase: true,
       validate: {
-        validator: (email: string): boolean => validator.isEmail(email), // Use validator to check email format
+        validator: (email: string): boolean => validator.isEmail(email),
         message: "Please provide a valid email address",
       },
+      index: true,
     },
     subscribedAt: {
       type: Date,
-      default: Date.now, // Track when the user subscribed
-      index: true, // Index for sorting subscriptions by date
+      default: Date.now,
+      index: true,
     },
     status: {
       type: String,
-      enum: ["subscribed", "unsubscribed"], // Track subscription status
+      enum: ["subscribed", "unsubscribed"],
       default: "subscribed",
+      index: true,
     },
     unsubscribeToken: {
-      type: String, // Token for unsubscribing securely
-      trim: true,
+      type: String,
+      required: true,
+      default: (): string => crypto.randomBytes(16).toString("hex"),
     },
   },
   {
-    timestamps: true, // Automatically add createdAt and updatedAt fields
-  },
+    timestamps: true,
+    toJSON: { virtuals: false },
+    toObject: { virtuals: false },
+  }
 );
 
+// --- Indexes ---
+NewsletterSchema.index({ email: 1 });
 
-// Middleware to ensure email is lowercased before saving
-newsletterSchema.pre("save", function (next) {
-  this.email = this.email.toLowerCase();
+// --- Middleware ---
+NewsletterSchema.pre<INewsletter>("validate", function (next) {
+  // Ensure unsubscribeToken exists
+  if (!this.unsubscribeToken) {
+    this.unsubscribeToken = crypto.randomBytes(16).toString("hex");
+  }
   next();
 });
 
-// Static method to find or create a subscription
-newsletterSchema.statics.findOrCreate = async function (
-  email: string,
+// --- Instance Methods ---
+NewsletterSchema.methods.unsubscribe = async function (
+  this: INewsletter,
+  token: string
+): Promise<INewsletter> {
+  if (token !== this.unsubscribeToken) {
+    throw new Error("Invalid unsubscribe token");
+  }
+  this.status = "unsubscribed";
+  await this.save();
+  return this;
+};
+
+NewsletterSchema.methods.regenerateUnsubscribeToken = async function (
+  this: INewsletter
+): Promise<INewsletter> {
+  this.unsubscribeToken = crypto.randomBytes(16).toString("hex");
+  await this.save();
+  return this;
+};
+
+// --- Static Methods ---
+NewsletterSchema.statics.findOrCreate = async function (
+  this: INewsletterModel,
+  email: string
 ): Promise<INewsletter> {
   let subscriber = await this.findOne({ email });
   if (!subscriber) {
@@ -67,13 +108,22 @@ newsletterSchema.statics.findOrCreate = async function (
   return subscriber;
 };
 
-// Index the email field for faster lookups
-newsletterSchema.index({ email: 1 });
+NewsletterSchema.statics.findSubscribed = function (
+  this: INewsletterModel
+): Promise<INewsletter[]> {
+  return this.find({ status: "subscribed" }).sort({ subscribedAt: -1 });
+};
 
-// Export the model
-const Newsletter: INewsletterModel = mongoose.model<INewsletter, INewsletterModel>(
+NewsletterSchema.statics.findUnsubscribed = function (
+  this: INewsletterModel
+): Promise<INewsletter[]> {
+  return this.find({ status: "unsubscribed" }).sort({ updatedAt: -1 });
+};
+
+// --- Model Export ---
+export const Newsletter = mongoose.model<INewsletter, INewsletterModel>(
   "Newsletter",
-  newsletterSchema,
+  NewsletterSchema
 );
 
 export default Newsletter;

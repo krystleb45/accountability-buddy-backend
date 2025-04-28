@@ -1,142 +1,94 @@
-import type { IEvent } from "../models/Event";
+// src/api/services/EventService.ts
+import { Types } from "mongoose";
+import type { IEvent, IEventParticipant } from "../models/Event";
 import Event from "../models/Event";
-import { CustomError } from "./errorHandler";
+import { createError } from "../middleware/errorHandler";
 import LoggingService from "./LoggingService";
 
-interface EventFilters {
-  [key: string]: unknown;
-}
-
-const EventService = {
-  /**
-   * Create a new event
-   * @param eventData - Event data from request body
-   * @returns The created event
-   */
-  createEvent: async (eventData: Record<string, unknown>): Promise<IEvent> => {
+class EventService {
+  /** Create a new event */
+  static async createEvent(eventData: Partial<IEvent>): Promise<IEvent> {
     try {
       const event = new Event(eventData);
       await event.save();
-
-      LoggingService.logInfo(`Event created: ${event._id} - ${event.title}`);
+      void LoggingService.logInfo(`Event created: ${event._id} – ${event.title}`);
       return event;
-    } catch (error: unknown) {
-      return handleError("creating event", error);
+    } catch (err: unknown) {
+      const details =
+        err instanceof Error
+          ? { name: err.name, message: err.message, stack: err.stack }
+          : { value: err };
+      void LoggingService.logError("Error creating event", err as Error, details);
+      throw createError("Failed to create event", 500, true, details);
     }
-  },
+  }
 
-  /**
-   * Get event by ID
-   */
-  getEventById: async (eventId: string): Promise<IEvent> => {
-    try {
-      const event = await Event.findById(eventId);
-
-      if (!event) {
-        throw new CustomError("Event not found", 404);
-      }
-
-      LoggingService.logInfo(`Event retrieved: ${event._id} - ${event.title}`);
-      return event;
-    } catch (error: unknown) {
-      return handleError(`retrieving event: ${eventId}`, error);
+  /** Get event by ID */
+  static async getEventById(eventId: string): Promise<IEvent> {
+    if (!Types.ObjectId.isValid(eventId)) {
+      throw createError("Invalid event ID", 400);
     }
-  },
-
-  /**
-   * Get all events with optional filters and pagination
-   */
-  getAllEvents: async (
-    filters: EventFilters = {},
-    page = 1,
-    limit = 10,
-  ): Promise<{ events: IEvent[]; totalPages: number; currentPage: number }> => {
-    try {
-      const events = await Event.find(filters)
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .sort({ startDate: 1 });
-
-      const totalEvents = await Event.countDocuments(filters);
-
-      LoggingService.logInfo("Events retrieved with filters", {
-        filters,
-        page,
-        limit,
-      });
-      return {
-        events,
-        totalPages: Math.ceil(totalEvents / limit),
-        currentPage: page,
-      };
-    } catch (error: unknown) {
-      return handleError("retrieving events", error);
+    const event = await Event.findById(eventId);
+    if (!event) {
+      throw createError("Event not found", 404);
     }
-  },
+    void LoggingService.logInfo(`Event retrieved: ${event._id} – ${event.title}`);
+    return event;
+  }
 
-  /**
-   * Update an event by ID
-   */
-  updateEvent: async (
-    eventId: string,
-    updateData: Record<string, unknown>,
-  ): Promise<IEvent> => {
-    try {
-      const event = await Event.findByIdAndUpdate(eventId, updateData, {
-        new: true,
-      });
-
-      if (!event) {
-        throw new CustomError("Event not found", 404);
-      }
-
-      LoggingService.logInfo(`Event updated: ${event._id} - ${event.title}`);
-      return event;
-    } catch (error: unknown) {
-      return handleError(`updating event: ${eventId}`, error);
+  /** User joins an event */
+  static async joinEvent(eventId: string, userId: string): Promise<IEvent> {
+    if (!Types.ObjectId.isValid(eventId) || !Types.ObjectId.isValid(userId)) {
+      throw createError("Invalid ID", 400);
     }
-  },
-
-  /**
-   * Delete an event by ID
-   */
-  deleteEvent: async (eventId: string): Promise<{ message: string }> => {
-    try {
-      const event = await Event.findByIdAndDelete(eventId);
-
-      if (!event) {
-        throw new CustomError("Event not found", 404);
-      }
-
-      LoggingService.logInfo(`Event deleted: ${event._id} - ${event.title}`);
-      return { message: "Event successfully deleted" };
-    } catch (error: unknown) {
-      return handleError(`deleting event: ${eventId}`, error);
+    const event = await Event.findById(eventId);
+    if (!event) {
+      throw createError("Event not found", 404);
     }
-  },
-};
+    if (event.participants.some((p) => p.user.toString() === userId)) {
+      throw createError("Already attending this event", 400);
+    }
+    const participant: IEventParticipant = {
+      user: new Types.ObjectId(userId),
+      joinedAt: new Date(),
+      status: "accepted",
+    };
+    event.participants.push(participant);
+    await event.save();
+    void LoggingService.logInfo(`User ${userId} joined event ${eventId}`);
+    return event;
+  }
 
-/**
- * Helper to handle errors consistently across EventService methods.
- * Logs the error and throws a CustomError.
- * @param action - The action being performed (e.g., 'creating', 'retrieving')
- * @param error - The error object
- */
-function handleError(action: string, error: unknown): never {
-  const errorInstance =
-    error instanceof Error ? error : new Error(String(error));
+  /** User leaves an event */
+  static async leaveEvent(eventId: string, userId: string): Promise<IEvent> {
+    if (!Types.ObjectId.isValid(eventId) || !Types.ObjectId.isValid(userId)) {
+      throw createError("Invalid ID", 400);
+    }
+    const event = await Event.findById(eventId);
+    if (!event) {
+      throw createError("Event not found", 404);
+    }
+    if (!event.participants.some((p) => p.user.toString() === userId)) {
+      throw createError("Not attending this event", 400);
+    }
+    event.participants.pull(new Types.ObjectId(userId));
+    await event.save();
+    void LoggingService.logInfo(`User ${userId} left event ${eventId}`);
+    return event;
+  }
 
-  LoggingService.logError(`Error ${action}`, errorInstance, {
-    name: errorInstance.name,
-    stack: errorInstance.stack || "No stack trace",
-    message: errorInstance.message,
-  });
-
-  throw new CustomError(`Failed to ${action}`, 500, {
-    name: errorInstance.name,
-    message: errorInstance.message,
-    stack: errorInstance.stack,
-  });
+  /** Delete an event */
+  static async deleteEvent(eventId: string): Promise<{ message: string }> {
+    if (!Types.ObjectId.isValid(eventId)) {
+      throw createError("Invalid event ID", 400);
+    }
+    const event = await Event.findByIdAndDelete(eventId);
+    if (!event) {
+      throw createError("Event not found", 404);
+    }
+    void LoggingService.logInfo(`Event deleted: ${event._id} – ${event.title}`);
+    return { message: "Event successfully deleted" };
+  }
 }
 
 export default EventService;

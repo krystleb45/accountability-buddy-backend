@@ -1,22 +1,22 @@
 import type { Document, Model, Types } from "mongoose";
 import mongoose, { Schema } from "mongoose";
-import { CustomError } from "../services/errorHandler"; // Import CustomError for consistency
+import { CustomError } from "../services/errorHandler";
 
-// Define Participant interface
-interface IParticipant {
+// --- Types & Interfaces ---
+export type ParticipantStatus = "invited" | "accepted" | "declined" | "interested";
+
+export interface IEventParticipant {
   user: Types.ObjectId;
-  joinedAt?: Date;
-  status?: "invited" | "accepted" | "declined" | "interested";
+  joinedAt: Date;
+  status: ParticipantStatus;
 }
 
-// Define Reminder interface
-interface IReminder {
+export interface IEventReminder {
   message: string;
   scheduledTime: Date;
-  sent?: boolean;
+  sent: boolean;
 }
 
-// Define Event interface
 export interface IEvent extends Document {
   title: string;
   description?: string;
@@ -24,183 +24,166 @@ export interface IEvent extends Document {
   startDate: Date;
   endDate: Date;
   createdBy: Types.ObjectId;
-  participants: IParticipant[];
-  progress: number; // <-- Added progress field
-  recurrence?: "none" | "daily" | "weekly" | "monthly" | "yearly";
+  participants: Types.DocumentArray<IEventParticipant>;
+  progress: number;
+  recurrence: "none" | "daily" | "weekly" | "monthly" | "yearly";
   status: "upcoming" | "ongoing" | "completed" | "canceled";
   isPublic: boolean;
-  reminders: IReminder[];
-  participantCount?: number; // Virtual field
-  addReminder: (message: string, scheduledTime: Date) => Promise<void>;
-  getActiveReminders: () => IReminder[];
+  reminders: Types.DocumentArray<IEventReminder>;
+  createdAt: Date;
+  updatedAt: Date;
+
+  // Virtuals
+  participantCount: number;
+  activeReminderCount: number;
+
+  // Instance methods
+  addReminder(message: string, scheduledTime: Date): Promise<IEvent>;
+  getActiveReminders(): IEventReminder[];
 }
 
-interface IEventModel extends Model<IEvent> {
-  addParticipant: (
-    eventId: string,
-    userId: Types.ObjectId,
-    status?: "invited" | "accepted" | "declined" | "interested"
-  ) => Promise<IEvent>;
-  removeParticipant: (eventId: string, userId: Types.ObjectId) => Promise<IEvent>;
+export interface IEventModel extends Model<IEvent> {
+  addParticipant(eventId: Types.ObjectId, userId: Types.ObjectId, status?: ParticipantStatus): Promise<IEvent>;
+  removeParticipant(eventId: Types.ObjectId, userId: Types.ObjectId): Promise<IEvent>;
 }
 
-// Define Event schema
-const EventSchema: Schema<IEvent> = new Schema(
+// --- Sub-Schemas ---
+const ParticipantSchema = new Schema<IEventParticipant>(
   {
-    title: {
-      type: String,
-      required: [true, "Event title is required"],
-      trim: true,
-      maxlength: [100, "Title cannot exceed 100 characters"],
-    },
-    description: {
-      type: String,
-      trim: true,
-      maxlength: [500, "Description cannot exceed 500 characters"],
-    },
-    location: {
-      type: String,
-      trim: true,
-      maxlength: [255, "Location cannot exceed 255 characters"],
-    },
+    user: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    joinedAt: { type: Date, default: Date.now },
+    status: { type: String, enum: ["invited","accepted","declined","interested"], default: "invited" },
+  },
+  { _id: false }
+);
+
+const ReminderSchema = new Schema<IEventReminder>(
+  {
+    message: { type: String, required: true, trim: true, maxlength: 255 },
+    scheduledTime: { type: Date, required: true },
+    sent: { type: Boolean, default: false, index: true },
+  },
+  { _id: false }
+);
+
+// --- Main Schema ---
+const EventSchema = new Schema<IEvent, IEventModel>(
+  {
+    title: { type: String, required: true, trim: true, maxlength: 100, index: true },
+    description: { type: String, trim: true, maxlength: 500 },
+    location: { type: String, trim: true, maxlength: 255 },
     startDate: {
       type: Date,
-      required: [true, "Start date is required"],
+      required: true,
       validate: {
-        validator: function (value: Date): boolean {
-          return value > new Date();
-        },
+        validator: (value: Date): boolean => value.getTime() > Date.now(),
         message: "Start date must be in the future",
       },
+      index: true,
     },
     endDate: {
       type: Date,
-      required: [true, "End date is required"],
-      validate: {
-        validator: function (value: Date): boolean {
-          return value > this.startDate;
-        },
-        message: "End date must be after the start date",
-      },
-    },
-    createdBy: {
-      type: Schema.Types.ObjectId,
-      ref: "User",
       required: true,
-    },
-    participants: [
-      {
-        user: { type: Schema.Types.ObjectId, ref: "User", required: true },
-        joinedAt: { type: Date, default: Date.now },
-        status: {
-          type: String,
-          enum: ["invited", "accepted", "declined", "interested"],
-          default: "invited",
+      validate: {
+        validator: function (this: IEvent, value: Date): boolean {
+          return value.getTime() > this.startDate.getTime();
         },
+        message: "End date must be after start date",
       },
-    ],
-    recurrence: {
-      type: String,
-      enum: ["none", "daily", "weekly", "monthly", "yearly"],
-      default: "none",
+      index: true,
     },
-    status: {
-      type: String,
-      enum: ["upcoming", "ongoing", "completed", "canceled"],
-      default: "upcoming",
-    },
-    isPublic: {
-      type: Boolean,
-      default: true,
-    },
-    reminders: [
-      {
-        message: { type: String, trim: true, maxlength: 255 },
-        scheduledTime: { type: Date },
-        sent: { type: Boolean, default: false },
-      },
-    ],
-    progress: {
-      type: Number,
-      default: 0, // <-- Added progress field with default 0
-      min: [0, "Progress cannot be less than 0"],
-      max: [100, "Progress cannot be more than 100"],
-    },
+    createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    participants: { type: [ParticipantSchema], default: [] },
+    progress: { type: Number, default: 0, min: 0, max: 100 },
+    recurrence: { type: String, enum: ["none","daily","weekly","monthly","yearly"], default: "none" },
+    status: { type: String, enum: ["upcoming","ongoing","completed","canceled"], default: "upcoming", index: true },
+    isPublic: { type: Boolean, default: true, index: true },
+    reminders: { type: [ReminderSchema], default: [] },
   },
-  { timestamps: true },
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  }
 );
 
-// Indexes for optimized queries
-EventSchema.index({ createdBy: 1 });
-EventSchema.index({ startDate: 1 });
+// --- Indexes ---
 EventSchema.index({ status: 1 });
+EventSchema.index({ isPublic: 1 });
 
-// Pre-save middleware to adjust event status
-EventSchema.pre("save", function (next) {
-  if (this.endDate < new Date() && this.status === "upcoming") {
+// --- Pre-save Hook ---
+EventSchema.pre<IEvent>("save", function (next): void {
+  if (this.endDate.getTime() < Date.now() && this.status === "upcoming") {
     this.status = "completed";
   }
   next();
 });
 
-// Static method to add participants
-EventSchema.statics.addParticipant = async function (
-  eventId: string,
-  userId: Types.ObjectId,
-  status: "invited" | "accepted" | "declined" | "interested" = "invited",
-): Promise<IEvent> {
-  const event = await this.findById(eventId);
-  if (!event) throw new CustomError("Event not found", 404);
-
-  const isParticipant = event.participants.some((p: IParticipant) =>
-    p.user.toString() === userId.toString(),
-  );
-  if (isParticipant) throw new CustomError("User is already a participant", 400);
-
-  event.participants.push({ user: userId, status });
-  await event.save();
-  return event;
-};
-
-// Static method to remove participants
-EventSchema.statics.removeParticipant = async function (
-  eventId: string,
-  userId: Types.ObjectId,
-): Promise<IEvent> {
-  const event = await this.findById(eventId);
-  if (!event) throw new CustomError("Event not found", 404);
-
-  event.participants = event.participants.filter(
-    (p: IParticipant) => p.user.toString() !== userId.toString(),
-  );
-  await event.save();
-  return event;
-};
-
-// Instance method to add a reminder
+// --- Instance Methods ---
 EventSchema.methods.addReminder = async function (
+  this: IEvent,
   message: string,
-  scheduledTime: Date,
-): Promise<void> {
-  if (!message || !scheduledTime)
-    throw new CustomError("Message and scheduled time are required", 400);
-  this.reminders.push({ message, scheduledTime });
+  scheduledTime: Date
+): Promise<IEvent> {
+  if (!message || !scheduledTime) {
+    throw new CustomError("Message and scheduledTime are required", 400);
+  }
+  this.reminders.push({ message, scheduledTime, sent: false });
   await this.save();
+  return this;
 };
 
-// Instance method to get active reminders
-EventSchema.methods.getActiveReminders = function (): IReminder[] {
+EventSchema.methods.getActiveReminders = function (this: IEvent): IEventReminder[] {
   return this.reminders.filter(
-    (reminder: IReminder) =>
-      !reminder.sent && reminder.scheduledTime > new Date(),
+    (r) => !r.sent && r.scheduledTime.getTime() > Date.now()
   );
 };
 
-// Virtual field to calculate total participants
-EventSchema.virtual("participantCount").get(function () {
+// --- Static Methods ---
+EventSchema.statics.addParticipant = async function (
+  eventId: Types.ObjectId,
+  userId: Types.ObjectId,
+  status: ParticipantStatus = "invited"
+): Promise<IEvent> {
+  const event = await this.findById(eventId);
+  if (!event) throw new CustomError("Event not found", 404);
+  if (event.participants.some((p) => p.user.equals(userId))) {
+    throw new CustomError("User already a participant", 400);
+  }
+  event.participants.push({ user: userId, joinedAt: new Date(), status });
+  await event.save();
+  return event;
+};
+
+EventSchema.statics.removeParticipant = async function (
+  eventId: Types.ObjectId,
+  userId: Types.ObjectId
+): Promise<IEvent> {
+  const event = await this.findById(eventId);
+  if (!event) throw new CustomError("Event not found", 404);
+  // Remove the participant by filtering; cast back to DocumentArray
+  event.participants = event.participants.filter(
+    (p) => !p.user.equals(userId)
+  ) as unknown as mongoose.Types.DocumentArray<IEventParticipant>;
+  await event.save();
+  return event;
+};
+
+// --- Virtuals ---
+EventSchema.virtual("participantCount").get(function (this: IEvent): number {
   return this.participants.length;
 });
 
-// Export Event model
-const Event = mongoose.model<IEvent, IEventModel>("Event", EventSchema);
+EventSchema.virtual("activeReminderCount").get(function (this: IEvent): number {
+  return this.reminders.filter(
+    (r) => !r.sent && r.scheduledTime.getTime() > Date.now()
+  ).length;
+});
+
+// --- Model Export ---
+export const Event = mongoose.model<IEvent, IEventModel>(
+  "Event",
+  EventSchema
+);
+
 export default Event;

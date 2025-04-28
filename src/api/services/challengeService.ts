@@ -1,12 +1,9 @@
-// services/challengeService.ts
+// src/api/services/challengeService.ts
 import { Types } from "mongoose";
-import Challenge from "../models/Challenge";  // Ensure this is correct
-import { IChallenge } from "../models/Challenge";
-import { rewardChallengeCompletion } from "../utils/rewardUtils"; // Utility to reward when challenge is completed
-
+import Challenge, { IChallenge } from "../models/Challenge";
 
 /**
- * 🟢 Service to create a new challenge
+ * Create a new challenge.
  */
 export const createChallengeService = async (
   title: string,
@@ -15,196 +12,119 @@ export const createChallengeService = async (
   rewardType: string,
   visibility: "public" | "private" = "public"
 ): Promise<IChallenge> => {
-  try {
-    // Create the new challenge
-    const newChallenge = await Challenge.create({
-      title,
-      description,
-      pointsRequired,
-      rewardType,
-      visibility,
-      participants: [], // No participants initially
-      status: "ongoing", // Default status
-    });
-  
-    // Return the created challenge
-    return newChallenge;
-  } catch (error) {
-    console.error("Error creating challenge:", error);
-    throw new Error("Error creating challenge");
-  }
+  const newChallenge = await Challenge.create({
+    title,
+    description,
+    pointsRequired,
+    rewardType,
+    visibility,
+    participants: [],
+    status: "ongoing",
+  });
+  return newChallenge;
 };
 
 /**
- * 🟢 Service to fetch public challenges with filters
+ * Fetch public challenges (with optional status filter + pagination).
  */
 export const getPublicChallengesService = async (
-  page: number = 1,
-  pageSize: number = 10,
-  status?: string,
-  visibility?: string
+  page = 1,
+  pageSize = 10,
+  status?: string
 ): Promise<IChallenge[]> => {
-  const pageNumber = parseInt(String(page), 10) || 1;  // Explicit conversion to string first
-  const limit = parseInt(String(pageSize), 10) || 10;  // Explicit conversion to string first
-  
-  const filters: any = { visibility: "public" };
-  if (status) filters.status = status; // Filter by challenge status (ongoing/completed)
-  if (visibility) filters.visibility = visibility; // Filter by visibility (public/private)
-  
-  try {
-    // Retrieve challenges based on filters
-    const challenges = await Challenge.find(filters)
-      .skip((pageNumber - 1) * limit) // Pagination logic
-      .limit(limit) // Limit results to the page size
-      .populate("creator", "username profilePicture") // Only include relevant fields
-      .sort({ createdAt: -1 }); // Sort by creation date
-  
-    return challenges;
-  } catch (error) {
-    console.error("Error fetching challenges:", error);
-    throw new Error("Error fetching challenges");
-  }
+  const skip = (page - 1) * pageSize;
+  const filter: Record<string, any> = { visibility: "public" };
+  if (status) filter.status = status;
+
+  const challenges = await Challenge.find(filter)
+    .skip(skip)
+    .limit(pageSize)
+    .populate("creator", "username profilePicture")
+    .sort({ createdAt: -1 });
+
+  return challenges;
 };
 
 /**
- * 🟢 Service to fetch a specific challenge by ID
+ * Fetch a single challenge by ID.
  */
-export const getChallengeByIdService = async (challengeId: string): Promise<IChallenge> => {
-  try {
-    const challenge = await Challenge.findById(challengeId)
-      .populate("creator", "username profilePicture")
-      .populate("participants.user", "username profilePicture"); // Populate participants as well
-  
-    if (!challenge) throw new Error("Challenge not found");
-  
-    return challenge;
-  } catch (error) {
-    console.error("Error fetching challenge:", error);
-    throw new Error("Error fetching challenge");
+export const getChallengeByIdService = async (
+  challengeId: string
+): Promise<IChallenge> => {
+  if (!Types.ObjectId.isValid(challengeId)) {
+    throw new Error("Invalid challenge ID");
   }
+  const challenge = await Challenge.findById(challengeId)
+    .populate("creator", "username profilePicture")
+    .populate("participants.user", "username profilePicture")
+    .exec();
+  if (!challenge) {
+    throw new Error("Challenge not found");
+  }
+  return challenge;
 };
 
 /**
- * 🟢 Service to allow a user to join a challenge
+ * Add the current user to the participants list.
  */
-export const joinChallengeService = async (userId: string, challengeId: string): Promise<IChallenge> => {
-  try {
-    const challenge = await Challenge.findById(challengeId);
-    if (!challenge) throw new Error("Challenge not found");
-    
-    const userObjectId = new Types.ObjectId(userId); // Ensure ObjectId is correct
-    
-    // Check if user is already a participant
-    if (challenge.participants.some((p) => p.user.equals(userObjectId))) {
-      throw new Error("User is already a participant");
-    }
-  
-    // Add user to participants list
-    challenge.participants.push({
-      user: userObjectId, // Just store the ObjectId reference
-      progress: 0,
-      joinedAt: new Date(),
-    });
-  
-    await challenge.save();
-  
-    return challenge;
-  } catch (error: unknown) { // Explicitly type the error as `unknown`
-    // Now you can assert that `error` is an instance of `Error`
-    if (error instanceof Error) {
-      console.error("Error joining challenge:", error.message);
-      throw new Error(error.message || "Error joining challenge");
-    } else {
-      console.error("Unexpected error", error);
-      throw new Error("Unexpected error occurred");
-    }
+export const joinChallengeService = async (
+  userId: string,
+  challengeId: string
+): Promise<IChallenge> => {
+  if (!Types.ObjectId.isValid(challengeId)) {
+    throw new Error("Invalid challenge ID");
   }
+  const challenge = await Challenge.findById(challengeId);
+  if (!challenge) {
+    throw new Error("Challenge not found");
+  }
+
+  const uid = new Types.ObjectId(userId);
+  if (challenge.participants.some((p) => p.user.equals(uid))) {
+    throw new Error("Already joined");
+  }
+  challenge.participants.push({ user: uid, progress: 0, joinedAt: new Date() });
+  await challenge.save();
+  return challenge;
 };
 
 /**
- * 🟢 Service to allow a user to leave a challenge
+ * Remove the current user from participants.
  */
-export const leaveChallengeService = async (userId: string, challengeId: string): Promise<IChallenge> => {
-  try {
-    const challenge = await Challenge.findById(challengeId);
-    if (!challenge) throw new Error("Challenge not found");
-  
-    const userObjectId = new Types.ObjectId(userId);
-  
-    const participantIndex = challenge.participants.findIndex((p) =>
-      p.user.equals(userObjectId)
-    );
-  
-    if (participantIndex === -1) {
-      throw new Error("User is not a participant of this challenge");
-    }
-  
-    // Remove user from participants list
-    challenge.participants.splice(participantIndex, 1);
-    await challenge.save();
-  
-    return challenge;
-  } catch (error: unknown) {  // Explicitly type the error as `unknown`
-    if (error instanceof Error) {
-      console.error("Error leaving challenge:", error.message);  // Access message safely
-      throw new Error(error.message || "Error leaving challenge");
-    } else {
-      console.error("Unexpected error:", error);  // In case of an unknown error
-      throw new Error("Unexpected error occurred while leaving the challenge");
-    }
+export const leaveChallengeService = async (
+  userId: string,
+  challengeId: string
+): Promise<IChallenge> => {
+  if (!Types.ObjectId.isValid(challengeId)) {
+    throw new Error("Invalid challenge ID");
   }
+  const challenge = await Challenge.findById(challengeId);
+  if (!challenge) {
+    throw new Error("Challenge not found");
+  }
+
+  const uid = new Types.ObjectId(userId);
+  // Mongoose DocumentArray.pull() removes all subdocs whose `user` equals `uid`
+  challenge.participants.pull({ user: uid });
+  await challenge.save();
+
+  return challenge;
 };
 
 /**
- * 🟢 Service to mark challenge as completed and reward the participants
- */
-export const completeChallengeService = async (challengeId: string): Promise<IChallenge> => {
-  try {
-    const challenge = await Challenge.findById(challengeId);
-  
-    if (!challenge) throw new Error("Challenge not found");
-  
-    challenge.status = "completed"; // Mark the challenge as completed
-    await challenge.save();
-  
-    // Reward all participants of the challenge
-    for (let {} of challenge.participants) {
-      await rewardChallengeCompletion(challenge);    }
-  
-    return challenge;
-  } catch (error: unknown) {  // Explicitly type the error as `unknown`
-    if (error instanceof Error) {
-      console.error("Error completing challenge:", error.message);  // Access message safely
-      throw new Error(error.message || "Error completing challenge");
-    } else {
-      console.error("Unexpected error:", error);  // In case of an unknown error
-      throw new Error("Unexpected error occurred while completing the challenge");
-    }
-  }
-};
-
-/**
- * 🟢 Service to fetch challenges with pagination
+ * Fetch all challenges (paginated, any visibility).
  */
 export const fetchChallengesWithPaginationService = async (
-  page: number = 1,
-  pageSize: number = 10
+  page = 1,
+  pageSize = 10
 ): Promise<IChallenge[]> => {
-  const pageNumber = parseInt(String(page), 10) || 1; // Explicit conversion to string first
-  const limit = parseInt(String(pageSize), 10) || 10;  // Explicit conversion to string first
-  
-  try {
-    const challenges = await Challenge.find()
-      .skip((pageNumber - 1) * limit)
-      .limit(limit)
-      .populate("creator", "username profilePicture")
-      .sort({ createdAt: -1 });
-  
-    return challenges;
-  } catch (error) {
-    console.error("Error fetching challenges:", error);
-    throw new Error("Error fetching challenges");
-  }
+  const skip = (page - 1) * pageSize;
+  const challenges = await Challenge.find()
+    .skip(skip)
+    .limit(pageSize)
+    .populate("creator", "username profilePicture")
+    .sort({ createdAt: -1 });
+  return challenges;
 };
 
 export default {
@@ -213,6 +133,5 @@ export default {
   getChallengeByIdService,
   joinChallengeService,
   leaveChallengeService,
-  completeChallengeService,
   fetchChallengesWithPaginationService,
 };

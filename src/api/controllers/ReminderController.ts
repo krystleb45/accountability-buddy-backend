@@ -1,156 +1,170 @@
+// src/controllers/ReminderController.ts
 import type { Request, Response, NextFunction } from "express";
-import { Reminder } from "../models/Reminder";
-import Goal from "../models/Goal";
-import { scheduleReminder } from "../services/ReminderService";
+import mongoose from "mongoose";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
+import { createError } from "../middleware/errorHandler";
 import sanitize from "mongo-sanitize";
 import CustomReminder from "../models/CustomReminder";
 
 /**
- * @desc    Set a reminder for a goal
- * @route   POST /api/reminders/create
+ * @desc    Create a custom reminder
+ * @route   POST /api/reminders
  * @access  Private
  */
-export const setReminder = catchAsync(
+export const createCustomReminder = catchAsync(
   async (
-    req: Request<{}, {}, { goalId: string; message: string; remindAt: string }>, // Explicit request type
+    req: Request<{}, {}, { reminderMessage: string; reminderTime: string; recurrence?: string }>,
     res: Response,
-    _next: NextFunction, // Added NextFunction for compatibility
+    next: NextFunction
   ): Promise<void> => {
-    const { goalId, message, remindAt } = sanitize(req.body);
+    const { reminderMessage, reminderTime, recurrence } = sanitize(req.body);
     const userId = req.user?.id;
-
-    // Validate reminder date
-    const remindDate = new Date(remindAt);
-    if (isNaN(remindDate.getTime()) || remindDate.getTime() <= Date.now()) {
-      sendResponse(res, 400, false, "Reminder date must be in the future");
-      return;
+    if (!userId) return next(createError("User ID is required", 401));
+    if (!reminderMessage || !reminderTime) {
+      return next(createError("Reminder message and time are required", 400));
     }
 
-    // Check if the goal exists
-    const goal = await Goal.findOne({ _id: goalId, user: userId });
-    if (!goal) {
-      sendResponse(res, 404, false, "Goal not found or access denied");
-      return;
+    const parsed = new Date(reminderTime);
+    if (isNaN(parsed.getTime()) || parsed <= new Date()) {
+      return next(createError("Reminder time must be a valid future date", 400));
     }
 
-    // Create the reminder
-    const newReminder = await Reminder.create({
+    const reminder = new CustomReminder({
       user: userId,
-      goal: goalId,
-      message,
-      remindAt: remindDate,
+      reminderMessage,
+      reminderTime: parsed,
+      recurrence,
     });
+    await reminder.save();
 
-    // Schedule the reminder
-    await scheduleReminder(newReminder);
-
-    sendResponse(res, 201, true, "Reminder set successfully", {
-      reminder: newReminder,
-    });
-  },
+    sendResponse(res, 201, true, "Custom reminder created", { reminder });
+  }
 );
 
 /**
- * @desc    Update a reminder
- * @route   PUT /api/reminders/edit/:reminderId
+ * @desc    Get all custom reminders for the current user
+ * @route   GET /api/reminders
  * @access  Private
  */
-export const updateReminder = catchAsync(
-  async (
-    req: Request<{ reminderId: string }, {}, { message?: string; remindAt?: string }>, // Explicit route and body types
-    res: Response,
-    _next: NextFunction, // Added NextFunction for compatibility
-  ): Promise<void> => {
-    const { reminderId } = req.params;
-    const { message, remindAt } = sanitize(req.body);
-    const userId = req.user?.id;
+export const getCustomReminders = catchAsync(
+  async (_req: Request, res: Response): Promise<void> => {
+    const userId = _req.user?.id;
+    if (!userId) throw createError("User ID is required", 401);
 
-    // Validate updated reminder date
-    const remindDate = remindAt ? new Date(remindAt) : null;
-    if (
-      remindDate &&
-      (isNaN(remindDate.getTime()) || remindDate.getTime() <= Date.now())
-    ) {
-      sendResponse(res, 400, false, "Reminder date must be in the future");
+    const reminders = await CustomReminder.find({ user: new mongoose.Types.ObjectId(userId) })
+      .sort({ reminderTime: 1 });
+    if (!reminders.length) {
+      sendResponse(res, 404, false, "No reminders found");
       return;
     }
 
-    // Update the reminder
-    const reminder = await Reminder.findOneAndUpdate(
-      { _id: reminderId, user: userId },
-      { message, remindAt: remindDate },
-      { new: true, runValidators: true }, // Return updated document and validate inputs
+    sendResponse(res, 200, true, "Reminders fetched", { reminders });
+  }
+);
+
+/**
+ * @desc    Update a custom reminder
+ * @route   PUT /api/reminders/:id
+ * @access  Private
+ */
+export const updateCustomReminder = catchAsync(
+  async (
+    req: Request<{ id: string }, {}, { reminderMessage?: string; reminderTime?: string; recurrence?: string }>,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    const { id } = req.params;
+    const { reminderMessage, reminderTime, recurrence } = sanitize(req.body);
+    const userId = req.user?.id;
+    if (!userId) return next(createError("User ID is required", 401));
+    if (!reminderMessage && !reminderTime && !recurrence) {
+      return next(createError("At least one field must be provided", 400));
+    }
+
+    const update: any = {};
+    if (reminderMessage) update.reminderMessage = reminderMessage;
+    if (reminderTime) {
+      const parsed = new Date(reminderTime);
+      if (isNaN(parsed.getTime()) || parsed <= new Date()) {
+        return next(createError("Reminder time must be a valid future date", 400));
+      }
+      update.reminderTime = parsed;
+    }
+    if (recurrence) update.recurrence = recurrence;
+
+    const updated = await CustomReminder.findOneAndUpdate(
+      { _id: id, user: new mongoose.Types.ObjectId(userId) },
+      update,
+      { new: true, runValidators: true }
     );
-    if (!reminder) {
-      sendResponse(res, 404, false, "Reminder not found or access denied");
-      return;
+    if (!updated) {
+      return next(createError("Reminder not found or access denied", 404));
     }
 
-    sendResponse(res, 200, true, "Reminder updated successfully", {
-      reminder,
-    });
-  },
+    sendResponse(res, 200, true, "Reminder updated", { reminder: updated });
+  }
 );
 
 /**
- * @desc    Delete a reminder
- * @route   DELETE /api/reminders/delete/:reminderId
+ * @desc    Disable (soft-delete) a custom reminder
+ * @route   PUT /api/reminders/disable/:id
  * @access  Private
  */
-export const deleteReminder = catchAsync(
+export const disableCustomReminder = catchAsync(
   async (
-    req: Request<{ id: string }>, // Use 'id' to match the route parameter
+    req: Request<{ id: string }>,
     res: Response,
-    next: NextFunction,
+    next: NextFunction
   ): Promise<void> => {
-    try {
-      const reminderId = sanitize(req.params.id); // Use 'id'
-      const userId = req.user?.id;
-
-      if (!userId) {
-        sendResponse(res, 401, false, "Unauthorized access");
-        return;
-      }
-
-      const deletedReminder = await CustomReminder.findOneAndDelete({
-        _id: reminderId,
-        user: userId,
-      });
-
-      if (!deletedReminder) {
-        sendResponse(res, 404, false, "Reminder not found or access denied");
-        return;
-      }
-
-      sendResponse(res, 200, true, "Reminder deleted successfully");
-    } catch (error) {
-      next(error);
-    }
-  },
-);
-
-/**
- * @desc    Get user reminders
- * @route   GET /api/reminders/user
- * @access  Private
- */
-export const getUserReminders = catchAsync(
-  async (
-    req: Request<{}, {}, {}, {}>, // Explicitly typed request with empty generics
-    res: Response,
-    _next: NextFunction, // Added NextFunction for compatibility
-  ): Promise<void> => {
+    const { id } = req.params;
     const userId = req.user?.id;
+    if (!userId) return next(createError("User ID is required", 401));
 
-    // Fetch reminders sorted by time
-    const reminders = await Reminder.find({ user: userId }).sort({
-      remindAt: 1,
-    });
+    const disabled = await CustomReminder.findOneAndUpdate(
+      { _id: id, user: new mongoose.Types.ObjectId(userId) },
+      { disabled: true },
+      { new: true }
+    );
+    if (!disabled) {
+      return next(createError("Reminder not found or access denied", 404));
+    }
 
-    sendResponse(res, 200, true, "Reminders fetched successfully", {
-      reminders,
-    });
-  },
+    sendResponse(res, 200, true, "Reminder disabled", { reminder: disabled });
+  }
 );
+
+/**
+ * @desc    Delete a custom reminder
+ * @route   DELETE /api/reminders/:id
+ * @access  Private
+ */
+export const deleteCustomReminder = catchAsync(
+  async (
+    req: Request<{ id: string }>,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    const { id } = req.params;
+    const userId = req.user?.id;
+    if (!userId) return next(createError("User ID is required", 401));
+
+    const deleted = await CustomReminder.findOneAndDelete({
+      _id: id,
+      user: new mongoose.Types.ObjectId(userId),
+    });
+    if (!deleted) {
+      return next(createError("Reminder not found or access denied", 404));
+    }
+
+    sendResponse(res, 200, true, "Reminder deleted");
+  }
+);
+
+export default {
+  createCustomReminder,
+  getCustomReminders,
+  updateCustomReminder,
+  disableCustomReminder,
+  deleteCustomReminder,
+};

@@ -1,36 +1,111 @@
-import type { Document } from "mongoose";
+import type { Document, Model, Types } from "mongoose";
 import mongoose, { Schema } from "mongoose";
 
-// Message Schema for Military Support Chat
-interface IMessage extends Document {
-  sender: mongoose.Schema.Types.ObjectId; // User ID
-  content: string;
-  timestamp: Date;
+// --- Message Subdocument Interface ---
+export interface IMessage extends Document {
+  _id: Types.ObjectId;          // Unique message ID
+  sender: Types.ObjectId;        // User ID of the sender
+  content: string;               // Message text
+  timestamp: Date;               // When message was sent
+  createdAt: Date;               // Auto-generated
+  updatedAt: Date;               // Auto-generated
 }
 
-// Military User Schema
-interface IMilitaryUser extends Document {
-  userId: mongoose.Schema.Types.ObjectId; // Linked to User
-  isMilitary: boolean; // Verification flag
-  messages: IMessage[];
+// --- MilitaryUser Document Interface ---
+export interface IMilitaryUser extends Document {
+  userId: Types.ObjectId;    // Linked User
+  isMilitary: boolean;       // Verification flag
+  messages: Types.DocumentArray<IMessage>;
+  createdAt: Date;
+  updatedAt: Date;
+
+  // Virtuals
+  messageCount: number;
+
+  // Instance methods
+  addMessage(content: string, senderId: Types.ObjectId): Promise<IMilitaryUser>;
+  removeMessage(messageId: Types.ObjectId): Promise<boolean>;
 }
 
-// Message Schema
-const MessageSchema: Schema = new Schema({
-  sender: { type: Schema.Types.ObjectId, ref: "User", required: true },
-  content: { type: String, required: true },
-  timestamp: { type: Date, default: Date.now },
-});
+// --- MilitaryUser Model Interface ---
+export interface IMilitaryUserModel extends Model<IMilitaryUser> {
+  findByUser(userId: Types.ObjectId): Promise<IMilitaryUser | null>;
+  getMilitaryUsers(): Promise<IMilitaryUser[]>;
+}
 
-// Military User Schema
-const MilitaryUserSchema: Schema = new Schema({
-  userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
-  isMilitary: { type: Boolean, default: false },
-  messages: [MessageSchema],
-});
-
-const MilitaryUser = mongoose.model<IMilitaryUser>(
-  "MilitaryUser",
-  MilitaryUserSchema,
+// --- Sub-Schema Definition ---
+const MessageSchema = new Schema<IMessage>(
+  {
+    sender: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    content: { type: String, required: true, trim: true },
+    timestamp: { type: Date, default: Date.now, index: true }
+  },
+  { _id: true }
 );
+
+// --- Main Schema Definition ---
+const MilitaryUserSchema = new Schema<IMilitaryUser, IMilitaryUserModel>(
+  {
+    userId: { type: Schema.Types.ObjectId, ref: "User", required: true, unique: true, index: true },
+    isMilitary: { type: Boolean, default: false, index: true },
+    messages: { type: [MessageSchema], default: [] }
+  },
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
+  }
+);
+
+// --- Indexes ---
+MilitaryUserSchema.index({ userId: 1 });
+MilitaryUserSchema.index({ "messages.timestamp": -1 });
+
+// --- Virtuals ---
+MilitaryUserSchema.virtual("messageCount").get(function (this: IMilitaryUser): number {
+  return this.messages.length;
+});
+
+// --- Instance Methods ---
+MilitaryUserSchema.methods.addMessage = async function (
+  this: IMilitaryUser,
+  content: string,
+  senderId: Types.ObjectId
+): Promise<IMilitaryUser> {
+  this.messages.push({ sender: senderId, content, timestamp: new Date() });
+  await this.save();
+  return this;
+};
+
+MilitaryUserSchema.methods.removeMessage = async function (
+  this: IMilitaryUser,
+  messageId: Types.ObjectId
+): Promise<boolean> {
+  const idx = this.messages.findIndex(m => m._id.equals(messageId));
+  if (idx === -1) return false;
+  this.messages.splice(idx, 1);
+  await this.save();
+  return true;
+};
+
+// --- Static Methods ---
+MilitaryUserSchema.statics.findByUser = function (
+  this: IMilitaryUserModel,
+  userId: Types.ObjectId
+): Promise<IMilitaryUser | null> {
+  return this.findOne({ userId }).populate("messages.sender", "username profilePicture");
+};
+
+MilitaryUserSchema.statics.getMilitaryUsers = function (
+  this: IMilitaryUserModel
+): Promise<IMilitaryUser[]> {
+  return this.find({ isMilitary: true }).sort({ updatedAt: -1 });
+};
+
+// --- Model Export ---
+export const MilitaryUser = mongoose.model<IMilitaryUser, IMilitaryUserModel>(
+  "MilitaryUser",
+  MilitaryUserSchema
+);
+
 export default MilitaryUser;

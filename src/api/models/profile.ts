@@ -1,30 +1,41 @@
-import type { Document, Model } from "mongoose";
+import type { Document, Model, Types } from "mongoose";
 import mongoose, { Schema } from "mongoose";
 
-// Define the interface for the Profile document
-interface IProfile extends Document {
-  user: mongoose.Schema.Types.ObjectId; // Reference to the User model
+// --- Profile Document Interface ---
+export interface IProfile extends Document {
+  user: Types.ObjectId;          // Reference to the User model
   name: string;
   email: string;
-  bio?: string; // Optional field
-  profilePicture?: string; // Optional URL for profile picture
+  bio?: string;                  // Optional bio
+  profilePicture?: string;       // Optional profile picture URL
   createdAt: Date;
   updatedAt: Date;
+
+  // Instance methods
+  updateProfile(data: Partial<Pick<IProfile, "name" | "bio" | "profilePicture">>): Promise<IProfile>;
 }
 
-// Create the schema for Profile
-const ProfileSchema: Schema<IProfile> = new Schema(
+// --- Profile Model Static Interface ---
+export interface IProfileModel extends Model<IProfile> {
+  findByUserId(userId: Types.ObjectId): Promise<IProfile | null>;
+  createOrUpdate(userId: Types.ObjectId, data: { name: string; email: string; bio?: string; profilePicture?: string }): Promise<IProfile>;
+}
+
+// --- Schema Definition ---
+const ProfileSchema = new Schema<IProfile, IProfileModel, IProfile>(
   {
     user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User", // References the User model
+      type: Schema.Types.ObjectId,
+      ref: "User",
       required: true,
-      unique: true, // Ensure one profile per user
+      unique: true,
+      index: true,
     },
     name: {
       type: String,
       required: true,
       trim: true,
+      maxlength: [100, "Name cannot exceed 100 characters"],
     },
     email: {
       type: String,
@@ -32,36 +43,70 @@ const ProfileSchema: Schema<IProfile> = new Schema(
       trim: true,
       lowercase: true,
       unique: true,
-      match: [/\S+@\S+\.\S+/, "Invalid email address"], // Enforces email format
+      match: [ /\S+@\S+\.\S+/, "Invalid email address" ],
     },
     bio: {
       type: String,
-      maxlength: 500, // Limit bio to 500 characters
+      maxlength: [500, "Bio cannot exceed 500 characters"],
     },
     profilePicture: {
-      type: String, // URL of the profile picture
-      default: "", // Optional
+      type: String,
+      trim: true,
+      default: "",
     },
   },
   {
-    timestamps: true, // Automatically adds createdAt and updatedAt fields
-  },
+    timestamps: true,
+    toJSON: { virtuals: false },
+    toObject: { virtuals: false }
+  }
 );
 
-// Pre-save middleware to ensure email uniqueness and lowercase
-ProfileSchema.pre<IProfile>("save", async function (next) {
-  this.email = this.email.toLowerCase(); // Ensure lowercase email
+// --- Middleware Hooks ---
+// Ensure email is lowercase
+ProfileSchema.pre<IProfile>("save", function(next) {
+  this.email = this.email.toLowerCase();
   next();
 });
 
-// Static method to fetch profile by user ID
-ProfileSchema.statics.findByUserId = async function (
-  userId: string,
+// --- Instance Methods ---
+ProfileSchema.methods.updateProfile = async function(
+  this: IProfile,
+  data: Partial<Pick<IProfile, "name" | "bio" | "profilePicture">>
+): Promise<IProfile> {
+  if (data.name !== undefined) this.name = data.name;
+  if (data.bio !== undefined) this.bio = data.bio;
+  if (data.profilePicture !== undefined) this.profilePicture = data.profilePicture;
+  await this.save();
+  return this;
+};
+
+// --- Static Methods ---
+ProfileSchema.statics.findByUserId = function(
+  this: IProfileModel,
+  userId: Types.ObjectId
 ): Promise<IProfile | null> {
   return this.findOne({ user: userId });
 };
 
-// Export the Profile model
-const Profile: Model<IProfile> = mongoose.model<IProfile>("Profile", ProfileSchema);
+ProfileSchema.statics.createOrUpdate = async function(
+  this: IProfileModel,
+  userId: Types.ObjectId,
+  data: { name: string; email: string; bio?: string; profilePicture?: string }
+): Promise<IProfile> {
+  const opts = { upsert: true, new: true, setDefaultsOnInsert: true };
+  const updateDoc = { user: userId, ...data };
+  const profile = await this.findOneAndUpdate({ user: userId }, updateDoc, opts);
+  if (!profile) {
+    throw new Error("Failed to create or update profile");
+  }
+  return profile;
+};
+
+// --- Model Export ---
+export const Profile = mongoose.model<IProfile, IProfileModel>(
+  "Profile",
+  ProfileSchema
+);
 
 export default Profile;

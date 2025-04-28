@@ -1,148 +1,150 @@
 import type { Document, Model } from "mongoose";
-import mongoose, { Schema } from "mongoose";
+import mongoose, { Schema, Types as MongooseTypes } from "mongoose";
 
-// Define the Comment interface for books
-interface IBookComment {
-  _id: mongoose.Types.ObjectId;
-  user: mongoose.Types.ObjectId;
+// --- Comment Subdocument ---
+export interface IBookComment extends Document {
+  _id: MongooseTypes.ObjectId;
+  user: MongooseTypes.ObjectId;
   text: string;
   createdAt: Date;
 }
 
-// Define the Book interface
+const BookCommentSchema = new Schema<IBookComment>(
+  {
+    user: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    text: { type: String, required: true, trim: true, maxlength: 500 },
+    createdAt: { type: Date, default: Date.now },
+  },
+  { _id: true, timestamps: false }
+);
+
+// --- Book Interface ---
 export interface IBook extends Document {
   title: string;
   author: string;
   category: string;
   description: string;
   coverImage?: string;
-  addedBy: mongoose.Types.ObjectId;
-  likes: mongoose.Types.ObjectId[];
-  comments: IBookComment[];
+  addedBy: MongooseTypes.ObjectId;
+  likes: MongooseTypes.ObjectId[];
+  comments: mongoose.Types.DocumentArray<IBookComment>;
   createdAt: Date;
   updatedAt: Date;
 
-  // Instance Methods
-  addLike(userId: mongoose.Types.ObjectId): Promise<void>;
-  removeLike(userId: mongoose.Types.ObjectId): Promise<void>;
-  addComment(userId: mongoose.Types.ObjectId, text: string): Promise<void>;
-  removeComment(commentId: mongoose.Types.ObjectId): Promise<void>;
+  // Virtuals
+  likeCount: number;
+  commentCount: number;
+
+  // Instance methods
+  addLike(userId: MongooseTypes.ObjectId): Promise<IBook>;
+  removeLike(userId: MongooseTypes.ObjectId): Promise<IBook>;
+  addComment(userId: MongooseTypes.ObjectId, text: string): Promise<IBookComment>;
+  removeComment(commentId: MongooseTypes.ObjectId): Promise<boolean>;
 }
 
-// Define the Book Schema
+// --- Model Interface ---
+export interface IBookModel extends Model<IBook> {
+  findByCategory(category: string, limit?: number): Promise<IBook[]>;
+  findRecent(limit?: number): Promise<IBook[]>;
+}
+
+// --- Schema Definition ---
 const BookSchema = new Schema<IBook>(
   {
-    title: {
-      type: String,
-      required: [true, "Title is required"],
-      trim: true,
-      maxlength: [200, "Title cannot exceed 200 characters"],
-    },
-    author: {
-      type: String,
-      required: [true, "Author is required"],
-      trim: true,
-      maxlength: [150, "Author name cannot exceed 150 characters"],
-    },
-    category: {
-      type: String,
-      required: [true, "Category is required"],
-      trim: true,
-      maxlength: [100, "Category name cannot exceed 100 characters"],
-    },
-    description: {
-      type: String,
-      required: [true, "Description is required"],
-      trim: true,
-      maxlength: [1000, "Description cannot exceed 1000 characters"],
-    },
+    title: { type: String, required: true, trim: true, maxlength: 200, index: true },
+    author: { type: String, required: true, trim: true, maxlength: 150, index: true },
+    category: { type: String, required: true, trim: true, maxlength: 100, index: true },
+    description: { type: String, required: true, trim: true, maxlength: 1000 },
     coverImage: {
       type: String,
       trim: true,
       validate: {
-        validator: function (url: string): boolean {
-          return /^(https?:\/\/.*\.(?:png|jpg|jpeg|gif|svg))$/.test(url);
-        },
+        validator: (url: string): boolean => /^(https?:\/\/.+\.(png|jpg|jpeg|gif|svg))$/.test(url),
         message: "Invalid cover image URL format",
       },
     },
-    addedBy: {
-      type: Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-      index: true, // ✅ Already indexed here – no need for duplicate index below
-    },
-    likes: [
-      {
-        type: Schema.Types.ObjectId,
-        ref: "User",
-      },
-    ],
-    comments: [
-      {
-        _id: { type: Schema.Types.ObjectId, auto: true },
-        user: { type: Schema.Types.ObjectId, ref: "User", required: true },
-        text: { type: String, required: true, trim: true },
-        createdAt: { type: Date, default: Date.now },
-      },
-    ],
+    addedBy: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    likes: [{ type: Schema.Types.ObjectId, ref: "User" }],
+    comments: { type: [BookCommentSchema], default: [] },
   },
   {
     timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
   }
 );
 
-// ✅ Indexing for optimized searches (excluding addedBy to avoid duplication)
-BookSchema.index({ title: 1, category: 1, createdAt: -1 });
-BookSchema.index({ author: 1 });
+// --- Virtuals ---
+BookSchema.virtual("likeCount").get(function (this: IBook): number {
+  return this.likes.length;
+});
 
-// ✅ Ensure Unique Likes
-BookSchema.pre<IBook>("save", function (next): void {
-  this.likes = Array.from(new Set(this.likes.map((id) => id.toString()))).map(
-    (id) => new mongoose.Types.ObjectId(id)
-  );
+BookSchema.virtual("commentCount").get(function (this: IBook): number {
+  return this.comments.length;
+});
+
+// --- Middleware ---
+BookSchema.pre<IBook>("save", function (next: (err?: Error) => void): void {
+  // Ensure unique likes
+  this.likes = Array.from(new Set(this.likes.map(id => id.toString()))).map(id => new mongoose.Types.ObjectId(id));
   next();
 });
 
-// ✅ Instance Methods
-BookSchema.methods.addLike = async function (
-  userId: mongoose.Types.ObjectId
-): Promise<void> {
+// --- Instance Methods ---
+BookSchema.methods.addLike = async function (this: IBook, userId: MongooseTypes.ObjectId): Promise<IBook> {
   if (!this.likes.includes(userId)) {
     this.likes.push(userId);
     await this.save();
   }
+  return this;
 };
 
-BookSchema.methods.removeLike = async function (
-  userId: mongoose.Types.ObjectId
-): Promise<void> {
-  this.likes = this.likes.filter((id: { equals: (arg0: mongoose.Types.ObjectId) => any }) => !id.equals(userId));
+BookSchema.methods.removeLike = async function (this: IBook, userId: MongooseTypes.ObjectId): Promise<IBook> {
+  this.likes = this.likes.filter(id => !id.equals(userId));
   await this.save();
+  return this;
 };
 
 BookSchema.methods.addComment = async function (
-  userId: mongoose.Types.ObjectId,
+  this: IBook,
+  userId: MongooseTypes.ObjectId,
   text: string
-): Promise<void> {
-  this.comments.push({
-    _id: new mongoose.Types.ObjectId(),
-    user: userId,
-    text,
-    createdAt: new Date(),
-  });
+): Promise<IBookComment> {
+  const comment = this.comments.create({ user: userId, text });
+  this.comments.push(comment);
   await this.save();
+  return comment;
 };
 
 BookSchema.methods.removeComment = async function (
-  commentId: mongoose.Types.ObjectId
-): Promise<void> {
-  this.comments = this.comments.filter(
-    (comment: { _id: { equals: (arg0: mongoose.Types.ObjectId) => any } }) => !comment._id.equals(commentId)
-  );
+  this: IBook,
+  commentId: MongooseTypes.ObjectId
+): Promise<boolean> {
+  const idx = this.comments.findIndex(c => c._id.equals(commentId));
+  if (idx === -1) return false;
+  this.comments.splice(idx, 1);
   await this.save();
+  return true;
 };
 
-// ✅ Export the Book model
-const Book: Model<IBook> = mongoose.model<IBook>("Book", BookSchema);
+// --- Static Methods ---
+BookSchema.statics.findByCategory = function (
+  category: string,
+  limit = 10
+): Promise<IBook[]> {
+  return this.find({ category }).sort({ createdAt: -1 }).limit(limit);
+};
+
+BookSchema.statics.findRecent = function (
+  limit = 10
+): Promise<IBook[]> {
+  return this.find().sort({ createdAt: -1 }).limit(limit);
+};
+
+// --- Indexes ---
+BookSchema.index({ title: 1, category: 1 });
+BookSchema.index({ author: 1, createdAt: -1 });
+
+// --- Model Export ---
+export const Book = mongoose.model<IBook, IBookModel>("Book", BookSchema);
 export default Book;

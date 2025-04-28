@@ -1,35 +1,54 @@
-import type { Document, Model, CallbackError } from "mongoose";
+import type { Document, Model } from "mongoose";
 import mongoose, { Schema } from "mongoose";
 
-// Define the AdminActionLog interface
-export interface AdminActionLog extends Document {
-  admin: mongoose.Types.ObjectId; // Reference to the admin user
-  action:
-    | "create_user"
-    | "delete_user"
-    | "update_user_role"
-    | "suspend_user"
-    | "create_goal"
-    | "delete_goal"
-    | "modify_subscription"
-    | "view_reports"
-    | "other"; // Allowed action types
-  description?: string; // Optional description for the action
-  target?: mongoose.Types.ObjectId; // Optional target user
-  details: Map<string, string>; // Additional metadata
-  ipAddress?: string; // Optional IP address
-  createdAt: Date;
-  updatedAt: Date;
-  actionType: string; // Virtual field for a readable action type
+// --- Types & Interfaces ---
+export type AdminAction =
+  | "create_user"
+  | "delete_user"
+  | "update_user_role"
+  | "suspend_user"
+  | "create_goal"
+  | "delete_goal"
+  | "modify_subscription"
+  | "view_reports"
+  | "other";
+
+export interface IAdminActionLog extends Document {
+  admin: mongoose.Types.ObjectId;          // Admin user reference
+  action: AdminAction;                     // Action type
+  description?: string;                    // Optional description
+  target?: mongoose.Types.ObjectId;        // Optional target user
+  details: Map<string, string>;            // Additional metadata
+  ipAddress?: string;                      // IP address of action
+  createdAt: Date;                         // Timestamp
+  updatedAt: Date;                         // Timestamp
+
+  // Virtual field
+  actionType: string;
+
+  // Instance helper
+  getActionType: () => string;
 }
 
-// Define the AdminActionLog Schema
-const AdminActionLogSchema = new Schema<AdminActionLog>(
+export interface IAdminActionLogModel extends Model<IAdminActionLog> {
+  logAction(
+    adminId: mongoose.Types.ObjectId,
+    action: AdminAction,
+    targetId?: mongoose.Types.ObjectId | null,
+    description?: string,
+    details?: Record<string, string>,
+    ipAddress?: string
+  ): Promise<IAdminActionLog>;
+}
+
+// --- Schema Definition ---
+const AdminActionLogSchema = new Schema<IAdminActionLog>(
   {
     admin: {
       type: Schema.Types.ObjectId,
       ref: "User",
       required: [true, "Admin reference is required"],
+      index: true,
     },
     action: {
       type: String,
@@ -45,6 +64,7 @@ const AdminActionLogSchema = new Schema<AdminActionLog>(
         "other",
       ],
       required: [true, "Action type is required"],
+      index: true,
     },
     description: {
       type: String,
@@ -54,83 +74,72 @@ const AdminActionLogSchema = new Schema<AdminActionLog>(
     target: {
       type: Schema.Types.ObjectId,
       ref: "User",
-      default: null, // Optional target
+      default: null,
+      index: true,
     },
     details: {
       type: Map,
-      of: String, // Metadata as key-value pairs
-      default: {},
+      of: String,
+      default: new Map<string, string>(),
     },
     ipAddress: {
       type: String,
       trim: true,
       validate: {
-        validator: function (v: string): boolean {
-          return /^([0-9]{1,3}\.){3}[0-9]{1,3}$/.test(v); // Basic IPv4 validation
-        },
+        validator: (v: string): boolean =>
+          /^([0-9]{1,3}\.){3}[0-9]{1,3}$/.test(v),
         message: "Invalid IP address format",
       },
     },
   },
   {
-    timestamps: true, // Automatically adds createdAt and updatedAt fields
+    timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
-  },
+  }
 );
 
-// Compound indexes for optimized queries
+// --- Indexes ---
 AdminActionLogSchema.index({ admin: 1, action: 1, createdAt: -1 });
 AdminActionLogSchema.index({ target: 1 });
 AdminActionLogSchema.index({ createdAt: -1 });
 
-// Virtual field for a readable action type
-AdminActionLogSchema.virtual("actionType").get(function (
-  this: AdminActionLog,
-): string {
+// --- Virtuals ---
+AdminActionLogSchema.virtual("actionType").get(function (this: IAdminActionLog): string {
   return this.action
-    .replace("_", " ")
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 });
 
-// Pre-save hook for action validation
-AdminActionLogSchema.pre("save", function (
-  next: (err?: CallbackError) => void,
-): void {
+// --- Instance Methods ---
+AdminActionLogSchema.methods.getActionType = function (): string {
+  return this.actionType;
+};
+
+// --- Pre-save Hook ---
+AdminActionLogSchema.pre<IAdminActionLog>("save", function (next: (err?: Error) => void): void {
   if (this.action === "other" && !this.description) {
-    return next(
-      new Error("Description is required for \"other\" action type"),
-    );
+    return next(new Error("Description is required for 'other' action type"));
   }
   next();
 });
 
-
-// Static method to log admin actions
+// --- Static Methods ---
 AdminActionLogSchema.statics.logAction = async function (
   adminId: mongoose.Types.ObjectId,
-  action: AdminActionLog["action"],
+  action: AdminAction,
   targetId: mongoose.Types.ObjectId | null = null,
   description = "",
   details: Record<string, string> = {},
-  ipAddress = "",
-): Promise<AdminActionLog> {
-  const newLog = new this({
-    admin: adminId,
-    action,
-    target: targetId,
-    description,
-    details,
-    ipAddress,
-  });
-
-  return newLog.save();
+  ipAddress = ""
+): Promise<IAdminActionLog> {
+  const entry = new this({ admin: adminId, action, target: targetId, description, details, ipAddress });
+  return entry.save();
 };
 
-// Export the AdminActionLog model
-const AdminActionLog: Model<AdminActionLog> = mongoose.model<AdminActionLog>(
+// --- Model Export ---
+export const AdminActionLog = mongoose.model<IAdminActionLog, IAdminActionLogModel>(
   "AdminActionLog",
-  AdminActionLogSchema,
+  AdminActionLogSchema
 );
-
-export default AdminActionLog;

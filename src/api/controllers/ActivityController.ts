@@ -1,127 +1,43 @@
-import type { Request, Response } from "express";
-import mongoose from "mongoose";
-import Activity from "../models/Activity";
+// src/api/controllers/ActivityController.ts
+import type { Request, Response, NextFunction } from "express";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
 import { createError } from "../middleware/errorHandler";
+import ActivityService from "../services/ActivityService";
+
+interface QueryParams {
+  type?: string;
+  limit?: string;
+  page?: string;
+}
+
+interface CreateBody {
+  title: string;
+  description?: string;
+  metadata?: Record<string, unknown>;
+}
+
+interface UpdateBody {
+  title?: string;
+  description?: string;
+  metadata?: Record<string, unknown>;
+}
 
 /**
- * Sanitize inputs to prevent injection attacks
- */
-const sanitizeInput = (input: any): any => {
-  if (typeof input === "string") {
-    return input.replace(/[^\w\s.@-]/g, "");
-  }
-  if (typeof input === "object" && input !== null) {
-    const sanitized: Record<string, any> = {};
-    for (const key in input) {
-      sanitized[key] = sanitizeInput(input[key]);
-    }
-    return sanitized;
-  }
-  return input;
-};
-
-/**
- * @desc    Log user activity
- * @route   POST /api/activity
+ * @desc    Log user activity (alias for createActivity/logging endpoint)
+ * @route   POST /api/activity/log
  * @access  Private
  */
 export const logActivity = catchAsync(
-  async (
-    req: Request<{}, any, { type: string; description?: string; metadata?: Record<string, any> }>,
-    res: Response
-  ): Promise<void> => {
-    const { type, description, metadata } = sanitizeInput(req.body);
+  async (req: Request<{}, any, CreateBody>, res: Response, next: NextFunction): Promise<void> => {
     const userId = req.user?.id;
+    if (!userId) return next(createError("Unauthorized", 401));
 
-    // Validate inputs
-    if (!type || typeof type !== "string") {
-      throw createError("Invalid activity type", 400);
-    }
+    const { title, description, metadata } = req.body;
+    if (!title) return next(createError("Title is required", 400));
 
-    // Save activity with metadata support
-    const newActivity = new Activity({
-      user: userId,
-      type,
-      description,
-      metadata: metadata || {}, // Ensure metadata is stored as an object
-    });
-
-    await newActivity.save();
-
-    sendResponse(res, 201, true, "Activity logged successfully", {
-      activity: newActivity,
-    });
-  }
-);
-
-/**
- * @desc    Get user activities with filtering & pagination
- * @route   GET /api/activity
- * @access  Private
- */
-export const getUserActivities = catchAsync(
-  async (
-    req: Request<{}, {}, {}, { type?: string; limit?: string; page?: string }>,
-    res: Response
-  ): Promise<void> => {
-    const userId = req.user?.id;
-    const { type, limit = "10", page = "1" } = req.query;
-
-    if (!userId) {
-      throw createError("User ID is required", 400);
-    }
-
-    // Query conditions
-    const query: Record<string, any> = { user: userId };
-    if (type) {
-      query.type = type;
-    }
-
-    // Pagination setup
-    const perPage = parseInt(limit);
-    const skip = (parseInt(page) - 1) * perPage;
-
-    // Fetch user activities
-    const activities = await Activity.find(query)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(perPage);
-    const total = await Activity.countDocuments(query);
-    if (!activities || activities.length === 0) {
-      sendResponse(res, 404, false, "No activities found for this user");
-      return;
-    }
-
-    sendResponse(res, 200, true, "User activities fetched successfully", {
-      activities,
-      total,
-      pagination: {
-        page: parseInt(page),
-        limit: perPage,
-      },
-    });
-  }
-);
-
-
-/**
- * @desc    Fetch one activity by ID
- * @route   GET /api/activity/:activityId
- * @access  Private
- */
-export const getActivityById = catchAsync(
-  async (req: Request<{ activityId: string }>, res: Response) => {
-    const { activityId } = req.params;
-    if (!mongoose.isValidObjectId(activityId)) {
-      throw createError("Invalid activity ID", 400);
-    }
-    const activity = await Activity.findById(activityId);
-    if (!activity || activity.isDeleted) {
-      throw createError("Activity not found", 404);
-    }
-    sendResponse(res, 200, true, "Activity fetched successfully", { activity });
+    const activity = await ActivityService.logActivity(userId, title, description, metadata);
+    sendResponse(res, 201, true, "Activity logged successfully", { activity });
   }
 );
 
@@ -131,28 +47,57 @@ export const getActivityById = catchAsync(
  * @access  Private
  */
 export const createActivity = catchAsync(
-  async (
-    req: Request<{}, any, Partial<{ title: string; description: string; metadata: Record<string, unknown> }>>,
-    res: Response
-  ) => {
+  async (req: Request<{}, any, CreateBody>, res: Response, next: NextFunction): Promise<void> => {
     const userId = req.user?.id;
-    if (!userId) throw createError("Unauthorized", 401);
+    if (!userId) return next(createError("Unauthorized", 401));
 
-    const body = sanitizeInput(req.body);
-    const { title, description, metadata } = body;
-    if (!title || typeof title !== "string") {
-      throw createError("Title is required", 400);
+    const { title, description, metadata } = req.body;
+    if (!title) return next(createError("Title is required", 400));
+
+    const activity = await ActivityService.createActivity(userId, title, description, metadata);
+    sendResponse(res, 201, true, "Activity created successfully", { activity });
+  }
+);
+
+/**
+ * @desc    Get user activities with filtering & pagination
+ * @route   GET /api/activity
+ * @access  Private
+ */
+export const getUserActivities = catchAsync(
+  async (req: Request<{}, any, any, QueryParams>, res: Response, next: NextFunction): Promise<void> => {
+    const userId = req.user?.id;
+    if (!userId) return next(createError("Unauthorized", 401));
+
+    const page = parseInt(req.query.page ?? "1", 10);
+    const limit = parseInt(req.query.limit ?? "10", 10);
+    const type = req.query.type;
+
+    const { activities, total } = await ActivityService.getUserActivities(userId, { type, page, limit });
+
+    if (!activities.length) {
+      sendResponse(res, 404, false, "No activities found for this user");
+      return;
     }
 
-    const newAct = new Activity({
-      user: userId,
-      title,
-      description: description || "",
-      metadata: metadata || {},
-      participants: [], // initialize
+    sendResponse(res, 200, true, "User activities fetched successfully", {
+      activities,
+      total,
+      pagination: { page, limit },
     });
-    await newAct.save();
-    sendResponse(res, 201, true, "Activity created successfully", { activity: newAct });
+  }
+);
+
+/**
+ * @desc    Fetch one activity by ID
+ * @route   GET /api/activity/:activityId
+ * @access  Private
+ */
+export const getActivityById = catchAsync(
+  async (req: Request<{ activityId: string }>, res: Response, _next: NextFunction): Promise<void> => {
+    const { activityId } = req.params;
+    const activity = await ActivityService.getActivityById(activityId);
+    sendResponse(res, 200, true, "Activity fetched successfully", { activity });
   }
 );
 
@@ -163,21 +108,14 @@ export const createActivity = catchAsync(
  */
 export const updateActivity = catchAsync(
   async (
-    req: Request<{ activityId: string }, any, Partial<{ title: string; description: string; metadata: Record<string,unknown> }>>,
-    res: Response
-  ) => {
+    req: Request<{ activityId: string }, any, UpdateBody>,
+    res: Response,
+    _next: NextFunction
+  ): Promise<void> => {
     const { activityId } = req.params;
-    if (!mongoose.isValidObjectId(activityId)) {
-      throw createError("Invalid activity ID", 400);
-    }
-    const userId = req.user?.id!;
-    const act = await Activity.findOne({ _id: activityId, user: userId, isDeleted: { $ne: true } });
-    if (!act) throw createError("Activity not found or unauthorized", 404);
-
-    const updates = sanitizeInput(req.body);
-    Object.assign(act, updates);
-    await act.save();
-    sendResponse(res, 200, true, "Activity updated successfully", { activity: act });
+    const updates = req.body;
+    const activity = await ActivityService.updateActivity(req.user!.id, activityId, updates);
+    sendResponse(res, 200, true, "Activity updated successfully", { activity });
   }
 );
 
@@ -187,22 +125,10 @@ export const updateActivity = catchAsync(
  * @access  Private
  */
 export const joinActivity = catchAsync(
-  async (req: Request<{ activityId: string }>, res: Response) => {
+  async (req: Request<{ activityId: string }>, res: Response, _next: NextFunction): Promise<void> => {
     const { activityId } = req.params;
-    const userId = req.user?.id!;
-    if (!mongoose.isValidObjectId(activityId)) {
-      throw createError("Invalid activity ID", 400);
-    }
-    const act = await Activity.findById(activityId);
-    if (!act || act.isDeleted) throw createError("Activity not found", 404);
-
-    // ensure participants array
-    act.participants = Array.isArray(act.participants) ? act.participants : [];
-    if (!act.participants.includes(userId as any)) {
-      act.participants.push(new mongoose.Types.ObjectId(userId));
-      await act.save();
-    }
-    sendResponse(res, 200, true, "Joined activity successfully", { activity: act });
+    const activity = await ActivityService.joinActivity(req.user!.id, activityId);
+    sendResponse(res, 200, true, "Joined activity successfully", { activity });
   }
 );
 
@@ -212,47 +138,33 @@ export const joinActivity = catchAsync(
  * @access  Private
  */
 export const leaveActivity = catchAsync(
-  async (req: Request<{ activityId: string }>, res: Response) => {
+  async (req: Request<{ activityId: string }>, res: Response, _next: NextFunction): Promise<void> => {
     const { activityId } = req.params;
-    const userId = req.user?.id!;
-    if (!mongoose.isValidObjectId(activityId)) {
-      throw createError("Invalid activity ID", 400);
-    }
-    const act = await Activity.findById(activityId);
-    if (!act || act.isDeleted) throw createError("Activity not found", 404);
-
-    act.participants = (act.participants || []).filter(
-      (id: mongoose.Types.ObjectId) => id.toString() !== userId
-    );
-    await act.save();
-    sendResponse(res, 200, true, "Left activity successfully", { activity: act });
+    const activity = await ActivityService.leaveActivity(req.user!.id, activityId);
+    sendResponse(res, 200, true, "Left activity successfully", { activity });
   }
 );
+
 /**
- * @desc    Delete or soft-delete an activity
+ * @desc    Soft-delete an activity
  * @route   DELETE /api/activity/:activityId
  * @access  Private
  */
 export const deleteActivity = catchAsync(
-  async (req: Request<{ activityId: string }>, res: Response): Promise<void> => {
+  async (req: Request<{ activityId: string }>, res: Response, _next: NextFunction): Promise<void> => {
     const { activityId } = req.params;
-    const userId = req.user?.id;
-
-    const activity = await Activity.findOne({ _id: activityId, user: userId });
-    if (!activity) {
-      throw createError("Activity not found or unauthorized", 404);
-    }
-
-    // Soft delete (mark as deleted)
-    activity.isDeleted = true;
-    await activity.save();
-
+    await ActivityService.deleteActivity(req.user!.id, activityId);
     sendResponse(res, 200, true, "Activity deleted successfully");
   }
 );
 
 export default {
   logActivity,
+  createActivity,
   getUserActivities,
-  deleteActivity, // ✅ New soft delete feature
+  getActivityById,
+  updateActivity,
+  joinActivity,
+  leaveActivity,
+  deleteActivity,
 };

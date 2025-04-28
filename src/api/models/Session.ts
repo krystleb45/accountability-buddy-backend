@@ -1,8 +1,8 @@
 import type { Document, Model, Types } from "mongoose";
 import mongoose, { Schema } from "mongoose";
-import validator from "validator"; // For validating IP addresses
+import validator from "validator";
 
-// Define the Session interface
+// --- Session Document Interface ---
 export interface ISession extends Document {
   user: Types.ObjectId;
   token: string;
@@ -17,104 +17,108 @@ export interface ISession extends Document {
   // Virtual field
   isExpired: boolean;
 
-  // Methods
-  invalidateSession: () => Promise<void>;
+  // Instance methods
+  invalidateSession(): Promise<ISession>;
 }
 
-// Extend the model interface for static methods
-interface ISessionModel extends Model<ISession> {
-  invalidateUserSessions: (userId: Types.ObjectId) => Promise<void>;
+// --- Session Model Static Interface ---
+export interface ISessionModel extends Model<ISession> {
+  invalidateUserSessions(userId: Types.ObjectId): Promise<void>;
+  findActiveSessions(userId: Types.ObjectId): Promise<ISession[]>;
 }
 
-// Define the Session schema
-const SessionSchema = new Schema<ISession>(
+// --- Schema Definition ---
+const SessionSchema = new Schema<ISession, ISessionModel, ISession>(
   {
     user: {
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      index: true, // Index for faster lookups by user
+      index: true,
     },
     token: {
       type: String,
       required: true,
-      unique: true, // Ensure session tokens are unique
-      index: true, // Index for faster session retrieval
+      unique: true,
+      index: true,
     },
     ipAddress: {
       type: String,
+      trim: true,
       validate: {
-        validator: (value: string): boolean => validator.isIP(value),
+        validator: (value: string): boolean => (value ? validator.isIP(value) : true),
         message: "Invalid IP address format",
       },
-      trim: true,
     },
     device: {
       type: String,
-      maxlength: 100, // Limit device description length for better performance
       trim: true,
+      maxlength: [100, "Device string cannot exceed 100 characters"],
     },
     userAgent: {
-      type: String, // Store additional device info (e.g., browser, OS)
-      maxlength: 255,
+      type: String,
       trim: true,
+      maxlength: [255, "UserAgent cannot exceed 255 characters"],
     },
     isActive: {
       type: Boolean,
-      default: true, // Track if the session is active
+      default: true,
+      index: true,
     },
     expiresAt: {
       type: Date,
       required: true,
-      index: true, // Index for quick expiration queries
+      index: true,
     },
   },
   {
-    timestamps: true, // Automatically create 'createdAt' and 'updatedAt' fields
+    timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
-  },
+  }
 );
 
-// Index for optimized queries by user and expiration date
+// --- Indexes ---
 SessionSchema.index({ user: 1, expiresAt: 1 });
 
-// Middleware: Pre-save hook to trim fields and check expiration
+// --- Virtuals ---
+SessionSchema.virtual("isExpired").get(function (this: ISession): boolean {
+  return this.expiresAt.getTime() <= Date.now();
+});
+
+// --- Middleware ---
 SessionSchema.pre<ISession>("save", function (next): void {
   if (this.ipAddress) this.ipAddress = this.ipAddress.trim();
   if (this.device) this.device = this.device.trim();
   if (this.userAgent) this.userAgent = this.userAgent.trim();
 
-  // Deactivate expired sessions
   if (this.expiresAt.getTime() <= Date.now()) {
     this.isActive = false;
   }
   next();
 });
 
-// Virtual: Check if the session is expired
-SessionSchema.virtual("isExpired").get(function (): boolean {
-  return this.expiresAt.getTime() <= Date.now();
-});
-
-// Method: Invalidate this session
-SessionSchema.methods.invalidateSession = async function (): Promise<void> {
+// --- Instance Methods ---
+SessionSchema.methods.invalidateSession = async function (this: ISession): Promise<ISession> {
   this.isActive = false;
-  await this.save();
+  return this.save();
 };
 
-// Static Method: Invalidate all sessions for a user
+// --- Static Methods ---
 SessionSchema.statics.invalidateUserSessions = async function (
-  userId: Types.ObjectId,
+  this: ISessionModel,
+  userId: Types.ObjectId
 ): Promise<void> {
-  await this.updateMany(
-    { user: userId, isActive: true },
-    { isActive: false },
-  );
+  await this.updateMany({ user: userId, isActive: true }, { isActive: false }).exec();
 };
 
-// Export the Session model
-export const Session: ISessionModel = mongoose.model<ISession, ISessionModel>(
-  "Session",
-  SessionSchema,
-);
+SessionSchema.statics.findActiveSessions = function (
+  this: ISessionModel,
+  userId: Types.ObjectId
+): Promise<ISession[]> {
+  return this.find({ user: userId, isActive: true }).sort({ expiresAt: 1 }).exec();
+};
+
+// --- Model Export ---
+export const Session = mongoose.model<ISession, ISessionModel>("Session", SessionSchema);
+export default Session;

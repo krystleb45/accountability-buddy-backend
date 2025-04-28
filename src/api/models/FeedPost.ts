@@ -1,89 +1,138 @@
-import type { Document, Model, Types } from "mongoose";
-import mongoose, { Schema } from "mongoose";
+import type { Document, Model } from "mongoose";
+import mongoose, { Schema, Types as MongooseTypes } from "mongoose";
 import sanitize from "mongo-sanitize";
 
-// Define the Comment interface
-interface IComment {
-  _id: Types.ObjectId;
-  user: Types.ObjectId;
+// --- Comment Subdocument Interface ---
+export interface IFeedComment extends Document {
+  _id: MongooseTypes.ObjectId;
+  user: MongooseTypes.ObjectId;
   text: string;
-  createdAt?: Date;
+  createdAt: Date;
 }
 
-// Define the FeedPost interface
+const FeedCommentSchema = new Schema<IFeedComment>(
+  {
+    user: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    text: { type: String, required: true, trim: true, maxlength: 500 },
+    createdAt: { type: Date, default: Date.now }
+  },
+  { _id: true, timestamps: false }
+);
+
+// --- FeedPost Interface ---
 export interface IFeedPost extends Document {
-  user: Types.ObjectId;
+  user: MongooseTypes.ObjectId;
   content: string;
-  likes: Types.ObjectId[];
-  comments: IComment[];
-  createdAt?: Date;
-  updatedAt?: Date;
+  likes: MongooseTypes.ObjectId[];
+  comments: mongoose.Types.DocumentArray<IFeedComment>;
+  createdAt: Date;
+  updatedAt: Date;
+
+  // Virtuals
+  likeCount: number;
+  commentCount: number;
+
+  // Instance methods
+  addLike(userId: MongooseTypes.ObjectId): Promise<IFeedPost>;
+  removeLike(userId: MongooseTypes.ObjectId): Promise<IFeedPost>;
+  addComment(userId: MongooseTypes.ObjectId, text: string): Promise<IFeedComment>;
+  removeComment(commentId: MongooseTypes.ObjectId): Promise<boolean>;
 }
 
-// Define the Comment schema
-const CommentSchema: Schema<IComment> = new Schema(
+// --- Model Interface ---
+export interface IFeedPostModel extends Model<IFeedPost> {
+  findByUser(userId: MongooseTypes.ObjectId, limit?: number): Promise<IFeedPost[]>;
+  findRecent(limit?: number): Promise<IFeedPost[]>;
+}
+
+// --- Schema Definition ---
+const FeedPostSchema = new Schema<IFeedPost>(
   {
-    user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-    text: {
-      type: String,
-      required: [true, "Comment text is required"],
-      trim: true,
-      maxlength: [500, "Comment cannot exceed 500 characters"],
-    },
-    createdAt: {
-      type: Date,
-      default: Date.now,
-    },
+    user: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    content: { type: String, required: true, trim: true, maxlength: 1000 },
+    likes: [{ type: Schema.Types.ObjectId, ref: "User" }],
+    comments: { type: [FeedCommentSchema], default: [] }
   },
-  { _id: true },
+  { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );
 
-// Define the FeedPost schema
-const FeedPostSchema: Schema<IFeedPost> = new Schema(
-  {
-    user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-      index: true,
-    },
-    content: {
-      type: String,
-      required: [true, "Post content is required"],
-      trim: true,
-      maxlength: [1000, "Post content cannot exceed 1000 characters"],
-    },
-    likes: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-      },
-    ],
-    comments: [CommentSchema], // Nested comments schema
-  },
-  { timestamps: true },
-);
+// --- Indexes ---
+FeedPostSchema.index({ user: 1, createdAt: -1 });
+FeedPostSchema.index({ createdAt: -1 });
 
-// Pre-save hook to sanitize content
-FeedPostSchema.pre<IFeedPost>("save", function (next) {
-  try {
-    this.content = sanitize(this.content);
-    this.comments.forEach((comment) => {
-      comment.text = sanitize(comment.text);
-    });
-    next();
-  } catch (error) {
-    next(error as Error);
-  }
+// --- Virtuals ---
+FeedPostSchema.virtual("likeCount").get(function (this: IFeedPost): number {
+  return this.likes.length;
 });
 
-// Export the model
-const FeedPost: Model<IFeedPost> = mongoose.model<IFeedPost>(
-  "FeedPost",
-  FeedPostSchema,
-);
+FeedPostSchema.virtual("commentCount").get(function (this: IFeedPost): number {
+  return this.comments.length;
+});
+
+// --- Middleware ---
+FeedPostSchema.pre<IFeedPost>("save", function (next: (err?: Error) => void): void {
+  this.content = sanitize(this.content);
+  this.comments.forEach(comment => {
+    comment.text = sanitize(comment.text);
+  });
+  next();
+});
+
+// --- Instance Methods ---
+FeedPostSchema.methods.addLike = async function (this: IFeedPost, userId: MongooseTypes.ObjectId): Promise<IFeedPost> {
+  if (!this.likes.some(id => id.equals(userId))) {
+    this.likes.push(userId);
+    await this.save();
+  }
+  return this;
+};
+
+FeedPostSchema.methods.removeLike = async function (this: IFeedPost, userId: MongooseTypes.ObjectId): Promise<IFeedPost> {
+  this.likes = this.likes.filter(id => !id.equals(userId));
+  await this.save();
+  return this;
+};
+
+FeedPostSchema.methods.addComment = async function (
+  this: IFeedPost,
+  userId: MongooseTypes.ObjectId,
+  text: string
+): Promise<IFeedComment> {
+  const comment = this.comments.create({ user: userId, text });
+  this.comments.push(comment);
+  await this.save();
+  return comment;
+};
+
+FeedPostSchema.methods.removeComment = async function (
+  this: IFeedPost,
+  commentId: MongooseTypes.ObjectId
+): Promise<boolean> {
+  const idx = this.comments.findIndex(c => c._id.equals(commentId));
+  if (idx === -1) return false;
+  this.comments.splice(idx, 1);
+  await this.save();
+  return true;
+};
+
+// --- Static Methods ---
+FeedPostSchema.statics.findByUser = function (
+  userId: MongooseTypes.ObjectId,
+  limit = 10
+): Promise<IFeedPost[]> {
+  return this.find({ user: userId })
+    .sort({ createdAt: -1 })
+    .limit(limit);
+};
+
+FeedPostSchema.statics.findRecent = function (
+  limit = 10
+): Promise<IFeedPost[]> {
+  return this.find()
+    .sort({ createdAt: -1 })
+    .limit(limit);
+};
+
+// --- Model Export ---
+export const FeedPost = mongoose.model<IFeedPost, IFeedPostModel>("FeedPost", FeedPostSchema);
 export default FeedPost;

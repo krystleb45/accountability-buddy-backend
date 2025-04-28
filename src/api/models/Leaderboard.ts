@@ -1,64 +1,49 @@
-import type { Document, Model } from "mongoose";
+import type { Document, Model, Types } from "mongoose";
 import mongoose, { Schema } from "mongoose";
 
-// Interface for Leaderboard Document
+// --- Interface for Leaderboard Document ---
 export interface ILeaderboard extends Document {
-  user: mongoose.Types.ObjectId;
+  user: Types.ObjectId;
   completedGoals: number;
   completedMilestones: number;
   totalPoints: number;
   streakDays: number;
   rank: number | null;
-  rankDescription: string; // Virtual field, don't include in schema directly
+  createdAt: Date;
+  updatedAt: Date;
+
+  // Virtuals
+  rankDescription: string;
 }
 
-// ✅ Define static methods for the Leaderboard Model
-interface ILeaderboardModel extends Model<ILeaderboard> {
+// --- Model Interface for Statics ---
+export interface ILeaderboardModel extends Model<ILeaderboard> {
   updateLeaderboard(
-    userId: mongoose.Types.ObjectId,
+    userId: Types.ObjectId,
     points: number,
     goals: number,
     milestones: number,
     streak: number
-  ): Promise<ILeaderboard | null>;
-
+  ): Promise<ILeaderboard>;
   recalculateRanks(): Promise<void>;
+  getTop(n: number): Promise<ILeaderboard[]>;
 }
 
-// Schema Definition
-const LeaderboardSchema = new Schema<ILeaderboard>(
+// --- Schema Definition ---
+const LeaderboardSchema = new Schema<ILeaderboard, ILeaderboardModel>(
   {
     user: {
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      unique: true, // Ensure one entry per user
-      index: true, // Optimize user-based queries
+      unique: true,
+      index: true,
     },
-    completedGoals: {
-      type: Number,
-      default: 0,
-      min: [0, "Completed goals cannot be negative"],
-    },
-    completedMilestones: {
-      type: Number,
-      default: 0,
-      min: [0, "Completed milestones cannot be negative"],
-    },
-    totalPoints: {
-      type: Number,
-      default: 0,
-      min: [0, "Total points cannot be negative"],
-    },
-    streakDays: {
-      type: Number,
-      default: 0,
-      min: [0, "Streak days cannot be negative"],
-    },
-    rank: {
-      type: Number,
-      default: null,
-    },
+    completedGoals: { type: Number, default: 0, min: 0 },
+    completedMilestones: { type: Number, default: 0, min: 0 },
+    totalPoints: { type: Number, default: 0, min: 0 },
+    streakDays: { type: Number, default: 0, min: 0 },
+    rank: { type: Number, default: null },
   },
   {
     timestamps: true,
@@ -67,7 +52,7 @@ const LeaderboardSchema = new Schema<ILeaderboard>(
   }
 );
 
-// Compound index for sorting leaderboard
+// --- Compound Index for Sorting ---
 LeaderboardSchema.index(
   {
     totalPoints: -1,
@@ -76,17 +61,17 @@ LeaderboardSchema.index(
     streakDays: -1,
   },
   { name: "leaderboard_sort_index" }
-); // Compound index for leaderboard sorting
+);
 
-// ✅ Define Static Method: Update Leaderboard Entry
+// --- Static Methods ---
 LeaderboardSchema.statics.updateLeaderboard = async function (
-  userId: mongoose.Types.ObjectId,
+  userId: Types.ObjectId,
   points: number,
   goals: number,
   milestones: number,
   streak: number
-): Promise<ILeaderboard | null> {
-  const leaderboardEntry = await this.findOneAndUpdate(
+): Promise<ILeaderboard> {
+  const entry = await this.findOneAndUpdate(
     { user: userId },
     {
       $inc: {
@@ -98,15 +83,12 @@ LeaderboardSchema.statics.updateLeaderboard = async function (
     },
     { new: true, upsert: true, setDefaultsOnInsert: true }
   );
-
-  // ✅ Ensure Rank Updates
-  await (this as ILeaderboardModel).recalculateRanks(); // Cast `this` to `ILeaderboardModel`
-  return leaderboardEntry;
+  await this.recalculateRanks();
+  return entry!;
 };
 
-// ✅ Define Static Method: Recalculate Ranks
 LeaderboardSchema.statics.recalculateRanks = async function (): Promise<void> {
-  const leaderboardEntries = await this.find()
+  const entries = await this.find()
     .sort({
       totalPoints: -1,
       completedGoals: -1,
@@ -114,15 +96,20 @@ LeaderboardSchema.statics.recalculateRanks = async function (): Promise<void> {
       streakDays: -1,
     })
     .exec();
-
-  for (let i = 0; i < leaderboardEntries.length; i++) {
-    leaderboardEntries[i].rank = i + 1;
-    await leaderboardEntries[i].save();
+  for (let i = 0; i < entries.length; i++) {
+    entries[i].rank = i + 1;
+    await entries[i].save();
   }
 };
 
-// ✅ Virtual Field: Rank Description
-LeaderboardSchema.virtual("rankDescription").get(function (): string {
+LeaderboardSchema.statics.getTop = function (n: number): Promise<ILeaderboard[]> {
+  return this.find()
+    .sort({ totalPoints: -1, completedGoals: -1, completedMilestones: -1, streakDays: -1 })
+    .limit(n);
+};
+
+// --- Virtual Field ---
+LeaderboardSchema.virtual("rankDescription").get(function (this: ILeaderboard): string {
   switch (this.rank) {
     case 1:
       return "Champion";
@@ -131,12 +118,12 @@ LeaderboardSchema.virtual("rankDescription").get(function (): string {
     case 3:
       return "Third Place";
     default:
-      return `Rank ${this.rank}`;
+      return this.rank ? `Rank ${this.rank}` : "Unranked";
   }
 });
 
-// ✅ Ensure TypeScript Recognizes Static Methods
-const Leaderboard = mongoose.model<ILeaderboard, ILeaderboardModel>(
+// --- Model Export ---
+export const Leaderboard = mongoose.model<ILeaderboard, ILeaderboardModel>(
   "Leaderboard",
   LeaderboardSchema
 );

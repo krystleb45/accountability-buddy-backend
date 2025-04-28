@@ -1,52 +1,95 @@
-import type { Document, Model } from "mongoose";
+import type { Document, Model, Types } from "mongoose";
 import mongoose, { Schema } from "mongoose";
 
-// Streak Interface
+// --- Streak Document Interface ---
 export interface IStreak extends Document {
-  user: mongoose.Types.ObjectId;
+  user: Types.ObjectId;
   streakCount: number;
-  lastCheckIn: Date | null; // Allow null for lastCheckIn
+  lastCheckIn: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+
+  // Instance methods
+  recordCheckIn(): Promise<IStreak>;
+  resetStreak(): Promise<IStreak>;
 }
 
-// Define Streak Schema
-const StreakSchema = new Schema<IStreak>(
+// --- Streak Model Static Interface ---
+export interface IStreakModel extends Model<IStreak> {
+  getByUser(userId: Types.ObjectId): Promise<IStreak | null>;
+  resetUserStreak(userId: Types.ObjectId): Promise<void>;
+}
+
+// --- Schema Definition ---
+const StreakSchema = new Schema<IStreak, IStreakModel>(
   {
     user: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      unique: true, // Ensure one streak per user
+      unique: true,
+      index: true,
     },
     streakCount: {
       type: Number,
-      default: 0, // Start with 0 streaks
-      min: 0, // Cannot be negative
+      default: 0,
+      min: [0, "Streak count cannot be negative"],
     },
     lastCheckIn: {
       type: Date,
-      default: null, // Allow null value for lastCheckIn
+      default: null,
     },
   },
   {
-    timestamps: true, // Automatically adds createdAt & updatedAt fields
+    timestamps: true,
   }
 );
 
-// Streak Model Interface (with Static Methods)
-export interface StreakModel extends Model<IStreak> {
-  resetUserStreak(userId: string): Promise<void>;
-}
+// --- Instance Methods ---
+// Record a check-in: increments or resets streak based on last check-in
+StreakSchema.methods.recordCheckIn = async function (this: IStreak): Promise<IStreak> {
+  const now = new Date();
+  const last = this.lastCheckIn;
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  if (last && now.getTime() - last.getTime() <= oneDayMs * 1.5) {
+    this.streakCount += 1;
+  } else {
+    this.streakCount = 1;
+  }
+  this.lastCheckIn = now;
+  return this.save();
+};
 
-// Define and export the Streak model
-StreakSchema.statics.resetUserStreak = async function (userId: string): Promise<void> {
-  const streak = await this.findOne({ user: userId });
+// Reset the streak to zero
+StreakSchema.methods.resetStreak = async function (this: IStreak): Promise<IStreak> {
+  this.streakCount = 0;
+  this.lastCheckIn = null;
+  return this.save();
+};
 
+// --- Static Methods ---
+// Find streak by user
+StreakSchema.statics.getByUser = function (
+  this: IStreakModel,
+  userId: Types.ObjectId
+): Promise<IStreak | null> {
+  return this.findOne({ user: userId }).exec();
+};
+
+// Reset a user's streak
+StreakSchema.statics.resetUserStreak = async function (
+  this: IStreakModel,
+  userId: Types.ObjectId
+): Promise<void> {
+  const streak = await this.findOne({ user: userId }).exec();
   if (streak) {
     streak.streakCount = 0;
-    streak.lastCheckIn = null; // Now allowed
+    streak.lastCheckIn = null;
     await streak.save();
   }
 };
 
-const Streak = mongoose.model<IStreak, StreakModel>("Streak", StreakSchema);
+// --- Model Export ---
+export const Streak = mongoose.model<IStreak, IStreakModel>("Streak", StreakSchema);
+
 export default Streak;

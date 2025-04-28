@@ -1,24 +1,33 @@
 import type { Document, Model } from "mongoose";
 import mongoose, { Schema } from "mongoose";
 
-// ✅ Define Achievement Interface
+// --- Interfaces ---
+// Document interface
 export interface IAchievement extends Document {
   name: string;
   description: string;
-  requirements: number; // Number of completed tasks required
+  requirements: number;
   badgeUrl?: string;
-  createdAt?: Date;
-  updatedAt?: Date;
+  createdAt: Date; // always set by mongoose
+  updatedAt: Date; // always set by mongoose
+
+  // Instance helper
+  isUnlocked: (completed: number) => boolean;
 }
 
-// ✅ Define Achievement Schema
+// Model interface for statics
+export interface IAchievementModel extends Model<IAchievement> {
+  findByRequirement: (min: number) => Promise<IAchievement[]>;
+}
+
+// --- Schema Definition ---
 const AchievementSchema: Schema<IAchievement> = new Schema(
   {
     name: {
       type: String,
       required: [true, "Achievement name is required"],
       trim: true,
-      unique: true, // Prevent duplicate achievement names
+      unique: true,
       maxlength: [100, "Achievement name cannot exceed 100 characters"],
     },
     description: {
@@ -35,20 +44,36 @@ const AchievementSchema: Schema<IAchievement> = new Schema(
     badgeUrl: {
       type: String,
       trim: true,
-      default: "/default-badge.png", // ✅ Added a default placeholder badge
+      default: "/default-badge.png",
     },
   },
   {
-    timestamps: true, // ✅ Auto-created `createdAt` and `updatedAt`
+    timestamps: true, // adds createdAt and updatedAt
   }
 );
 
-// ✅ Indexing for performance optimization
-AchievementSchema.index({ name: 1 }); // Faster lookup by name
-AchievementSchema.index({ requirements: 1 }); // Optimize queries by requirements
+// --- Indexes ---
+AchievementSchema.index({ name: 1 });
+AchievementSchema.index({ requirements: 1 });
 
-// ✅ Export Model
-const Achievement: Model<IAchievement> = mongoose.model<IAchievement>(
+// --- Instance Methods ---
+/**
+ * Check if the achievement is unlocked given a completed task count
+ */
+AchievementSchema.methods.isUnlocked = function (completed: number): boolean {
+  return completed >= this.requirements;
+};
+
+// --- Static Methods ---
+/**
+ * Retrieve all achievements with requirements >= `min`
+ */
+AchievementSchema.statics.findByRequirement = function (min: number): Promise<IAchievement[]> {
+  return this.find({ requirements: { $gte: min } }).sort({ requirements: 1 });
+};
+
+// --- Model Export ---
+const Achievement = mongoose.model<IAchievement, IAchievementModel>(
   "Achievement",
   AchievementSchema
 );

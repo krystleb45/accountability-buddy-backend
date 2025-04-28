@@ -1,133 +1,125 @@
 import type { Document, Model, Types } from "mongoose";
 import mongoose, { Schema } from "mongoose";
 
-// Define Reward interface
-interface IReward {
+// --- Reward Subdocument ---
+export interface IReward {
   rewardType: "badge" | "discount" | "customization";
   rewardValue: string;
   achievedAt: Date;
 }
 
-// Define Level document interface
+// --- Level Document Interface ---
 export interface ILevel extends Document {
   user: Types.ObjectId;
   points: number;
   level: number;
   nextLevelAt: number;
-  rewards: IReward[];
+  rewards: Types.DocumentArray<IReward>;
   lastActivity: Date;
-  addReward: (rewardType: "badge" | "discount" | "customization", rewardValue: string) => Promise<void>;
+  createdAt: Date;
+  updatedAt: Date;
+
+  // Virtuals
+  totalRewards: number;
+
+  // Instance methods
+  addReward(
+    rewardType: IReward["rewardType"],
+    rewardValue: string
+  ): Promise<ILevel>;
 }
 
-// Extend Level model interface for statics
-interface ILevelModel extends Model<ILevel> {
-  addPoints: (userId: Types.ObjectId, points: number) => Promise<ILevel>;
+// --- Level Model Interface ---
+export interface ILevelModel extends Model<ILevel> {
+  addPoints(userId: Types.ObjectId, points: number): Promise<ILevel>;
+  getTopLevels(limit: number): Promise<ILevel[]>;
 }
 
-// Define Level schema
-const LevelSchema = new Schema<ILevel>(
+// --- Sub-schemas ---
+const RewardSchema = new Schema<IReward>(
   {
-    user: {
-      type: Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-      unique: true, // Each user should have only one level entry
-    },
-    points: {
-      type: Number,
-      default: 0, // Points accumulate over time
-      min: [0, "Points cannot be negative"], // Ensure no negative points
-    },
-    level: {
-      type: Number,
-      default: 1, // Initial user level
-      min: [1, "Level cannot be less than 1"], // Ensure level starts at 1
-    },
-    nextLevelAt: {
-      type: Number,
-      default: 100, // Points needed for the next level
-    },
-    rewards: [
-      {
-        rewardType: {
-          type: String,
-          enum: ["badge", "discount", "customization"], // Example reward types
-          required: true,
-        },
-        rewardValue: {
-          type: String, // Value associated with the reward (e.g., badge ID, discount code)
-          trim: true,
-        },
-        achievedAt: {
-          type: Date,
-          default: Date.now,
-        },
-      },
-    ],
-    lastActivity: {
-      type: Date,
-      default: Date.now, // When the user last gained points or engaged in an activity
-    },
+    rewardType: { type: String, enum: ["badge", "discount", "customization"], required: true },
+    rewardValue: { type: String, required: true, trim: true },
+    achievedAt: { type: Date, default: Date.now }
   },
-  {
-    timestamps: true, // Automatically adds createdAt and updatedAt timestamps
-  },
+  { _id: false }
 );
 
-// Pre-save hook to calculate level-up logic
-LevelSchema.pre<ILevel>("save", function (next) {
-  // Handle leveling up
-  while (this.points >= this.nextLevelAt) {
-    this.level += 1;
-    this.points -= this.nextLevelAt; // Deduct points for leveling up
-    this.nextLevelAt = Math.floor(this.nextLevelAt * 1.2); // Scale-up points needed for the next level
+// --- Main Schema ---
+const LevelSchema = new Schema<ILevel, ILevelModel>(
+  {
+    user: { type: Schema.Types.ObjectId, ref: "User", required: true, unique: true, index: true },
+    points: { type: Number, default: 0, min: 0 },
+    level: { type: Number, default: 1, min: 1 },
+    nextLevelAt: { type: Number, default: 100, min: 1 },
+    rewards: { type: [RewardSchema], default: [] },
+    lastActivity: { type: Date, default: Date.now, index: true }
+  },
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
   }
+);
 
+// --- Pre-save Hook for Level-up Logic ---
+LevelSchema.pre<ILevel>("save", function (next) {
+  while (this.points >= this.nextLevelAt) {
+    this.points -= this.nextLevelAt;
+    this.level += 1;
+    this.nextLevelAt = Math.floor(this.nextLevelAt * 1.2);
+  }
   next();
 });
 
-// Static method to add points and handle leveling up
+// --- Static Methods ---
 LevelSchema.statics.addPoints = async function (
+  this: ILevelModel,
   userId: Types.ObjectId,
-  points: number,
+  points: number
 ): Promise<ILevel> {
-  let userLevel = await this.findOne({ user: userId });
-
-  // Create a level record if the user doesn't have one
-  if (!userLevel) {
-    userLevel = await this.create({ user: userId, points });
+  let lvl = await this.findOne({ user: userId });
+  if (!lvl) {
+    lvl = await this.create({ user: userId, points });
   } else {
-    userLevel.points += points;
-    userLevel.lastActivity = new Date();
-    await userLevel.save();
+    lvl.points += points;
+    lvl.lastActivity = new Date();
+    await lvl.save();
   }
-
-  return userLevel;
+  return lvl;
 };
 
-// Virtual field to get total rewards earned by the user
-LevelSchema.virtual("totalRewards").get(function () {
+LevelSchema.statics.getTopLevels = function (
+  this: ILevelModel,
+  limit: number
+): Promise<ILevel[]> {
+  return this.find()
+    .sort({ level: -1, points: -1 })
+    .limit(limit)
+    .populate("user", "username profilePicture");
+};
+
+// --- Virtuals ---
+LevelSchema.virtual("totalRewards").get(function (this: ILevel): number {
   return this.rewards.length;
 });
 
-// Instance method to add a reward
+// --- Instance Methods ---
 LevelSchema.methods.addReward = async function (
-  rewardType: "badge" | "discount" | "customization",
-  rewardValue: string,
-): Promise<void> {
+  this: ILevel,
+  rewardType: IReward["rewardType"],
+  rewardValue: string
+): Promise<ILevel> {
   this.rewards.push({ rewardType, rewardValue, achievedAt: new Date() });
   await this.save();
+  return this;
 };
 
-// Indexes for optimized queries
+// --- Indexes ---
 LevelSchema.index({ user: 1 });
-LevelSchema.index({ points: -1 });
+LevelSchema.index({ level: -1, points: -1 });
 LevelSchema.index({ lastActivity: -1 });
 
-// Export the Level model
-export const Level: ILevelModel = mongoose.model<ILevel, ILevelModel>(
-  "Level",
-  LevelSchema,
-);
-
+// --- Model Export ---
+export const Level = mongoose.model<ILevel, ILevelModel>("Level", LevelSchema);
 export default Level;

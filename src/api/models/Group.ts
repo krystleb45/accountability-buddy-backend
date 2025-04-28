@@ -1,124 +1,134 @@
-import type { Document, Model } from "mongoose";
+import type { Document, Model, Types } from "mongoose";
 import mongoose, { Schema } from "mongoose";
 
-// Define the Group interface with unreadMessages
-export interface IGroup extends Document {
-  _id: mongoose.Types.ObjectId; // ✅ Explicitly define `_id` to fix `unknown` type errors
-  name: string;
-  description?: string;
-  members: mongoose.Types.ObjectId[]; // Array of user IDs
-  createdBy: mongoose.Types.ObjectId; // Creator of the group
-  visibility: "public" | "private"; // Determines if the group is public or private
-  isActive: boolean; // If the group is active
-  unreadMessages: { userId: mongoose.Types.ObjectId; count: number }[]; // Track unread messages for each user
-  typingUsers: mongoose.Types.ObjectId[]; // Users currently typing in the group
-  isPinned: boolean; // Allows users to pin the group
-  addMember(userId: mongoose.Types.ObjectId): Promise<void>;
-  removeMember(userId: mongoose.Types.ObjectId): Promise<void>;
+// --- Subdocument for unread message counts ---
+export interface IUnreadMessage {
+  userId: Types.ObjectId;
+  count: number;
 }
 
-// Define the Group schema with unreadMessages
-const GroupSchema = new Schema<IGroup>(
-  {
-    name: {
-      type: String,
-      required: [true, "Group name is required"],
-      trim: true,
-      maxlength: [100, "Group name cannot exceed 100 characters"],
-    },
-    description: {
-      type: String,
-      trim: true,
-      maxlength: [500, "Description cannot exceed 500 characters"],
-    },
-    members: [
-      {
-        type: Schema.Types.ObjectId,
-        ref: "User",
+// --- Main Interface ---
+export interface IGroup extends Document {
+  name: string;
+  description?: string;
+  members: Types.ObjectId[];
+  createdBy: Types.ObjectId;
+  visibility: "public" | "private";
+  isActive: boolean;
+  unreadMessages: Types.DocumentArray<IUnreadMessage>;
+  typingUsers: Types.ObjectId[];
+  isPinned: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 
-      },
-    ],
-    createdBy: {
-      type: Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-      index: true, // Optimize queries for group creator
-    },
-    visibility: {
-      type: String,
-      enum: ["public", "private"],
-      default: "public",
-    },
-    isActive: {
-      type: Boolean,
-      default: true, // Mark group as active by default
-    },
-    unreadMessages: [
-      {
-        userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
-        count: { type: Number, default: 0 },
-      },
-    ],
+  // Virtuals
+  memberCount: number;
+  typingCount: number;
+
+  // Instance methods
+  addMember(userId: Types.ObjectId): Promise<IGroup>;
+  removeMember(userId: Types.ObjectId): Promise<IGroup>;
+  incrementUnread(userId: Types.ObjectId): Promise<IGroup>;
+  clearUnread(userId: Types.ObjectId): Promise<IGroup>;
+}
+
+// --- Model Interface ---
+export interface IGroupModel extends Model<IGroup> {
+  findPublicGroups(): Promise<IGroup[]>;
+}
+
+// --- Subschemas ---
+const UnreadSchema = new Schema<IUnreadMessage>(
+  {
+    userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    count: { type: Number, default: 0 },
+  },
+  { _id: false }
+);
+
+// --- Main Schema ---
+const GroupSchema = new Schema<IGroup, IGroupModel>(
+  {
+    name: { type: String, required: true, trim: true, maxlength: 100, index: true },
+    description: { type: String, trim: true, maxlength: 500 },
+    members: [{ type: Schema.Types.ObjectId, ref: "User", index: true }],
+    createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    visibility: { type: String, enum: ["public","private"], default: "public", index: true },
+    isActive: { type: Boolean, default: true, index: true },
+    unreadMessages: { type: [UnreadSchema], default: [] },
     typingUsers: [{ type: Schema.Types.ObjectId, ref: "User" }],
     isPinned: { type: Boolean, default: false },
   },
   {
-    timestamps: true, // Automatically adds createdAt and updatedAt
+    timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
   }
 );
 
-// ✅ Ensure `createdBy` is added to `members` when creating a new group
-GroupSchema.pre("save", function (next) {
-  try {
-    if (!this.members.some((member) => member.equals(this.createdBy))) {
-      this.members.push(this.createdBy);
-    }
-    next();
-  } catch (error) {
-    next(error as Error);
-  }
-});
+// --- Indexes ---
+GroupSchema.index({ name: 1, isActive: 1 });
+GroupSchema.index({ members: 1 });
+GroupSchema.index({ visibility: 1 });
+GroupSchema.index({ "unreadMessages.userId": 1 });
 
-// ✅ Instance method to add a member
-GroupSchema.methods.addMember = async function (
-  userId: mongoose.Types.ObjectId
-): Promise<void> {
-  if (!this.members.some((member: { equals: (arg0: mongoose.Types.ObjectId) => any }) => member.equals(userId))) {
-    this.members.push(userId);
-    await this.save();
-  }
-};
-
-// ✅ Instance method to remove a member
-GroupSchema.methods.removeMember = async function (
-  userId: mongoose.Types.ObjectId
-): Promise<void> {
-  this.members = this.members.filter(
-    (member: mongoose.Types.ObjectId) => !member.equals(userId)
-  );
-  await this.save();
-};
-
-// ✅ Static method to fetch public groups
-GroupSchema.statics.findPublicGroups = async function (): Promise<IGroup[]> {
-  return await this.find({ visibility: "public", isActive: true }).lean();
-};
-
-// ✅ Virtual field to get the member count
-GroupSchema.virtual("memberCount").get(function () {
+// --- Virtuals ---
+GroupSchema.virtual("memberCount").get(function (this: IGroup): number {
   return this.members.length;
 });
 
-// ✅ Indexes for optimization
-GroupSchema.index({ name: 1, isActive: 1 }); // Optimize searches by name and activity
-GroupSchema.index({ members: 1 }); // Optimize member-based queries
-GroupSchema.index({ visibility: 1 }, { sparse: true }); // Optimize visibility-based queries
-GroupSchema.index({ "unreadMessages.userId": 1 }); // Optimize unread message tracking
+GroupSchema.virtual("typingCount").get(function (this: IGroup): number {
+  return this.typingUsers.length;
+});
 
-// Named export
-export const Group: Model<IGroup> = mongoose.model<IGroup>("Group", GroupSchema);
+// --- Middleware ---
+GroupSchema.pre<IGroup>("save", function (next) {
+  if (!this.members.some(m => m.equals(this.createdBy))) {
+    this.members.push(this.createdBy);
+  }
+  next();
+});
 
-// Default export
+// --- Instance Methods ---
+GroupSchema.methods.addMember = async function (this: IGroup, userId: Types.ObjectId): Promise<IGroup> {
+  if (!this.members.some(m => m.equals(userId))) {
+    this.members.push(userId);
+    await this.save();
+  }
+  return this;
+};
+
+GroupSchema.methods.removeMember = async function (this: IGroup, userId: Types.ObjectId): Promise<IGroup> {
+  this.members = this.members.filter(m => !m.equals(userId));
+  await this.save();
+  return this;
+};
+
+GroupSchema.methods.incrementUnread = async function (this: IGroup, userId: Types.ObjectId): Promise<IGroup> {
+  let um = this.unreadMessages.find(u => u.userId.equals(userId));
+  if (!um) {
+    this.unreadMessages.push({ userId, count: 1 });
+  } else {
+    um.count++;
+  }
+  await this.save();
+  return this;
+};
+
+GroupSchema.methods.clearUnread = async function (this: IGroup, userId: Types.ObjectId): Promise<IGroup> {
+  const um = this.unreadMessages.find(u => u.userId.equals(userId));
+  if (um) {
+    um.count = 0;
+    await this.save();
+  }
+  return this;
+};
+
+// --- Static Methods ---
+GroupSchema.statics.findPublicGroups = function (): Promise<IGroup[]> {
+  return this.find({ visibility: "public", isActive: true }).sort({ createdAt: -1 });
+};
+
+// --- Model Export ---
+export const Group = mongoose.model<IGroup, IGroupModel>("Group", GroupSchema);
 export default Group;

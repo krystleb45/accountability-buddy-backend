@@ -105,6 +105,11 @@ export const leaveChallenge = catchAsync(
       return;
     }
 
+    if (!mongoose.Types.ObjectId.isValid(challengeId)) {
+      sendResponse(res, 400, false, "Invalid Challenge ID format");
+      return;
+    }
+
     const challenge = await Challenge.findById(challengeId);
     if (!challenge) {
       sendResponse(res, 404, false, "Challenge not found");
@@ -112,7 +117,8 @@ export const leaveChallenge = catchAsync(
     }
 
     const userObj = new mongoose.Types.ObjectId(userId);
-    challenge.participants = challenge.participants.filter((p) => !p.user.equals(userObj));
+    // Use pull() to remove any participant subdocs whose `user` matches `userObj`
+    challenge.participants.pull({ user: userObj });
     await challenge.save();
 
     sendResponse(res, 200, true, "Left challenge successfully", { challenge });

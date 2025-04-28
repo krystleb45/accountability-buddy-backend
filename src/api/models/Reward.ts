@@ -1,6 +1,7 @@
-import mongoose, { Schema, Document } from "mongoose";
+import type { Document, Model } from "mongoose";
+import mongoose, { Schema } from "mongoose";
 
-// Interface for the Reward model
+// --- Reward Document Interface ---
 export interface IReward extends Document {
   name: string;
   description: string;
@@ -9,21 +10,75 @@ export interface IReward extends Document {
   imageUrl?: string;
   createdAt: Date;
   updatedAt: Date;
+
+  // Instance methods
+  updateDetails(data: Partial<Pick<IReward, "description" | "pointsRequired" | "imageUrl">>): Promise<IReward>;
 }
 
-// Define the Reward Schema
-const RewardSchema: Schema = new Schema<IReward>(
+// --- Reward Model Static Interface ---
+export interface IRewardModel extends Model<IReward> {
+  findByType(type: IReward["rewardType"]): Promise<IReward[]>;
+  getAvailableRewards(maxPoints: number): Promise<IReward[]>;
+}
+
+// --- Schema Definition ---
+const RewardSchema = new Schema<IReward, IRewardModel, IReward>(
   {
-    name: { type: String, required: true, trim: true },
-    description: { type: String, required: true, trim: true },
+    name: { type: String, required: true, trim: true, unique: true, maxlength: 100 },
+    description: { type: String, required: true, trim: true, maxlength: 500 },
     pointsRequired: { type: Number, required: true, min: 1 },
-    rewardType: { type: String, enum: ["badge", "discount", "giftCard", "recognition"], required: true },
-    imageUrl: { type: String, default: null },
+    rewardType: {
+      type: String,
+      enum: ["badge", "discount", "giftCard", "recognition"],
+      required: true,
+      index: true,
+    },
+    imageUrl: { type: String, trim: true, default: "" },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    toJSON: { virtuals: false },
+    toObject: { virtuals: false },
+  }
 );
 
-// Create the Reward model
-const Reward = mongoose.model<IReward>("Reward", RewardSchema);
+// --- Indexes ---
+RewardSchema.index({ pointsRequired: 1 });
+RewardSchema.index({ rewardType: 1 });
 
-export default Reward;  // Export the Reward model
+// --- Instance Methods ---
+RewardSchema.methods.updateDetails = async function (
+  this: IReward,
+  data: Partial<Pick<IReward, "description" | "pointsRequired" | "imageUrl">>
+): Promise<IReward> {
+  if (data.description !== undefined) this.description = data.description;
+  if (data.pointsRequired !== undefined) this.pointsRequired = data.pointsRequired;
+  if (data.imageUrl !== undefined) this.imageUrl = data.imageUrl;
+  await this.save();
+  return this;
+};
+
+// --- Static Methods ---
+RewardSchema.statics.findByType = function (
+  this: IRewardModel,
+  type: IReward["rewardType"]
+): Promise<IReward[]> {
+  return this.find({ rewardType: type }).sort({ pointsRequired: 1 }).exec();
+};
+
+RewardSchema.statics.getAvailableRewards = function (
+  this: IRewardModel,
+  maxPoints: number
+): Promise<IReward[]> {
+  return this.find({ pointsRequired: { $lte: maxPoints } })
+    .sort({ pointsRequired: 1 })
+    .exec();
+};
+
+// --- Model Export ---
+export const Reward = mongoose.model<IReward, IRewardModel>(
+  "Reward",
+  RewardSchema
+);
+
+export default Reward;

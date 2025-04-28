@@ -1,7 +1,7 @@
 import type { Document, Model, Types } from "mongoose";
 import mongoose, { Schema } from "mongoose";
 
-// Define the Review interface
+// --- Review Document Interface ---
 export interface IReview extends Document {
   user: Types.ObjectId;
   reviewedUser: Types.ObjectId;
@@ -11,17 +11,21 @@ export interface IReview extends Document {
   flagged: boolean;
   createdAt: Date;
   updatedAt: Date;
+
+  // Instance methods
+  sanitizeComment(): IReview;
+  markFlagged(): Promise<IReview>;
 }
 
-// Extend the model interface for custom static methods
-interface IReviewModel extends Model<IReview> {
+// --- Review Model Static Interface ---
+export interface IReviewModel extends Model<IReview> {
   getReviewsForUser(userId: Types.ObjectId): Promise<IReview[]>;
   flagReview(reviewId: string): Promise<IReview | null>;
   getAverageRating(userId: Types.ObjectId): Promise<number | null>;
 }
 
-// Define the Review schema
-const ReviewSchema = new Schema<IReview>(
+// --- Schema Definition ---
+const ReviewSchema = new Schema<IReview, IReviewModel, IReview>(
   {
     user: {
       type: Schema.Types.ObjectId,
@@ -53,62 +57,80 @@ const ReviewSchema = new Schema<IReview>(
     flagged: {
       type: Boolean,
       default: false,
+      index: true,
     },
   },
   {
-    timestamps: true, // Automatically adds createdAt and updatedAt fields
-  },
+    timestamps: true,
+    toJSON: { virtuals: false },
+    toObject: { virtuals: false },
+  }
 );
 
-// Compound index for optimized queries
+// --- Indexes ---
 ReviewSchema.index({ user: 1, reviewedUser: 1 });
 ReviewSchema.index({ rating: -1 });
 ReviewSchema.index({ flagged: 1 });
 
-// Pre-save hook to sanitize comment
-ReviewSchema.pre("save", function (next) {
-  if (this.isModified("comment")) {
-    this.comment = this.comment?.trim();
+// --- Instance Methods ---
+// Trim and sanitize comment text
+ReviewSchema.methods.sanitizeComment = function (this: IReview): IReview {
+  if (this.comment) {
+    this.comment = this.comment.trim();
   }
+  return this;
+};
+
+// Mark this review as flagged
+ReviewSchema.methods.markFlagged = async function (this: IReview): Promise<IReview> {
+  this.flagged = true;
+  return this.save();
+};
+
+// --- Hooks ---
+// Apply comment sanitization before save
+ReviewSchema.pre<IReview>("save", function (next): void {
+  this.sanitizeComment();
   next();
 });
 
-// Static method to get reviews for a specific user
-ReviewSchema.statics.getReviewsForUser = async function (
-  userId: Types.ObjectId,
+// --- Static Methods ---
+ReviewSchema.statics.getReviewsForUser = function (
+  this: IReviewModel,
+  userId: Types.ObjectId
 ): Promise<IReview[]> {
   return this.find({ reviewedUser: userId })
     .populate("user", "username")
-    .sort({ createdAt: -1 });
+    .sort({ createdAt: -1 })
+    .exec();
 };
 
-// Static method to flag a review
 ReviewSchema.statics.flagReview = async function (
-  reviewId: string,
+  this: IReviewModel,
+  reviewId: string
 ): Promise<IReview | null> {
-  const review = await this.findById(reviewId);
+  const review = await this.findById(reviewId).exec();
   if (review) {
-    review.flagged = true;
-    await review.save();
+    return review.markFlagged();
   }
-  return review;
+  return null;
 };
 
-// Static method to calculate the average rating for a user
 ReviewSchema.statics.getAverageRating = async function (
-  userId: Types.ObjectId,
+  this: IReviewModel,
+  userId: Types.ObjectId
 ): Promise<number | null> {
   const result = await this.aggregate([
     { $match: { reviewedUser: new mongoose.Types.ObjectId(userId) } },
     { $group: { _id: "$reviewedUser", avgRating: { $avg: "$rating" } } },
-  ]);
-  return result.length ? result[0].avgRating : null;
+  ]).exec();
+  return result.length ? result[0].avgRating as number : null;
 };
 
-// Export the Review model
-export const Review: IReviewModel = mongoose.model<IReview, IReviewModel>(
+// --- Model Export ---
+export const Review = mongoose.model<IReview, IReviewModel>(
   "Review",
-  ReviewSchema,
+  ReviewSchema
 );
 
 export default Review;

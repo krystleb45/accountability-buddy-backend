@@ -1,46 +1,118 @@
-import Book from "../models/Book";
-import { User } from "../models/User";
-import { logger } from "../../utils/winstonLogger";
+// src/api/services/bookService.ts
+import mongoose from "mongoose";
+import Book, { IBook } from "../models/Book";
 
-// Simulated Recommendation Algorithm (can be replaced with an AI model or a more sophisticated algorithm)
-const recommendationEngine = (userInterests: string[], books: any[]): string[] => {
-  const recommendedBooks: string[] = [];
-
-  // Simulate matching books based on common interests (this can be further enhanced).
-  books.forEach((book) => {
-    if (userInterests.some(interest => book.category.toLowerCase().includes(interest.toLowerCase()))) {
-      recommendedBooks.push(book.title);
-    }
-  });
-
-  // Log the recommendation process
-  logger.info(`Recommendation Engine: Based on interests, recommended books: ${recommendedBooks}`);
-
-  return recommendedBooks.length > 0 ? recommendedBooks : ["No suitable books found. Try exploring more categories!"];
-};
-
-// Fetching AI-based book recommendations based on the user's preferences
-export const getRecommendedBooks = async (userId: string): Promise<string[]> => {
-  try {
-    // Fetching the user's profile and interests.
-    const user = await User.findById(userId).select("interests");
-
-    if (!user) {
-      logger.error(`User not found: ${userId}`);
-      return [];
-    }
-
-    // Fetching all available books to compare with user interests.
-    const books = await Book.find().select("title category");
-
-    // Use the recommendation engine to match books based on interests
-    const recommendations = recommendationEngine(user?.interests ?? [], books);
-
-    logger.info(`AI-based book recommendations fetched for user ${userId}`);
-    return recommendations;
-  } catch (error) {
-    logger.error(`Error fetching AI-based book recommendations for user ${userId}: ${(error as Error).message}`);
-    return ["Sorry, we couldn't find recommendations at the moment. Please try again later."];
+export const addBookService = async (
+  userId: string,
+  data: {
+    title: string;
+    author: string;
+    category: string;
+    description: string;
+    coverImage?: string;
   }
+): Promise<IBook> => {
+  const book = new Book({
+    ...data,
+    addedBy: new mongoose.Types.ObjectId(userId),
+    likes: [],
+    comments: [],
+  });
+  await book.save();
+  return book;
 };
 
+export const getAllBooksService = async (): Promise<IBook[]> => {
+  return Book.find().sort({ createdAt: -1 });
+};
+
+export const getBookByIdService = async (id: string): Promise<IBook> => {
+  const book = await Book.findById(id);
+  if (!book) throw new Error("Book not found");
+  return book;
+};
+
+export const updateBookService = async (
+  id: string,
+  updates: Partial<{
+    title: string;
+    author: string;
+    category: string;
+    description: string;
+    coverImage?: string;
+  }>
+): Promise<IBook> => {
+  const book = await Book.findByIdAndUpdate(id, updates, { new: true });
+  if (!book) throw new Error("Book not found");
+  return book;
+};
+
+export const deleteBookService = async (id: string): Promise<void> => {
+  const res = await Book.findByIdAndDelete(id);
+  if (!res) throw new Error("Book not found");
+};
+
+export const likeBookService = async (
+  userId: string,
+  bookId: string
+): Promise<IBook> => {
+  const book = await Book.findById(bookId);
+  if (!book) throw new Error("Book not found");
+
+  const uid = new mongoose.Types.ObjectId(userId);
+  if (book.likes.some((l) => l.equals(uid))) {
+    throw new Error("Already liked");
+  }
+  book.likes.push(uid);
+  await book.save();
+  return book;
+};
+
+export const unlikeBookService = async (
+  userId: string,
+  bookId: string
+): Promise<IBook> => {
+  const book = await Book.findById(bookId);
+  if (!book) throw new Error("Book not found");
+
+  book.likes = book.likes.filter((l) => l.toString() !== userId);
+  await book.save();
+  return book;
+};
+
+export const addBookCommentService = async (
+  userId: string,
+  bookId: string,
+  text: string
+): Promise<IBook> => {
+  const book = await Book.findById(bookId);
+  if (!book) throw new Error("Book not found");
+
+  const comment = book.comments.create({
+    user: new mongoose.Types.ObjectId(userId),
+    text,
+    createdAt: new Date(),
+  });
+  book.comments.push(comment as any);
+  await book.save();
+  return book;
+};
+
+export const removeBookCommentService = async (
+  userId: string,
+  bookId: string,
+  commentId: string
+): Promise<IBook> => {
+  const book = await Book.findById(bookId);
+  if (!book) throw new Error("Book not found");
+
+  const idx = book.comments.findIndex((c) => c._id.toString() === commentId);
+  if (idx === -1) throw new Error("Comment not found");
+  if (book.comments[idx].user.toString() !== userId) {
+    throw new Error("Unauthorized");
+  }
+
+  book.comments.splice(idx, 1);
+  await book.save();
+  return book;
+};

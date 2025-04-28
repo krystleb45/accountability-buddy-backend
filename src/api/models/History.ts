@@ -1,20 +1,85 @@
-import type { Document } from "mongoose";
+import type { Document, Model, Types } from "mongoose";
 import mongoose, { Schema } from "mongoose";
 
+// --- Interface for History Document ---
 export interface IHistory extends Document {
-  entity: string; // E.g., "User", "Goal", "Task", etc.
-  action: string; // E.g., "Created", "Updated", "Deleted", etc.
-  details: string; // Additional information about the action
-  createdAt: Date;
+  entity: string;         // E.g., "User", "Goal", "Task", etc.
+  action: string;         // E.g., "Created", "Updated", "Deleted"
+  details?: string;       // Additional information about the action
+  user?: Types.ObjectId;  // Optional: user who performed the action
+  createdAt: Date;        // Auto-generated
+  updatedAt: Date;        // Auto-generated
+
+  // Instance methods
+  toSummary(): string;
 }
 
-const HistorySchema: Schema = new Schema({
-  entity: { type: String, required: true },
-  action: { type: String, required: true },
-  details: { type: String },
-  createdAt: { type: Date, default: Date.now },
-});
+// --- Model Interface for Statics ---
+export interface IHistoryModel extends Model<IHistory> {
+  record(
+    entity: string,
+    action: string,
+    details?: string,
+    userId?: Types.ObjectId
+  ): Promise<IHistory>;
+  getForEntity(entity: string, limit?: number): Promise<IHistory[]>;
+}
 
-const History = mongoose.model<IHistory>("History", HistorySchema);
+// --- Schema Definition ---
+const HistorySchema = new Schema<IHistory, IHistoryModel>(
+  {
+    entity: { type: String, required: true, index: true },
+    action: { type: String, required: true },
+    details: { type: String, default: "" },
+    user: { type: Schema.Types.ObjectId, ref: "User", required: false, index: true },
+  },
+  {
+    timestamps: true,  // Adds createdAt & updatedAt
+    toJSON: { virtuals: false },
+    toObject: { virtuals: false }
+  }
+);
+
+// --- Indexes ---
+HistorySchema.index({ entity: 1, createdAt: -1 });
+HistorySchema.index({ user: 1 });
+
+// --- Instance Methods ---
+HistorySchema.methods.toSummary = function (this: IHistory): string {
+  const userPart = this.user ? ` by user ${this.user}` : "";
+  return `[${this.createdAt.toISOString()}] ${this.entity} ${this.action}${userPart}${this.details ? `: ${this.details}` : ""}`;
+};
+
+// --- Static Methods ---
+/**
+ * Create a new history record
+ */
+HistorySchema.statics.record = function (
+  entity: string,
+  action: string,
+  details: string = "",
+  userId?: Types.ObjectId
+): Promise<IHistory> {
+  return this.create({ entity, action, details, user: userId });
+};
+
+/**
+ * Retrieve recent history for a given entity
+ */
+HistorySchema.statics.getForEntity = function (
+  entity: string,
+  limit = 50
+): Promise<IHistory[]> {
+  return this.find({ entity })
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .populate("user", "username");
+};
+
+// --- Model Export ---
+export const History = mongoose.model<IHistory, IHistoryModel>(
+  "History",
+  HistorySchema
+);
 
 export default History;

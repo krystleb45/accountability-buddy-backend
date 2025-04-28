@@ -1,7 +1,7 @@
 import type { Document, Model, Types, Query } from "mongoose";
 import mongoose, { Schema } from "mongoose";
 
-// Interface for Post Document
+// --- Post Document Interface ---
 export interface IPost extends Document {
   user: Types.ObjectId;
   content: string;
@@ -10,12 +10,21 @@ export interface IPost extends Document {
   isDeleted: boolean;
   createdAt: Date;
   updatedAt?: Date;
+
+  // Virtuals
   likeCount: number;
   commentCount: number;
 }
 
-// Define Post Schema
-const PostSchema = new Schema<IPost>(
+// --- Post Model Static Interface ---
+export interface IPostModel extends Model<IPost> {
+  addLike(postId: string, userId: string): Promise<IPost>;
+  removeLike(postId: string, userId: string): Promise<IPost>;
+  softDelete(postId: string): Promise<IPost>;
+}
+
+// --- Schema Definition ---
+const PostSchema = new Schema<IPost, IPostModel, IPost>(
   {
     user: {
       type: Schema.Types.ObjectId,
@@ -52,24 +61,23 @@ const PostSchema = new Schema<IPost>(
     timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
-  },
+  }
 );
 
-// Virtual field for the number of likes
-PostSchema.virtual("likeCount").get(function () {
+// --- Virtual Fields ---
+PostSchema.virtual("likeCount").get(function (this: IPost): number {
   return this.likes.length;
 });
 
-// Virtual field for the number of comments
-PostSchema.virtual("commentCount").get(function () {
+PostSchema.virtual("commentCount").get(function (this: IPost): number {
   return this.comments.length;
 });
 
-// Indexes for optimized querying
+// --- Indexes ---
 PostSchema.index({ createdAt: -1 });
 PostSchema.index({ user: 1, createdAt: -1 });
 
-// Pre-save middleware to update the 'updatedAt' timestamp
+// --- Middleware ---
 PostSchema.pre<IPost>("save", function (next) {
   if (this.isModified()) {
     this.updatedAt = new Date();
@@ -77,55 +85,8 @@ PostSchema.pre<IPost>("save", function (next) {
   next();
 });
 
-// Static method to add a like to a post
-PostSchema.statics.addLike = async function (
-  postId: string,
-  userId: string,
-): Promise<IPost> {
-  const post = await this.findById(postId);
-  if (!post) throw new Error("Post not found");
-
-  const userObjectId = new mongoose.Types.ObjectId(userId);
-
-  if (!post.likes.some((like: Types.ObjectId) => like.equals(userObjectId))) {
-    post.likes.push(userObjectId);
-    await post.save();
-  }
-
-  return post;
-};
-
-// Static method to remove a like from a post
-PostSchema.statics.removeLike = async function (
-  postId: string,
-  userId: string,
-): Promise<IPost> {
-  const post = await this.findById(postId);
-  if (!post) throw new Error("Post not found");
-
-  const userObjectId = new mongoose.Types.ObjectId(userId);
-
-  post.likes = post.likes.filter(
-    (like: Types.ObjectId) => !like.equals(userObjectId),
-  );
-  await post.save();
-
-  return post;
-};
-
-// Static method to soft delete a post
-PostSchema.statics.softDelete = async function (postId: string): Promise<IPost> {
-  const post = await this.findById(postId);
-  if (!post) throw new Error("Post not found");
-
-  post.isDeleted = true;
-  await post.save();
-
-  return post;
-};
-
-// Middleware for populating comments on query
-PostSchema.pre<Query<IPost[], IPost>>(/^find/, function (next) {
+// Populate comments content and user info on queries
+PostSchema.pre<Query<any, IPost>>(/^find/, function (next) {
   this.populate({
     path: "comments",
     select: "content user createdAt",
@@ -133,5 +94,48 @@ PostSchema.pre<Query<IPost[], IPost>>(/^find/, function (next) {
   next();
 });
 
-// Export Post Model
-export const Post: Model<IPost> = mongoose.model<IPost>("Post", PostSchema);
+// --- Static Methods ---
+PostSchema.statics.addLike = async function (
+  this: IPostModel,
+  postId: string,
+  userId: string
+): Promise<IPost> {
+  const post = await this.findById(postId);
+  if (!post) throw new Error("Post not found");
+
+  const userObj = new mongoose.Types.ObjectId(userId);
+  if (!post.likes.some(l => l.equals(userObj))) {
+    post.likes.push(userObj);
+    await post.save();
+  }
+  return post;
+};
+
+PostSchema.statics.removeLike = async function (
+  this: IPostModel,
+  postId: string,
+  userId: string
+): Promise<IPost> {
+  const post = await this.findById(postId);
+  if (!post) throw new Error("Post not found");
+
+  const userObj = new mongoose.Types.ObjectId(userId);
+  post.likes = post.likes.filter(l => !l.equals(userObj));
+  await post.save();
+  return post;
+};
+
+PostSchema.statics.softDelete = async function (
+  this: IPostModel,
+  postId: string
+): Promise<IPost> {
+  const post = await this.findById(postId);
+  if (!post) throw new Error("Post not found");
+  post.isDeleted = true;
+  await post.save();
+  return post;
+};
+
+// --- Model Export ---
+export const Post = mongoose.model<IPost, IPostModel>("Post", PostSchema);
+export default Post;

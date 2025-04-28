@@ -1,81 +1,85 @@
-import type { Document, Model } from "mongoose";
+import type { Document, Model, Types } from "mongoose";
 import mongoose, { Schema } from "mongoose";
 
-// Define a stricter type for settings if possible, or keep it as a generic key-value pair
+// --- Settings Type ---
 export interface IntegrationSettings {
-  [key: string]: unknown; // Replace `unknown` with a stricter type if settings structure is predictable
+  [key: string]: unknown;
 }
 
-// Define the IIntegration interface
+// --- Integration Interface ---
 export interface IIntegration extends Document {
-  user: mongoose.Types.ObjectId;
+  user: Types.ObjectId;
   type: "webhook" | "api" | "slack" | "google_calendar" | "github" | "custom";
-  settings: IntegrationSettings; // Replace `any` with the stricter `IntegrationSettings` type
+  settings: IntegrationSettings;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
-  toggleActiveState: () => Promise<IIntegration>;
+
+  // Instance method
+  toggleActiveState(): Promise<IIntegration>;
 }
 
-// Extend the model interface for static methods
-interface IIntegrationModel extends Model<IIntegration> {
-  findActiveIntegrationsByUser: (
-    userId: mongoose.Types.ObjectId
-  ) => Promise<IIntegration[]>;
+// --- Integration Model Interface ---
+export interface IIntegrationModel extends Model<IIntegration> {
+  findActiveIntegrationsByUser(userId: Types.ObjectId): Promise<IIntegration[]>;
 }
 
-// Define the Integration schema
-const IntegrationSchema = new Schema<IIntegration>(
+// --- Schema Definition ---
+const IntegrationSchema = new Schema<IIntegration, IIntegrationModel>(
   {
     user: {
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      index: true, // Optimize queries for user-specific integrations
+      index: true,
     },
     type: {
       type: String,
       enum: ["webhook", "api", "slack", "google_calendar", "github", "custom"],
       required: true,
+      index: true,
     },
     settings: {
-      type: Schema.Types.Mixed, // Used for flexible structures
+      type: Schema.Types.Mixed,
       required: true,
+      default: {},
     },
     isActive: {
       type: Boolean,
-      default: true, // Integration is active by default
+      default: true,
+      index: true,
     },
   },
   {
-    timestamps: true, // Automatically adds createdAt and updatedAt fields
-  },
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  }
 );
 
-// Indexes for optimized queries
-IntegrationSchema.index({ user: 1 });
-IntegrationSchema.index({ type: 1 });
+// --- Indexes ---
+IntegrationSchema.index({ user: 1, type: 1 });
 
-// Instance method to toggle the active state of an integration
+// --- Instance Methods ---
 IntegrationSchema.methods.toggleActiveState = async function (
-  this: IIntegration,
+  this: IIntegration
 ): Promise<IIntegration> {
   this.isActive = !this.isActive;
   await this.save();
   return this;
 };
 
-// Static method to fetch all active integrations for a user
-IntegrationSchema.statics.findActiveIntegrationsByUser = async function (
-  userId: mongoose.Types.ObjectId,
+// --- Static Methods ---
+IntegrationSchema.statics.findActiveIntegrationsByUser = function (
+  userId: Types.ObjectId
 ): Promise<IIntegration[]> {
-  return this.find({ user: userId, isActive: true });
+  return this.find({ user: userId, isActive: true }).sort({ type: 1 });
 };
 
-// Export the Integration model
-export const Integration: IIntegrationModel = mongoose.model<
-  IIntegration,
-  IIntegrationModel
->("Integration", IntegrationSchema);
+// --- Model Export ---
+export const Integration = mongoose.model<IIntegration, IIntegrationModel>(
+  "Integration",
+  IntegrationSchema
+);
 
 export default Integration;

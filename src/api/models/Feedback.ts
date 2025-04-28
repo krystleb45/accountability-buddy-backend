@@ -1,101 +1,73 @@
-import type { Document, Model } from "mongoose";
+import type { Document, Model, Types } from "mongoose";
 import mongoose, { Schema } from "mongoose";
-import sanitize from "mongo-sanitize"; // For sanitizing input
+import sanitize from "mongo-sanitize";
 
-// Define Feedback interface
+// --- Types & Interfaces ---
+export type FeedbackType = "bug" | "feature-request" | "other";
+export type FeedbackStatus = "pending" | "reviewed" | "resolved";
+export type FeedbackPriority = "low" | "medium" | "high";
+
 export interface IFeedback extends Document {
-  userId: mongoose.Types.ObjectId;
+  userId: Types.ObjectId;
   message: string;
-  type: "bug" | "feature-request" | "other";
-  status: "pending" | "reviewed" | "resolved";
-  priority: "low" | "medium" | "high";
+  type: FeedbackType;
+  status: FeedbackStatus;
+  priority: FeedbackPriority;
   isAnonymous: boolean;
   relatedFeature?: string;
   createdAt: Date;
   updatedAt: Date;
-  markAsReviewed: () => Promise<void>;
+
+  // Instance methods
+  markAsReviewed(this: IFeedback): Promise<IFeedback>;
 }
 
-interface IFeedbackModel extends Model<IFeedback> {
-  getFeedbackByType: (feedbackType: "bug" | "feature-request" | "other") => Promise<IFeedback[]>;
+export interface IFeedbackModel extends Model<IFeedback> {
+  getFeedbackByType(feedbackType: FeedbackType): Promise<IFeedback[]>;
 }
 
-// Define Feedback schema
-const FeedbackSchema: Schema<IFeedback> = new Schema(
+// --- Schema Definition ---
+const FeedbackSchema = new Schema<IFeedback>(
   {
-    userId: {
-      type: Schema.Types.ObjectId,
-      ref: "User",
-      required: true, // Ensure feedback is always associated with a user
-      index: true, // Index for faster lookups
-    },
-    message: {
-      type: String,
-      required: [true, "Message is required"],
-      maxlength: [1000, "Message cannot exceed 1000 characters"], // Restrict message length
-      trim: true, // Remove leading and trailing whitespaces
-    },
-    type: {
-      type: String,
-      enum: ["bug", "feature-request", "other"], // Ensure the feedback type is valid
-      default: "other",
-    },
-    status: {
-      type: String,
-      enum: ["pending", "reviewed", "resolved"], // Track feedback processing status
-      default: "pending",
-    },
-    priority: {
-      type: String,
-      enum: ["low", "medium", "high"], // Optional field to set priority
-      default: "medium",
-    },
-    isAnonymous: {
-      type: Boolean,
-      default: false, // Allows users to submit feedback anonymously
-    },
-    relatedFeature: {
-      type: String,
-      trim: true,
-      maxlength: [255, "Related feature description cannot exceed 255 characters"], // Optional field to link feedback to a specific feature
-    },
+    userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    message: { type: String, required: [true, "Message is required"], trim: true, maxlength: [1000, "Message cannot exceed 1000 characters"] },
+    type: { type: String, enum: ["bug","feature-request","other"], default: "other", index: true },
+    status: { type: String, enum: ["pending","reviewed","resolved"], default: "pending", index: true },
+    priority: { type: String, enum: ["low","medium","high"], default: "medium" },
+    isAnonymous: { type: Boolean, default: false },
+    relatedFeature: { type: String, trim: true, maxlength: [255, "Related feature cannot exceed 255 characters"] },
   },
-  {
-    timestamps: true, // Automatically add `createdAt` and `updatedAt` fields
-  },
+  { timestamps: true }
 );
 
-// Pre-save hook to sanitize message content
-FeedbackSchema.pre<IFeedback>("save", function (next) {
-  try {
-    this.message = sanitize(this.message);
-    if (this.relatedFeature) {
-      this.relatedFeature = sanitize(this.relatedFeature);
-    }
-    next();
-  } catch (error) {
-    next(error as Error);
-  }
-});
-
-// Index to optimize queries by type and status
+// --- Indexes ---
 FeedbackSchema.index({ type: 1 });
 FeedbackSchema.index({ status: 1 });
-FeedbackSchema.index({ createdAt: 1 });
+FeedbackSchema.index({ createdAt: -1 });
 
-// Instance method to mark feedback as reviewed
-FeedbackSchema.methods.markAsReviewed = async function (): Promise<void> {
+// --- Middleware ---
+FeedbackSchema.pre<IFeedback>("save", function (next: (err?: Error) => void): void {
+  this.message = sanitize(this.message);
+  if (this.relatedFeature) {
+    this.relatedFeature = sanitize(this.relatedFeature);
+  }
+  next();
+});
+
+// --- Instance Methods ---
+FeedbackSchema.methods.markAsReviewed = async function (this: IFeedback): Promise<IFeedback> {
   this.status = "reviewed";
   await this.save();
+  return this;
 };
 
-// Static method to get feedback by type
+// --- Static Methods ---
 FeedbackSchema.statics.getFeedbackByType = async function (
-  feedbackType: "bug" | "feature-request" | "other",
+  feedbackType: FeedbackType
 ): Promise<IFeedback[]> {
-  return this.find({ type: feedbackType });
+  return this.find({ type: feedbackType }).sort({ createdAt: -1 });
 };
 
-// Export the Feedback model
-const Feedback: IFeedbackModel = mongoose.model<IFeedback, IFeedbackModel>("Feedback", FeedbackSchema);
+// --- Model Export ---
+export const Feedback = mongoose.model<IFeedback, IFeedbackModel>("Feedback", FeedbackSchema);
 export default Feedback;

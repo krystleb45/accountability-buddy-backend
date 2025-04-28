@@ -1,5 +1,5 @@
 import Queue from "bull";
-import { sendEmail } from "./emailProcessor";
+import { sendEmail } from "./emailService";
 import { logger } from "../../utils/winstonLogger";
 
 const redisConfig = {

@@ -1,14 +1,15 @@
 import type { Document, Model, Types } from "mongoose";
 import mongoose, { Schema } from "mongoose";
 
-// Define TypeScript interfaces
-interface IMilestone {
+// --- Subdocument Interface ---
+export interface ICollabMilestone {
   title: string;
   dueDate: Date;
   completed: boolean;
 }
 
-interface ICollaborationGoal extends Document {
+// --- Main Interface ---
+export interface ICollaborationGoal extends Document {
   goalTitle: string;
   description: string;
   createdBy: Types.ObjectId;
@@ -17,98 +18,98 @@ interface ICollaborationGoal extends Document {
   progress: number;
   status: "pending" | "in-progress" | "completed" | "canceled";
   completedAt?: Date;
-  milestones: IMilestone[];
+  milestones: Types.DocumentArray<ICollabMilestone>;
   visibility: "public" | "private";
   createdAt: Date;
   updatedAt: Date;
-  updateProgress: (newProgress: number) => Promise<void>;
+
+  // Virtuals
+  participantCount: number;
+  milestoneCount: number;
+  completedMilestonesCount: number;
+
+  // Instance methods
+  updateProgress(newProgress: number): Promise<ICollaborationGoal>;
+  addParticipant(userId: Types.ObjectId): Promise<ICollaborationGoal>;
+  completeMilestone(index: number): Promise<ICollaborationGoal>;
 }
 
-interface ICollaborationGoalModel extends Model<ICollaborationGoal> {
-  addParticipant(goalId: string, userId: Types.ObjectId): Promise<ICollaborationGoal>;
-  completeMilestone(goalId: string, milestoneIndex: number): Promise<ICollaborationGoal>;
+// --- Model Interface ---
+export interface ICollaborationGoalModel extends Model<ICollaborationGoal> {
+  fetchByVisibility(vis: "public" | "private", limit?: number): Promise<ICollaborationGoal[]>;
 }
 
-// Define the schema
-const CollaborationGoalSchema: Schema<ICollaborationGoal> = new Schema(
+// --- Schema Definition ---
+const CollabMilestoneSchema = new Schema<ICollabMilestone>(
   {
-    goalTitle: {
-      type: String,
-      required: [true, "Goal title is required"],
-      trim: true,
-      maxlength: [100, "Goal title cannot exceed 100 characters"],
-    },
-    description: {
-      type: String,
-      required: [true, "Description is required"],
-      trim: true,
-      maxlength: [500, "Description cannot exceed 500 characters"],
-    },
-    createdBy: {
-      type: Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-    participants: [
-      {
-        type: Schema.Types.ObjectId,
-        ref: "User",
-      },
-    ],
-    target: {
-      type: Number,
-      required: [true, "Target value for goal progress is required"],
-      min: [1, "Target must be at least 1"],
-    },
-    progress: {
-      type: Number,
-      default: 0,
-      min: [0, "Progress cannot be less than 0"],
-    },
+    title: { type: String, required: true, trim: true, maxlength: 100 },
+    dueDate: { type: Date, required: true },
+    completed: { type: Boolean, default: false },
+  },
+  { _id: true, timestamps: false }
+);
+
+const CollaborationGoalSchema = new Schema<ICollaborationGoal, ICollaborationGoalModel>(
+  {
+    goalTitle: { type: String, required: true, trim: true, maxlength: 100, index: true },
+    description: { type: String, required: true, trim: true, maxlength: 500 },
+    createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    participants: { type: [Schema.Types.ObjectId], ref: "User", default: [] },
+    target: { type: Number, required: true, min: 1 },
+    progress: { type: Number, default: 0, min: 0 },
     status: {
       type: String,
       enum: ["pending", "in-progress", "completed", "canceled"],
       default: "pending",
+      index: true,
     },
-    completedAt: {
-      type: Date,
-    },
-    milestones: [
-      {
-        title: {
-          type: String,
-          required: [true, "Milestone title is required"],
-        },
-        dueDate: {
-          type: Date,
-          required: [true, "Milestone due date is required"],
-        },
-        completed: {
-          type: Boolean,
-          default: false,
-        },
-      },
-    ],
+    completedAt: { type: Date },
+    milestones: { type: [CollabMilestoneSchema], default: [] },
     visibility: {
       type: String,
       enum: ["public", "private"],
       default: "private",
+      index: true,
     },
   },
-  { timestamps: true }, // Automatically create `createdAt` and `updatedAt` fields
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  }
 );
 
-// Middleware to add the creator as a default participant
-CollaborationGoalSchema.pre<ICollaborationGoal>("save", function (next): void {
+// --- Indexes ---
+CollaborationGoalSchema.index({ createdBy: 1, status: 1 });
+
+// --- Virtuals ---
+CollaborationGoalSchema.virtual("participantCount").get(function (this: ICollaborationGoal): number {
+  return this.participants.length;
+});
+
+CollaborationGoalSchema.virtual("milestoneCount").get(function (this: ICollaborationGoal): number {
+  return this.milestones.length;
+});
+
+CollaborationGoalSchema.virtual("completedMilestonesCount").get(function (this: ICollaborationGoal): number {
+  return this.milestones.filter(m => m.completed).length;
+});
+
+// --- Middleware ---
+// Ensure creator is a participant
+CollaborationGoalSchema.pre<ICollaborationGoal>("save", function (next) {
   if (!this.participants.includes(this.createdBy)) {
     this.participants.push(this.createdBy);
   }
   next();
 });
 
-// Instance method to update goal progress
-CollaborationGoalSchema.methods.updateProgress = async function (newProgress: number): Promise<void> {
-  this.progress = Math.min(this.progress + newProgress, this.target); // Cap progress at target
+// --- Instance Methods ---
+CollaborationGoalSchema.methods.updateProgress = async function (
+  this: ICollaborationGoal,
+  newProgress: number
+): Promise<ICollaborationGoal> {
+  this.progress = Math.min(this.progress + newProgress, this.target);
   if (this.progress >= this.target) {
     this.status = "completed";
     this.completedAt = new Date();
@@ -116,48 +117,46 @@ CollaborationGoalSchema.methods.updateProgress = async function (newProgress: nu
     this.status = "in-progress";
   }
   await this.save();
+  return this;
 };
 
-// Static method to add participants
-CollaborationGoalSchema.statics.addParticipant = async function (
-  goalId: string,
-  userId: Types.ObjectId,
+CollaborationGoalSchema.methods.addParticipant = async function (
+  this: ICollaborationGoal,
+  userId: Types.ObjectId
 ): Promise<ICollaborationGoal> {
-  const goal = await this.findById(goalId);
-  if (!goal) throw new Error("Collaboration goal not found");
-
-  if (!goal.participants.includes(userId)) {
-    goal.participants.push(userId);
-    await goal.save();
+  if (!this.participants.some(id => id.equals(userId))) {
+    this.participants.push(userId);
+    await this.save();
   }
-  return goal;
+  return this;
 };
 
-// Static method to update milestone completion
-CollaborationGoalSchema.statics.completeMilestone = async function (
-  goalId: string,
-  milestoneIndex: number,
+CollaborationGoalSchema.methods.completeMilestone = async function (
+  this: ICollaborationGoal,
+  index: number
 ): Promise<ICollaborationGoal> {
-  const goal = await this.findById(goalId);
-  if (!goal) throw new Error("Collaboration goal not found");
-
-  const milestone = goal.milestones[milestoneIndex];
-  if (!milestone) throw new Error("Milestone not found");
-
-  milestone.completed = true;
-  await goal.save();
-  return goal;
+  const ms = this.milestones[index];
+  if (!ms) throw new Error("Milestone not found");
+  ms.completed = true;
+  await this.save();
+  return this;
 };
 
-// Virtual to get the number of participants
-CollaborationGoalSchema.virtual("participantCount").get(function (): number {
-  return this.participants.length;
-});
+// --- Static Methods ---
+CollaborationGoalSchema.statics.fetchByVisibility = function (
+  visibility: "public" | "private",
+  limit = 20
+): Promise<ICollaborationGoal[]> {
+  return this.find({ visibility })
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .populate("createdBy", "username email");
+};
 
-// Export the CollaborationGoal model
-const CollaborationGoal = mongoose.model<ICollaborationGoal, ICollaborationGoalModel>(
+// --- Model Export ---
+export const CollaborationGoal = mongoose.model<ICollaborationGoal, ICollaborationGoalModel>(
   "CollaborationGoal",
-  CollaborationGoalSchema,
+  CollaborationGoalSchema
 );
 
 export default CollaborationGoal;

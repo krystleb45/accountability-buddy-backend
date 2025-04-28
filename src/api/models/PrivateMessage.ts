@@ -1,62 +1,75 @@
-import type { Document, Model, Query } from "mongoose";
+import type { Document, Model, Query, Types } from "mongoose";
 import mongoose, { Schema } from "mongoose";
 
+// --- Private Message Document Interface ---
 export interface IPrivateMessage extends Document {
-  sender: mongoose.Types.ObjectId;
-  receiver: mongoose.Types.ObjectId;
+  sender: Types.ObjectId;
+  receiver: Types.ObjectId;
   content: string;
   isRead: boolean;
   isDeleted: boolean;
   createdAt: Date;
   updatedAt: Date;
-  isUnread: boolean; // Virtual field
+
+  // Virtuals
+  isUnread: boolean;
 }
-// Define the schema with explicit return types for all functions
-const PrivateMessageSchema = new Schema<IPrivateMessage>(
+
+// --- Private Message Model Static Interface ---
+export interface IPrivateMessageModel extends Model<IPrivateMessage> {
+  markAsRead(messageId: string): Promise<IPrivateMessage>;
+  softDelete(messageId: string): Promise<IPrivateMessage>;
+}
+
+// --- Schema Definition ---
+const PrivateMessageSchema = new Schema<IPrivateMessage, IPrivateMessageModel, IPrivateMessage>(
   {
     sender: {
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      index: true, // Index for optimized queries by sender
+      index: true,
     },
     receiver: {
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      index: true, // Index for optimized queries by receiver
+      index: true,
     },
     content: {
       type: String,
       required: [true, "Message content is required"],
       trim: true,
-      maxlength: [2000, "Message content cannot exceed 2000 characters"], // Set a maximum length for content
+      maxlength: [2000, "Message content cannot exceed 2000 characters"],
     },
     isRead: {
       type: Boolean,
-      default: false, // Tracks whether the message has been read
+      default: false,
+      index: true,
     },
     isDeleted: {
       type: Boolean,
-      default: false, // Soft delete flag for messages
+      default: false,
+      index: true,
     },
   },
   {
-    timestamps: true, // Automatically add 'createdAt' and 'updatedAt' fields
+    timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
-  },
+  }
 );
 
-// Indexes for optimized querying
+// --- Indexes ---
 PrivateMessageSchema.index({ sender: 1, receiver: 1, createdAt: -1 });
 
-// Virtual field to check if the message is unread
-PrivateMessageSchema.virtual("isUnread").get(function (): boolean {
+// --- Virtual Field ---
+PrivateMessageSchema.virtual("isUnread").get(function (this: IPrivateMessage): boolean {
   return !this.isRead;
 });
 
-// Pre-save hook to trim whitespace from content
+// --- Middleware Hooks ---
+// Trim content on save
 PrivateMessageSchema.pre<IPrivateMessage>("save", function (next): void {
   if (this.isModified("content")) {
     this.content = this.content.trim();
@@ -64,9 +77,25 @@ PrivateMessageSchema.pre<IPrivateMessage>("save", function (next): void {
   next();
 });
 
-// Static method to mark a message as read
+// Exclude deleted messages from queries
+PrivateMessageSchema.pre<Query<any, IPrivateMessage>>(/^find/, function (next): void {
+  this.where({ isDeleted: false });
+  next();
+});
+
+// Prevent sending messages to self
+PrivateMessageSchema.pre<IPrivateMessage>("validate", function (next): void {
+  if (this.sender.equals(this.receiver)) {
+    next(new Error("Cannot send a message to yourself"));
+  } else {
+    next();
+  }
+});
+
+// --- Static Methods ---
 PrivateMessageSchema.statics.markAsRead = async function (
-  messageId: string,
+  this: IPrivateMessageModel,
+  messageId: string
 ): Promise<IPrivateMessage> {
   const message = await this.findById(messageId);
   if (!message) throw new Error("Message not found");
@@ -75,13 +104,12 @@ PrivateMessageSchema.statics.markAsRead = async function (
     message.isRead = true;
     await message.save();
   }
-
   return message;
 };
 
-// Static method for soft deletion of messages
 PrivateMessageSchema.statics.softDelete = async function (
-  messageId: string,
+  this: IPrivateMessageModel,
+  messageId: string
 ): Promise<IPrivateMessage> {
   const message = await this.findById(messageId);
   if (!message) throw new Error("Message not found");
@@ -91,26 +119,10 @@ PrivateMessageSchema.statics.softDelete = async function (
   return message;
 };
 
-// Middleware to exclude deleted messages from query results
-PrivateMessageSchema.pre<Query<IPrivateMessage[], IPrivateMessage>>(
-  /^find/,
-  function (next): void {
-    this.where({ isDeleted: false });
-    next();
-  },
-);
-
-// Middleware to prevent sending messages to oneself
-PrivateMessageSchema.pre<IPrivateMessage>("validate", function (next): void {
-  if (this.sender.equals(this.receiver)) {
-    next(new Error("Cannot send a message to yourself"));
-  } else {
-    next();
-  }
-});
-
-// Export the model
-export const PrivateMessage: Model<IPrivateMessage> = mongoose.model<IPrivateMessage>(
+// --- Model Export ---
+export const PrivateMessage = mongoose.model<IPrivateMessage, IPrivateMessageModel>(
   "PrivateMessage",
-  PrivateMessageSchema,
+  PrivateMessageSchema
 );
+
+export default PrivateMessage;

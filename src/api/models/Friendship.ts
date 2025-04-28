@@ -1,48 +1,35 @@
-import { Schema, model, Document, Types } from "mongoose";
+import type { Document, Types } from "mongoose";
+import { Schema, model } from "mongoose";
 
-// Enum for Friend Request Status
+// --- FriendRequest Status Enum ---
 export enum FriendRequestStatus {
   PENDING = "pending",
   ACCEPTED = "accepted",
   REJECTED = "rejected",
 }
 
-// FriendRequest interface for type safety
+// --- Interface for FriendRequest ---
 export interface IFriendRequest extends Document {
-  sender: Types.ObjectId; // The user who sent the request
-  recipient: Types.ObjectId; // The user who received the request
-  status: FriendRequestStatus; // The status of the friend request (pending, accepted, rejected)
-  createdAt: Date; // Date when the request was sent
-  updatedAt: Date; // Date when the request status was last updated
+  sender: Types.ObjectId;      // The user who sent the request
+  recipient: Types.ObjectId;   // The user who received the request
+  status: FriendRequestStatus; // Status of the request
+  createdAt: Date;             // When the request was sent
+  updatedAt: Date;             // When the status was updated
 }
 
-// FriendRequest Schema
+// --- Schema Definition ---
 const FriendRequestSchema = new Schema<IFriendRequest>(
   {
-    sender: {
-      type: Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-    recipient: {
-      type: Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-    status: {
-      type: String,
-      enum: Object.values(FriendRequestStatus),
-      default: FriendRequestStatus.PENDING,
-    },
+    sender: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    recipient: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    status: { type: String, enum: Object.values(FriendRequestStatus), default: FriendRequestStatus.PENDING, index: true },
   },
-  {
-    timestamps: true, // Automatically manage createdAt and updatedAt
-  }
+  { timestamps: true }
 );
 
-// Add an index to quickly query friend requests between two users
+// Ensure a user cannot send duplicate friend requests
 FriendRequestSchema.index({ sender: 1, recipient: 1 }, { unique: true });
 
-// Export the FriendRequest model
-const FriendRequest = model<IFriendRequest>("FriendRequest", FriendRequestSchema);
+// --- Model Export ---
+export const FriendRequest = model<IFriendRequest>("FriendRequest", FriendRequestSchema);
 export default FriendRequest;

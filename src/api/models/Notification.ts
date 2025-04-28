@@ -1,65 +1,160 @@
-import type { Document, Model } from "mongoose";
+import type { Document, Model, Types, UpdateWriteOpResult } from "mongoose";
 import mongoose, { Schema } from "mongoose";
 
-// Interface for Notification
+// --- Notification Types ---
+export type NotificationType =
+  | "friend_request"
+  | "message"
+  | "group_invite"
+  | "blog_activity"
+  | "goal_milestone";
+
+// --- Interface for Notification Document ---
 export interface INotification extends Document {
-  user: mongoose.Types.ObjectId; // The receiver of the notification
-  sender?: mongoose.Types.ObjectId; // The sender (if applicable, e.g., friend request)
-  message: string;
-  type: "friend_request" | "message" | "group_invite" | "blog_activity" | "goal_milestone";
-  read: boolean;
-  link?: string;
-  expiresAt?: Date;
-  createdAt?: Date;
-  updatedAt?: Date;
-  isExpired: boolean; // Virtual field
+  user: Types.ObjectId;          // Receiver of the notification
+  sender?: Types.ObjectId;       // Optional sender
+  message: string;               // Notification message
+  type: NotificationType;        // Notification category
+  read: boolean;                 // Read status
+  link?: string;                 // Optional link
+  expiresAt?: Date;              // When notification expires
+  createdAt: Date;               // Auto-generated
+  updatedAt: Date;               // Auto-generated
+
+  // Virtuals
+  isExpired: boolean;
+
+  // Instance methods
+  markRead(): Promise<INotification>;
+  markUnread(): Promise<INotification>;
 }
 
-// Notification Schema
-const NotificationSchema: Schema<INotification> = new Schema(
+// --- Model Interface for Statics ---
+export interface INotificationModel extends Model<INotification> {
+  findByUser(userId: Types.ObjectId, unreadOnly?: boolean): Promise<INotification[]>;
+  markAllRead(userId: Types.ObjectId): Promise<UpdateWriteOpResult>;
+  createNotification(data: {
+    user: Types.ObjectId;
+    sender?: Types.ObjectId;
+    message: string;
+    type: NotificationType;
+    link?: string;
+    expiresAt?: Date;
+  }): Promise<INotification>;
+}
+
+// --- Schema Definition ---
+const NotificationSchema = new Schema<INotification, INotificationModel>(
   {
-    user: { 
-      type: mongoose.Schema.Types.ObjectId, 
-      ref: "User", 
-      required: true, 
-      index: true // ✅ Indexed for faster lookups
+    user: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
     },
-    sender: { 
-      type: mongoose.Schema.Types.ObjectId, 
-      ref: "User", 
-      default: null, // Optional, only needed for friend requests/messages
+    sender: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+      index: true,
     },
-    message: { 
-      type: String, 
-      required: true, 
-      trim: true,  // ✅ Prevents storing blank messages
-      maxlength: [500, "Message cannot exceed 500 characters."] // Enforce message length
+    message: {
+      type: String,
+      required: [true, "Message is required"],
+      trim: true,
+      maxlength: [500, "Message cannot exceed 500 characters."],
     },
     type: {
       type: String,
-      enum: ["friend_request", "message", "group_invite", "blog_activity", "goal_milestone"],
-      required: true, // ✅ Enforce explicit event type
+      enum: ["friend_request","message","group_invite","blog_activity","goal_milestone"],
+      required: true,
+      index: true,
     },
-    read: { type: Boolean, default: false },
-    link: { type: String, trim: true },
-    expiresAt: { 
-      type: Date, 
-      index: { expires: "30d" } // ✅ Automatically delete notifications after 30 days
+    read: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    link: {
+      type: String,
+      trim: true,
+    },
+    expiresAt: {
+      type: Date,
+      index: true,
+      expires: "30d", // auto-remove after 30 days
     },
   },
-  { timestamps: true },
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  }
 );
 
-// Virtual field for expiration status
-NotificationSchema.virtual("isExpired").get(function (this: INotification) {
-  return this.expiresAt ? new Date() > new Date(this.expiresAt) : false;
+// --- Virtuals ---
+NotificationSchema.virtual("isExpired").get(function (this: INotification): boolean {
+  return Boolean(this.expiresAt && Date.now() > this.expiresAt.getTime());
 });
 
-// Export the Notification model and type
-const Notification: Model<INotification> = mongoose.model<INotification>(
+// --- Instance Methods ---
+NotificationSchema.methods.markRead = async function (
+  this: INotification
+): Promise<INotification> {
+  this.read = true;
+  await this.save();
+  return this;
+};
+
+NotificationSchema.methods.markUnread = async function (
+  this: INotification
+): Promise<INotification> {
+  this.read = false;
+  await this.save();
+  return this;
+};
+
+// --- Static Methods ---
+/** Fetch notifications for a user; optionally only unread */
+NotificationSchema.statics.findByUser = function (
+  this: INotificationModel,
+  userId: Types.ObjectId,
+  unreadOnly = false
+): Promise<INotification[]> {
+  const filter: any = { user: userId };
+  if (unreadOnly) filter.read = false;
+  return this.find(filter)
+    .sort({ createdAt: -1 })
+    .limit(100);
+};
+
+/** Mark all as read for a user */
+NotificationSchema.statics.markAllRead = function (
+  this: INotificationModel,
+  userId: Types.ObjectId
+): Promise<UpdateWriteOpResult> {
+  return this.updateMany({ user: userId, read: false }, { $set: { read: true } });
+};
+
+/** Create a new notification */
+NotificationSchema.statics.createNotification = function (
+  this: INotificationModel,
+  data: {
+    user: Types.ObjectId;
+    sender?: Types.ObjectId;
+    message: string;
+    type: NotificationType;
+    link?: string;
+    expiresAt?: Date;
+  }
+): Promise<INotification> {
+  return this.create(data);
+};
+
+// --- Model Export ---
+export const Notification = mongoose.model<INotification, INotificationModel>(
   "Notification",
-  NotificationSchema,
+  NotificationSchema
 );
 
 export default Notification;
-export type NotificationDocument = INotification;
