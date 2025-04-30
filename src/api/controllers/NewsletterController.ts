@@ -1,6 +1,6 @@
+// src/api/controllers/NewsletterController.ts
 import type { Request, Response, NextFunction } from "express";
-import crypto from "crypto";
-import Newsletter from "../models/Newsletter"; // Assuming Newsletter model exists
+import Newsletter from "../models/Newsletter";
 import { logger } from "../../utils/winstonLogger";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
@@ -11,45 +11,30 @@ import sendResponse from "../utils/sendResponse";
  * @access  Public
  */
 export const signupNewsletter = catchAsync(
-  async (
-    req: Request<{}, {}, { email: string }>, // Explicit request body type
-    res: Response,
-    _next: NextFunction,
-  ): Promise<void> => {
+  async (req: Request<{}, {}, { email: string }>, res: Response, _next: NextFunction): Promise<void> => {
     const { email } = req.body;
-
-    // Validate email
-    if (!email || !email.trim()) {
+    if (!email?.trim()) {
       sendResponse(res, 400, false, "Email is required.");
       return;
     }
 
-    // Check if email already exists
-    let subscriber = await Newsletter.findOne({ email });
-    if (subscriber && subscriber.status === "subscribed") {
+    // find or create subscriber
+    let subscriber = await Newsletter.findOrCreate(email.trim().toLowerCase());
+
+    if (subscriber.status === "subscribed") {
       sendResponse(res, 400, false, "Email is already subscribed.");
       return;
     }
 
-    // If email exists but unsubscribed, resubscribe
-    if (subscriber && subscriber.status === "unsubscribed") {
-      subscriber.status = "subscribed";
-      subscriber.subscribedAt = new Date();
-      subscriber.unsubscribeToken = crypto.randomBytes(16).toString("hex");
-      await subscriber.save();
-    } else {
-      // Create a new subscriber
-      subscriber = await Newsletter.create({
-        email,
-        status: "subscribed",
-        subscribedAt: new Date(),
-        unsubscribeToken: crypto.randomBytes(16).toString("hex"),
-      });
-    }
+    // resubscribe
+    subscriber.status = "subscribed";
+    subscriber.subscribedAt = new Date();
+    await subscriber.regenerateUnsubscribeToken();
+    await subscriber.save();
 
-    logger.info(`Newsletter subscription: ${email}`);
+    logger.info(`Newsletter subscription (resubscribe): ${email}`);
     sendResponse(res, 201, true, "Successfully subscribed to the newsletter.");
-  },
+  }
 );
 
 /**
@@ -58,56 +43,43 @@ export const signupNewsletter = catchAsync(
  * @access  Public
  */
 export const unsubscribeNewsletter = catchAsync(
-  async (
-    req: Request<{}, {}, {}, { token: string }>, // Explicit query type
-    res: Response,
-    _next: NextFunction,
-  ): Promise<void> => {
-    const { token } = req.query;
-
-    // Validate token
-    if (!token || typeof token !== "string") {
+  async (req: Request<{}, {}, {}, { token?: string }>, res: Response, _next: NextFunction): Promise<void> => {
+    const token = req.query.token;
+    if (typeof token !== "string") {
       sendResponse(res, 400, false, "Invalid or missing token.");
       return;
     }
 
-    // Find subscriber by unsubscribe token
+    // find the subscriber by token
     const subscriber = await Newsletter.findOne({ unsubscribeToken: token });
     if (!subscriber) {
       sendResponse(res, 404, false, "Subscriber not found.");
       return;
     }
 
-    // Update status to unsubscribed
-    subscriber.status = "unsubscribed";
+    // use the instance method to validate and unsubscribe
+    await subscriber.unsubscribe(token);
+    // clear token so they can’t unsubscribe twice
     subscriber.unsubscribeToken = undefined;
     await subscriber.save();
 
     logger.info(`Newsletter unsubscription: ${subscriber.email}`);
     sendResponse(res, 200, true, "Successfully unsubscribed from the newsletter.");
-  },
+  }
 );
+
 /**
  * @desc    Get all subscribers (Admin only)
  * @route   GET /api/newsletter/subscribers
  * @access  Private (Admin)
  */
 export const getSubscribers = catchAsync(
-  async (
-    _req: Request<{}, {}, {}, {}>, // Explicitly define type for Request
-    res: Response,
-    _next: NextFunction,
-  ): Promise<void> => {
-    const subscribers = await Newsletter.find({ status: "subscribed" });
-
-    if (!subscribers || subscribers.length === 0) {
+  async (_req: Request, res: Response, _next: NextFunction): Promise<void> => {
+    const subscribers = await Newsletter.findSubscribed();
+    if (subscribers.length === 0) {
       sendResponse(res, 404, false, "No subscribers found.");
       return;
     }
-
-    sendResponse(res, 200, true, "Subscribers fetched successfully.", {
-      subscribers,
-    });
-  },
+    sendResponse(res, 200, true, "Subscribers fetched successfully.", { subscribers });
+  }
 );
-

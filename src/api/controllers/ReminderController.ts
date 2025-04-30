@@ -1,11 +1,15 @@
-// src/controllers/ReminderController.ts
+// src/api/controllers/ReminderController.ts
 import type { Request, Response, NextFunction } from "express";
 import mongoose from "mongoose";
+import sanitize from "mongo-sanitize";
+
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
 import { createError } from "../middleware/errorHandler";
-import sanitize from "mongo-sanitize";
+
 import CustomReminder from "../models/CustomReminder";
+// If you ever need the service functions, import them like this:
+// import { checkReminders, scheduleReminderTask, cancelReminderTask } from "../services/ReminderService";
 
 /**
  * @desc    Create a custom reminder
@@ -21,6 +25,7 @@ export const createCustomReminder = catchAsync(
     const { reminderMessage, reminderTime, recurrence } = sanitize(req.body);
     const userId = req.user?.id;
     if (!userId) return next(createError("User ID is required", 401));
+
     if (!reminderMessage || !reminderTime) {
       return next(createError("Reminder message and time are required", 400));
     }
@@ -52,9 +57,11 @@ export const getCustomReminders = catchAsync(
     const userId = _req.user?.id;
     if (!userId) throw createError("User ID is required", 401);
 
-    const reminders = await CustomReminder.find({ user: new mongoose.Types.ObjectId(userId) })
-      .sort({ reminderTime: 1 });
-    if (!reminders.length) {
+    const reminders = await CustomReminder.find({
+      user: new mongoose.Types.ObjectId(userId),
+    }).sort({ reminderTime: 1 });
+
+    if (reminders.length === 0) {
       sendResponse(res, 404, false, "No reminders found");
       return;
     }
@@ -98,6 +105,7 @@ export const updateCustomReminder = catchAsync(
       update,
       { new: true, runValidators: true }
     );
+
     if (!updated) {
       return next(createError("Reminder not found or access denied", 404));
     }

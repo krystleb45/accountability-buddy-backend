@@ -1,50 +1,69 @@
+// src/api/middleware/errorHandler.ts
 import type { Request, Response, NextFunction } from "express";
 import { logger } from "../../utils/winstonLogger";
 
-// Extend the built-in Error type with our own fields
-interface CustomError extends Error {
-  statusCode?: number;
-  isOperational?: boolean;
-  details?: unknown;
+/**
+ * A structured, operational error class.
+ */
+export class CustomError extends Error {
+  public statusCode: number;
+  public isOperational: boolean;
+  public details?: unknown;
+
+  constructor(
+    message: string,
+    statusCode = 500,
+    details: unknown = null,
+    isOperational = true
+  ) {
+    super(message);
+    this.name = this.constructor.name;
+    this.statusCode = statusCode;
+    this.isOperational = isOperational;
+    if (details != null) this.details = details;
+    // Restore prototype chain (necessary when targeting ES5)
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
 }
 
-// Factory to build predictable (“operational”) errors
-export const createError = (
+/**
+ * Factory for creating operational errors.
+ */
+export function createError(
   message: string,
   statusCode = 500,
-  isOperational = true,
-  details: unknown = null,
-): CustomError => {
-  const err = new Error(message) as CustomError;
-  err.statusCode = statusCode;
-  err.isOperational = isOperational;
-  err.details = details;
-  return err;
-};
+  details: unknown = null
+): CustomError {
+  return new CustomError(message, statusCode, details, true);
+}
 
-// Central error-handling middleware
-export const errorHandler = (
-  err: CustomError,
+/**
+ * Central error-handling middleware.
+ */
+export function errorHandler(
+  err: unknown,
   _req: Request,
   res: Response,
-  _next: NextFunction,
-): void => {
-  // Log everything
+  _next: NextFunction
+): void {
+  // If it's one of our CustomErrors, extract its info; else treat as a 500
+  const { statusCode, message, isOperational, details } =
+    err instanceof CustomError
+      ? err
+      : { statusCode: 500, message: (err as Error).message || "Internal Server Error", isOperational: false, details: null };
+
+  // Log full details
   logger.error(
-    `Error: ${err.message} | Status: ${err.statusCode || 500}` +
-    (err.details ? ` | Details: ${JSON.stringify(err.details)}` : "")
+    `Error: ${message} | Status: ${statusCode}` +
+      (details ? ` | Details: ${JSON.stringify(details)}` : "")
   );
 
-  // Build the payload
-  const status = err.statusCode || 500;
+  // Build response payload
   const payload: Record<string, unknown> = {
     success: false,
-    message: err.isOperational ? err.message : "An unexpected error occurred."
+    message: isOperational ? message : "An unexpected error occurred."
   };
-  if (err.isOperational && err.details) {
-    payload.details = err.details;
-  }
+  if (isOperational && details != null) payload.details = details;
 
-  // Send once and end
-  res.status(status).json(payload);
-};
+  res.status(statusCode).json(payload);
+}

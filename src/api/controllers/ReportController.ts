@@ -1,118 +1,87 @@
-import Report from "../models/Report"; // Assuming you have a Report model
-import { logger } from "../../utils/winstonLogger";
+// src/api/controllers/ReportController.ts
+import type { Request, Response, NextFunction } from "express";
+import * as ReportService from "../services/ReportService";
+import catchAsync from "../utils/catchAsync";
+import sendResponse from "../utils/sendResponse";
+import { createError } from "../middleware/errorHandler";
+
 /**
  * @desc    Create a new report
- * @param   userId - ID of the user creating the report
- * @param   reportedId - ID of the reported entity (post, comment, or user)
- * @param   reportType - Type of the report (post, comment, or user)
- * @param   reason - Reason for the report
- * @returns Promise<object>
+ * @route   POST /api/reports
+ * @access  Private
  */
-export const createReport = async (
-  userId: string,
-  reportedId: string,
-  reportType: string,
-  reason: string,
-): Promise<object> => {
-  try {
-    const report = await Report.create({
-      userId,
-      reportedId,
-      reportType,
-      reason,
-    });
+export const createReport = catchAsync(
+  async (
+    req: Request<{}, {}, { reportedId: string; reportType: "post" | "comment" | "user"; reason: string }>,
+    res: Response,
+    _next: NextFunction
+  ) => {
+    const userId = req.user!.id;
+    const { reportedId, reportType, reason } = req.body;
 
-    logger.info(`Report created: ${report.id}`);
-    return report;
-  } catch (error) {
-    logger.error(`Error creating report: ${(error as Error).message}`);
-    throw new Error("Failed to create report");
+    if (!reportedId || !reportType || !reason) {
+      throw createError("reportedId, reportType and reason are required", 400);
+    }
+
+    const report = await ReportService.createReport(userId, reportedId, reportType, reason);
+    sendResponse(res, 201, true, "Report created successfully", { report });
   }
-};
+);
 
 /**
  * @desc    Get all reports
- * @returns Promise<object[]>
+ * @route   GET /api/reports
+ * @access  Private/Admin
  */
-export const getAllReports = async (): Promise<object[]> => {
-  try {
-    const reports = await Report.find().sort({ createdAt: -1 }); // Sort by newest
-    logger.info("Fetched all reports");
-    return reports;
-  } catch (error) {
-    logger.error(`Error fetching all reports: ${(error as Error).message}`);
-    throw new Error("Failed to fetch reports");
-  }
-};
+export const getAllReports = catchAsync(async (_req: Request, res: Response) => {
+  const reports = await ReportService.getAllReports();
+  sendResponse(res, 200, true, "Reports fetched successfully", { reports });
+});
 
 /**
  * @desc    Get a report by ID
- * @param   reportId - ID of the report to retrieve
- * @returns Promise<object | null>
+ * @route   GET /api/reports/:reportId
+ * @access  Private/Admin
  */
-export const getReportById = async (reportId: string): Promise<object | null> => {
-  try {
-    const report = await Report.findById(reportId);
-    if (!report) {
-      logger.warn(`Report not found: ${reportId}`);
-      return null;
-    }
-    logger.info(`Fetched report: ${report.id}`);
-    return report;
-  } catch (error) {
-    logger.error(`Error fetching report by ID: ${(error as Error).message}`);
-    throw new Error("Failed to fetch report");
-  }
-};
+export const getReportById = catchAsync(async (req: Request<{ reportId: string }>, res: Response) => {
+  const { reportId } = req.params;
+  const report = await ReportService.getReportById(reportId);
+  sendResponse(res, 200, true, "Report fetched successfully", { report });
+});
 
 /**
- * @desc    Resolve a report by ID
- * @param   reportId - ID of the report to resolve
- * @param   resolvedBy - ID of the user resolving the report (e.g., admin)
- * @returns Promise<object | null>
+ * @desc    Resolve a report
+ * @route   PUT /api/reports/:reportId/resolve
+ * @access  Private/Admin
  */
-export const resolveReport = async (reportId: string, resolvedBy: string): Promise<object | null> => {
-  try {
-    const report = await Report.findByIdAndUpdate(
-      reportId,
-      { status: "resolved", resolvedBy, resolvedAt: new Date() },
-      { new: true }, // Return the updated document
-    );
+export const resolveReport = catchAsync(
+  async (
+    req: Request<{ reportId: string }, {}, { resolvedBy: string }>,
+    res: Response,
+    _next: NextFunction
+  ) => {
+    const { reportId } = req.params;
+    const { resolvedBy } = req.body;
 
-    if (!report) {
-      logger.warn(`Report not found for resolution: ${reportId}`);
-      return null;
+    if (!resolvedBy) {
+      throw createError("resolvedBy is required", 400);
     }
 
-    logger.info(`Report resolved: ${report.id}`);
-    return report;
-  } catch (error) {
-    logger.error(`Error resolving report: ${(error as Error).message}`);
-    throw new Error("Failed to resolve report");
+    const report = await ReportService.resolveReport(reportId, resolvedBy);
+    sendResponse(res, 200, true, "Report resolved successfully", { report });
   }
-};
+);
 
 /**
- * @desc    Delete a report by ID
- * @param   reportId - ID of the report to delete
- * @returns Promise<object | null>
+ * @desc    Delete a report
+ * @route   DELETE /api/reports/:reportId
+ * @access  Private/Admin
  */
-export const deleteReport = async (reportId: string): Promise<object | null> => {
-  try {
-    const report = await Report.findByIdAndDelete(reportId);
-
-    if (!report) {
-      logger.warn(`Report not found for deletion: ${reportId}`);
-      return null;
-    }
-
-    logger.info(`Report deleted: ${report.id}`);
-    return report;
-  } catch (error) {
-    logger.error(`Error deleting report: ${(error as Error).message}`);
-    throw new Error("Failed to delete report");
-  }
-};
+export const deleteReport = catchAsync(async (req: Request<{ reportId: string }>, res: Response) => {
+  const { reportId } = req.params;
+  const report = await ReportService.deleteReport(reportId);
+  sendResponse(res, 200, true, "Report deleted successfully", { report });
+});
 
 export default {
   createReport,

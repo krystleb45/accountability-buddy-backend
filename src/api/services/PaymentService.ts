@@ -1,251 +1,129 @@
+// src/api/services/PaymentService.ts
 import Stripe from "stripe";
 import LoggingService from "./LoggingService";
-import Subscription from "../models/Subscription"; // Assuming a Subscription model
+import Subscription from "../models/Subscription";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
-  apiVersion: "2025-02-24.acacia", // Replace with the correct API version
+  apiVersion: "2025-02-24.acacia",
 });
-const PaymentService = {
+
+class PaymentService {
   /**
-   * Create a subscription session for a given user and plan
-   * @param {string} userId - The ID of the Stripe customer
-   * @param {string} planId - The ID of the Stripe plan
-   * @returns {Stripe.Checkout.Session} - Stripe checkout session
+   * Create (or look up) a Stripe Customer by email.
    */
-  createSession: async (
-    userId: string,
+  static async createCustomer(email: string): Promise<Stripe.Customer> {
+    const customer = await stripe.customers.create({ email });
+    await LoggingService.logInfo(`Stripe customer created: ${customer.id}`);
+    return customer;
+  }
+
+  /**
+   * Create a Stripe Checkout session for a subscription.
+   */
+  static async createSubscriptionSession(
+    customerId: string,
     planId: string,
-  ): Promise<Stripe.Checkout.Session> => {
-    try {
-      const session = await stripe.checkout.sessions.create({
-        payment_method_types: ["card"],
-        mode: "subscription",
-        line_items: [{ price: planId, quantity: 1 }],
-        customer: userId,
-        success_url: `${process.env.SUCCESS_URL}?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: process.env.CANCEL_URL || "",
-      });
-
-      LoggingService.logInfo(
-        `Stripe session created for user ${userId}, Plan: ${planId}`,
-      );
-      return session;
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      LoggingService.logError(
-        "Error creating Stripe session",
-        new Error(errorMessage),
-      );
-      throw new Error("Failed to create subscription session");
-    }
-  },
+    successUrl: string,
+    cancelUrl: string
+  ): Promise<Stripe.Checkout.Session> {
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      line_items: [{ price: planId, quantity: 1 }],
+      mode: "subscription",
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      customer: customerId,
+      client_reference_id: undefined, // you can wire this in later if you want
+    });
+    await LoggingService.logInfo(
+      `Stripe session ${session.id} created for customer ${customerId}`
+    );
+    return session;
+  }
 
   /**
-   * Handle incoming Stripe webhooks for various events
-   * @param {Stripe.Event} event - Stripe webhook event
+   * Handle Stripe webhooks.
    */
-  handleWebhook: async (event: Stripe.Event): Promise<void> => {
-    try {
-      switch (event.type) {
-        case "checkout.session.completed":
-          await PaymentService.handleSubscriptionCompleted(
-            event.data.object as Stripe.Checkout.Session,
-          );
-          break;
+  static async handleWebhook(
+    rawBody: Buffer,
+    signature: string,
+    webhookSecret: string
+  ): Promise<void> {
+    const event = stripe.webhooks.constructEvent(
+      rawBody,
+      signature,
+      webhookSecret
+    );
+    await LoggingService.logInfo(`Received Stripe event: ${event.type}`);
 
-        case "invoice.payment_succeeded":
-          await PaymentService.handlePaymentSucceeded(
-            event.data.object as Stripe.Invoice,
-          );
-          break;
+    switch (event.type) {
+      case "checkout.session.completed":
+        await this.onSessionCompleted(
+          event.data.object as Stripe.Checkout.Session
+        );
+        break;
+      case "invoice.payment_succeeded":
+        await LoggingService.logInfo(
+          `Invoice succeeded: ${(event.data.object as Stripe.Invoice).id}`
+        );
+        break;
+      case "invoice.payment_failed":
+        await LoggingService.logError(
+          `Invoice failed: ${(event.data.object as Stripe.Invoice).id}`,
+          new Error("Payment failure")
+        );
+        break;
+      case "customer.subscription.deleted":
+      case "customer.subscription.updated":
+        await this.onSubscriptionChanged(
+          event.data.object as Stripe.Subscription
+        );
+        break;
+      default:
+        await LoggingService.logInfo(`Unhandled event type: ${event.type}`);
+    }
+  }
 
-        case "invoice.payment_failed":
-          await PaymentService.handlePaymentFailed(
-            event.data.object as Stripe.Invoice,
-          );
-          break;
+  /** @private */
+  private static async onSessionCompleted(
+    session: Stripe.Checkout.Session
+  ): Promise<void> {
+    const userId = session.client_reference_id!;
+    const subscriptionId = session.subscription as string;
+    const stripeSub = await stripe.subscriptions.retrieve(subscriptionId);
 
-        default:
-          LoggingService.logInfo(`Unhandled event type: ${event.type}`);
+    await Subscription.create({
+      user: userId,
+      stripeSubscriptionId: stripeSub.id,
+      status: stripeSub.status,
+      plan: stripeSub.items.data[0]?.price.nickname ?? "standard",
+      subscriptionStart: new Date(stripeSub.start_date * 1000),
+      currentPeriodEnd: new Date(stripeSub.current_period_end * 1000),
+      isActive: ["active", "trialing"].includes(stripeSub.status),
+    });
+
+    await LoggingService.logInfo(
+      `Stored subscription ${subscriptionId} for user ${userId}`
+    );
+  }
+
+  /** @private */
+  private static async onSubscriptionChanged(
+    sub: Stripe.Subscription
+  ): Promise<void> {
+    await Subscription.findOneAndUpdate(
+      { stripeSubscriptionId: sub.id },
+      {
+        status: sub.status,
+        isActive: ["active", "trialing"].includes(sub.status),
+        currentPeriodEnd: new Date(sub.current_period_end! * 1000),
+        subscriptionEnd: sub.cancel_at
+          ? new Date(sub.cancel_at * 1000)
+          : undefined,
       }
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      LoggingService.logError(
-        "Error processing Stripe webhook",
-        new Error(errorMessage),
-        { eventType: event.type },
-      );
-      throw new Error("Failed to process payment event");
-    }
-  },
-
-  /**
-   * Handle successful subscription creation
-   * @param {Stripe.Checkout.Session} session - Stripe checkout session object
-   */
-  handleSubscriptionCompleted: async (
-    session: Stripe.Checkout.Session,
-  ): Promise<void> => {
-    try {
-      const userId = session.customer as string;
-      const subscriptionId = session.subscription as string;
-
-      const planId = session.line_items?.data[0]?.price?.id || "unknown_plan";
-
-      await Subscription.create({
-        userId,
-        subscriptionId,
-        status: "active",
-        planId,
-        subscriptionStart: new Date(),
-      });
-
-      LoggingService.logInfo(
-        `Subscription created for user ${userId}, Subscription ID: ${subscriptionId}`,
-      );
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      LoggingService.logError(
-        "Error completing subscription",
-        new Error(errorMessage),
-        { session },
-      );
-      throw new Error("Failed to handle subscription completion");
-    }
-  },
-
-  /**
-   * Handle successful payments
-   * @param {Stripe.Invoice} invoice - Stripe invoice object
-   */
-  handlePaymentSucceeded: async (invoice: Stripe.Invoice): Promise<void> => {
-    try {
-      const subscriptionId = invoice.subscription as string;
-      const subscription = await Subscription.findOne({ subscriptionId });
-
-      if (subscription) {
-        subscription.status = "active";
-        await subscription.save();
-        LoggingService.logInfo(
-          `Payment succeeded for subscription ${subscriptionId}`,
-        );
-      } else {
-        LoggingService.logWarn(
-          `No subscription found for ID ${subscriptionId} after payment success`,
-        );
-      }
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      LoggingService.logError(
-        "Error handling payment success",
-        new Error(errorMessage),
-        { invoice },
-      );
-      throw new Error(
-        "Failed to update subscription status after payment success",
-      );
-    }
-  },
-
-  /**
-   * Handle failed payments
-   * @param {Stripe.Invoice} invoice - Stripe invoice object
-   */
-  handlePaymentFailed: async (invoice: Stripe.Invoice): Promise<void> => {
-    try {
-      const subscriptionId = invoice.subscription as string;
-      const subscription = await Subscription.findOne({ subscriptionId });
-
-      if (subscription) {
-        subscription.status = "past_due";
-        await subscription.save();
-        LoggingService.logInfo(
-          `Payment failed for subscription ${subscriptionId}`,
-        );
-      } else {
-        LoggingService.logWarn(
-          `No subscription found for ID ${subscriptionId} after payment failure`,
-        );
-      }
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      LoggingService.logError(
-        "Error handling payment failure",
-        new Error(errorMessage),
-        { invoice },
-      );
-      throw new Error(
-        "Failed to update subscription status after payment failure",
-      );
-    }
-  },
-
-  /**
-   * Cancel a subscription in Stripe
-   * @param {string} subscriptionId - The ID of the Stripe subscription
-   * @returns {Stripe.Response<Stripe.Subscription>} - The updated subscription object
-   */
-  cancelSubscription: async (
-    subscriptionId: string,
-  ): Promise<Stripe.Response<Stripe.Subscription>> => {
-    try {
-      const canceledSubscription = await stripe.subscriptions.update(
-        subscriptionId,
-        {
-          cancel_at_period_end: true, // Optional: Cancel at the end of the billing period
-        },
-      );
-
-      // Update the status in the database
-      await Subscription.findOneAndUpdate(
-        { subscriptionId },
-        { status: "canceled", subscriptionEnd: new Date() },
-      );
-
-      LoggingService.logInfo(`Subscription canceled: ${subscriptionId}`);
-      return canceledSubscription;
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      LoggingService.logError(
-        "Error canceling subscription",
-        new Error(errorMessage),
-        { subscriptionId },
-      );
-      throw new Error("Failed to cancel subscription");
-    }
-  },
-
-  /**
-   * Retrieve the Stripe subscription details
-   * @param {string} subscriptionId - The ID of the Stripe subscription
-   * @returns {Stripe.Subscription} - Stripe subscription object
-   */
-  getSubscriptionDetails: async (
-    subscriptionId: string,
-  ): Promise<Stripe.Subscription> => {
-    try {
-      const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-      LoggingService.logInfo(
-        `Retrieved subscription details for: ${subscriptionId}`,
-      );
-      return subscription;
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      LoggingService.logError(
-        "Error retrieving subscription details",
-        new Error(errorMessage),
-        { subscriptionId },
-      );
-      throw new Error("Failed to retrieve subscription details");
-    }
-  },
-};
+    );
+    await LoggingService.logInfo(`Updated subscription ${sub.id} in DB`);
+  }
+}
 
 export default PaymentService;

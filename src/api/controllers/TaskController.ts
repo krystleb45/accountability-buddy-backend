@@ -1,145 +1,137 @@
+// src/api/controllers/TaskController.ts
 import type { Request, Response, NextFunction } from "express";
-import Task from "../models/Task"; // Assuming Task model exists
+import catchAsync from "../utils/catchAsync";
+import sendResponse from "../utils/sendResponse";
+import TaskService from "../services/TaskService";
+import { ITask } from "../models/Task";
 
 /**
- * @desc Fetch all tasks for a user
- * @route GET /api/tasks
- * @access Private
+ * @desc    Fetch all tasks for the authenticated user
+ * @route   GET /api/tasks
+ * @access  Private
  */
-export const getAllTasks = async (
-  req: Request, 
-  res: Response, 
-  next: NextFunction,
-): Promise<void> => {
-  try {
-    // Use userId to fetch tasks dynamically
-    const userId = req.user?.id as string; // Fetch the authenticated user's ID
-
-    // Fetch tasks from the database based on userId
-    const tasks = await Task.find({ userId }); // Replace this with your actual DB logic
-
-    // Send response with fetched tasks
-    res.status(200).json({ success: true, data: tasks });
-  } catch (error) {
-    // Log the error
-    next(error); // Pass the error to middleware
+export const getAllTasks = catchAsync(
+  async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
+    const userId = req.user!.id;
+    const tasks: ITask[] = await TaskService.getTasks(userId);
+    sendResponse(res, 200, true, "Tasks fetched successfully", { tasks });
   }
-};
-
+);
 
 /**
- * @desc Fetch a single task by ID
- * @route GET /api/tasks/:id
- * @access Private
+ * @desc    Fetch a single task by ID
+ * @route   GET /api/tasks/:id
+ * @access  Private
  */
-export const getTaskById = async (
-  req: Request<{ id: string }>, // Expect 'id' parameter
-  res: Response,
-  next: NextFunction,
-): Promise<void> => {
-  try {
-    const userId = req.user?.id; // Extract user ID
-    const { id } = req.params; // Extract task ID from params
-
-    // Find the task by ID and user
-    const task = await Task.findOne({ _id: id, userId });
-
-    if (!task) {
-      res.status(404).json({ success: false, msg: "Task not found" });
+export const getTaskById = catchAsync(
+  async (
+    req: Request<{ id: string }>,
+    res: Response,
+    _next: NextFunction
+  ): Promise<void> => {
+    const userId = req.user!.id;
+    const results = await TaskService.getTasks(userId, { _id: req.params.id });
+    if (!results.length) {
+      sendResponse(res, 404, false, "Task not found");
       return;
     }
-
-    res.status(200).json({ success: true, data: task });
-  } catch (error) {
-    
-    next(error); // Pass error to middleware
+    sendResponse(res, 200, true, "Task fetched successfully", { task: results[0] });
   }
-};
+);
 
 /**
- * @desc Create a new task
- * @route POST /api/tasks
- * @access Private
+ * @desc    Create a new task
+ * @route   POST /api/tasks
+ * @access  Private
  */
-export const createTask = async (
-  userId: string,
-  taskData: { title: string; dueDate?: string },
-): Promise<any> => {
-  try {
-    const newTask = {
-      id: Date.now().toString(),
-      userId,
-      ...taskData,
-      completed: false,
-    };
-    return newTask;
-  } catch (error) {
-    // Logs the error
-    throw new Error(`Failed to create task: ${(error as Error).message}`); // Provides error details
+export const createTask = catchAsync(
+  async (
+    req: Request<{}, {}, Partial<ITask>>,
+    res: Response,
+    _next: NextFunction
+  ): Promise<void> => {
+    const userId = req.user!.id;
+    const taskData = req.body;
+    const newTask = await TaskService.createTask(taskData, userId);
+    sendResponse(res, 201, true, "Task created successfully", { task: newTask });
   }
-};
-
+);
 
 /**
- * @desc Update a task by ID
- * @route PUT /api/tasks/:id
- * @access Private
+ * @desc    Update a task by ID
+ * @route   PUT /api/tasks/:id
+ * @access  Private
  */
-export const updateTask = async (
-  req: Request<{ id: string }, {}, { title?: string; dueDate?: string }>,
-  res: Response,
-  next: NextFunction,
-): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const updates = req.body;
-
-    // Find task by ID and user, and update it
-    const updatedTask = await Task.findOneAndUpdate(
-      { _id: id, userId: req.user?.id },
-      { $set: updates },
-      { new: true, runValidators: true },
-    );
-
-    if (!updatedTask) {
-      res.status(404).json({ success: false, msg: "Task not found" });
-      return;
-    }
-
-    res.status(200).json({ success: true, data: updatedTask });
-  } catch (error) {
-    
-    next(error); // Pass error to middleware
+export const updateTask = catchAsync(
+  async (
+    req: Request<{ id: string }, {}, Partial<ITask>>,
+    res: Response,
+    _next: NextFunction
+  ): Promise<void> => {
+    const userId = req.user!.id;
+    const updated = await TaskService.updateTask(req.params.id, userId, req.body);
+    sendResponse(res, 200, true, "Task updated successfully", { task: updated });
   }
-};
+);
 
 /**
- * @desc Delete a task by ID
- * @route DELETE /api/tasks/:id
- * @access Private
+ * @desc    Delete a task by ID
+ * @route   DELETE /api/tasks/:id
+ * @access  Private
  */
-export const deleteTask = async (
-  req: Request<{ id: string }>, // Explicitly define ID param type
-  res: Response,
-  next: NextFunction,
-): Promise<void> => {
-  try {
-    const { id } = req.params;
-
-    // Find and delete the task by ID and user
-    const deletedTask = await Task.findOneAndDelete({
-      _id: id,
-      userId: req.user?.id,
-    });
-
-    if (!deletedTask) {
-      res.status(404).json({ success: false, msg: "Task not found" });
-      return;
-    }
-
-    res.status(200).json({ success: true, msg: "Task deleted successfully" });
-  } catch (error) {
-    
-    next(error); // Pass error to middleware
+export const deleteTask = catchAsync(
+  async (
+    req: Request<{ id: string }>,
+    res: Response,
+    _next: NextFunction
+  ): Promise<void> => {
+    const userId = req.user!.id;
+    await TaskService.deleteTask(req.params.id, userId);
+    sendResponse(res, 200, true, "Task deleted successfully");
   }
+);
+
+/**
+ * @desc    Mark a task as complete
+ * @route   POST /api/tasks/:id/complete
+ * @access  Private
+ */
+export const completeTask = catchAsync(
+  async (
+    req: Request<{ id: string }>,
+    res: Response,
+    _next: NextFunction
+  ): Promise<void> => {
+    const userId = req.user!.id;
+    const completed = await TaskService.completeTask(req.params.id, userId);
+    sendResponse(res, 200, true, "Task marked as complete", { task: completed });
+  }
+);
+
+/**
+ * @desc    Update a task's progress
+ * @route   PATCH /api/tasks/:id/progress
+ * @access  Private
+ */
+export const trackProgress = catchAsync(
+  async (
+    req: Request<{ id: string }, {}, { progress: number }>,
+    res: Response,
+    _next: NextFunction
+  ): Promise<void> => {
+    const userId = req.user!.id;
+    const { progress } = req.body;
+    const updated = await TaskService.trackProgress(req.params.id, userId, progress);
+    sendResponse(res, 200, true, "Task progress updated", { task: updated });
+  }
+);
+
+export default {
+  getAllTasks,
+  getTaskById,
+  createTask,
+  updateTask,
+  deleteTask,
+  completeTask,
+  trackProgress,
 };

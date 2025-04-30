@@ -1,178 +1,257 @@
-import type { FilterQuery } from "mongoose";
+// src/api/services/UserService.ts
+import { FilterQuery, Types } from "mongoose";
 import type { IUser } from "../models/User";
 import { User } from "../models/User";
-import { logger } from "../../utils/winstonLogger";
-import bcrypt from "bcryptjs"; // For password hashing
-import { CustomError } from "@src/api/services/errorHandler";
+import Goal, { IGoal } from "../models/Goal";
+import Badge, { IBadge } from "../models/Badge";
+import Streak from "../models/Streak";
+import { subDays } from "date-fns";
+import bcrypt from "bcryptjs";
+import { CustomError } from "./errorHandler";
 
+interface LeaderboardOpts {
+  sortBy: "xp" | "goals" | "streaks";
+  timeRange: "week" | "month" | "all";
+}
 
-const UserService = {
-  /**
-   * Create a new user in the database.
-   * @param userData - The user data to create a new user.
-   * @returns The newly created user document.
-   */
-  async createUser(userData: Partial<IUser>): Promise<IUser> {
-    try {
-      // Check if the email already exists
-      const existingUser = await User.findOne({ email: userData.email });
-      if (existingUser) {
-        throw new CustomError("Email already in use", 400);
-      }
+export default class UserService {
+  static async getUserById(userId: string): Promise<IUser> {
+    const user = await User.findById(userId).select("-password");
+    if (!user) throw new CustomError("User not found", 404);
+    return user;
+  }
 
-      // Hash the password before saving
-      if (userData.password) {
-        const salt = await bcrypt.genSalt(10);
-        userData.password = await bcrypt.hash(userData.password, salt);
-      }
-
-      // Create and save the user
-      const newUser = new User(userData);
-      await newUser.save();
-
-      logger.info(`User created successfully: ${newUser.email}`);
-      return newUser;
-    } catch (error) {
-      logger.error("Error creating user:", error);
-      throw error;
-    }
-  },
-
-  /**
-   * Get a user by ID.
-   * @param userId - The ID of the user to retrieve.
-   * @returns The user document if found.
-   */
-  async getUserById(userId: string): Promise<IUser | null> {
-    try {
-      const user = await User.findById(userId);
-      if (!user) {
-        throw new CustomError("User not found", 404);
-      }
-
-      logger.info(`User retrieved successfully: ${user.email}`);
-      return user;
-    } catch (error) {
-      logger.error("Error retrieving user:", error);
-      throw error;
-    }
-  },
-
-  /**
-   * Update user data.
-   * @param userId - The ID of the user to update.
-   * @param updates - The fields to update.
-   * @returns The updated user document.
-   */
-  async updateUser(
+  static async updatePassword(
     userId: string,
-    updates: Partial<IUser>,
-  ): Promise<IUser | null> {
-    try {
-      // If updating password, hash it
-      if (updates.password) {
-        const salt = await bcrypt.genSalt(10);
-        updates.password = await bcrypt.hash(updates.password, salt);
-      }
+    current: string,
+    nextPwd: string
+  ): Promise<void> {
+    const user = await User.findById(userId).select("+password");
+    if (!user) throw new CustomError("User not found", 404);
+    if (!(await bcrypt.compare(current, user.password)))
+      throw new CustomError("Current password incorrect", 400);
+    user.password = await bcrypt.hash(nextPwd, 12);
+    await user.save();
+  }
 
-      const updatedUser = await User.findByIdAndUpdate(userId, updates, {
-        new: true, // Return the updated document
-        runValidators: true, // Ensure validation is applied
-      });
+  static async deleteUser(userId: string): Promise<void> {
+    const removed = await User.findByIdAndDelete(userId);
+    if (!removed) throw new CustomError("User not found", 404);
+  }
 
-      if (!updatedUser) {
-        throw new CustomError("User not found", 404);
-      }
-
-      logger.info(`User updated successfully: ${updatedUser.email}`);
-      return updatedUser;
-    } catch (error) {
-      logger.error("Error updating user:", error);
-      throw error;
-    }
-  },
-
-  /**
-   * Delete a user by ID.
-   * @param userId - The ID of the user to delete.
-   * @returns A success message.
-   */
-  async deleteUser(userId: string): Promise<string> {
-    try {
-      const user = await User.findByIdAndDelete(userId);
-      if (!user) {
-        throw new CustomError("User not found", 404);
-      }
-
-      logger.info(`User deleted successfully: ${user.email}`);
-      return "User deleted successfully.";
-    } catch (error) {
-      logger.error("Error deleting user:", error);
-      throw error;
-    }
-  },
-
-  /**
-   * Authenticate a user by email and password.
-   * @param email - The user's email.
-   * @param password - The user's password.
-   * @returns The user document if authenticated.
-   */
-  async authenticateUser(
-    email: string,
-    password: string,
-  ): Promise<IUser | null> {
-    try {
-      const user = await User.findOne({ email });
-      if (!user) {
-        throw new CustomError("Invalid email or password", 401);
-      }
-
-      // Compare passwords
-      const isMatch = await bcrypt.compare(password, user.password);
-      if (!isMatch) {
-        throw new CustomError("Invalid email or password", 401);
-      }
-
-      logger.info(`User authenticated successfully: ${user.email}`);
-      return user;
-    } catch (error) {
-      logger.error("Error authenticating user:", error);
-      throw error;
-    }
-  },
-
-  /**
-   * Fetch all users (with optional filters and pagination).
-   * @param filters - Query filters for fetching users.
-   * @param page - Page number for pagination.
-   * @param limit - Number of users per page.
-   * @returns A paginated list of users.
-   */
-  async getAllUsers(
+  static async getAllUsers(
     filters: FilterQuery<IUser> = {},
     page = 1,
-    limit = 10,
+    limit = 10
   ): Promise<{ users: IUser[]; total: number; totalPages: number }> {
-    try {
-      const query = User.find(filters);
-      const total = await User.countDocuments(filters);
-  
-      const users = await query
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .exec();
-  
-      const totalPages = Math.ceil(total / limit);
-  
-      logger.info(`Fetched ${users.length} users`);
-      return { users, total, totalPages };
-    } catch (error) {
-      logger.error("Error fetching users:", error);
-      throw error;
-    }
-  
-  },
-};
+    const total = await User.countDocuments(filters);
+    const users = await User.find(filters)
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .select("-password");
+    return { users, total, totalPages: Math.ceil(total / limit) };
+  }
 
-export default UserService;
+  static async getLeaderboard(opts: LeaderboardOpts): Promise<IUser[]> {
+    const { sortBy, timeRange } = opts;
+    const now = new Date();
+    const filter: any = {};
+    if (timeRange === "week") filter.updatedAt = { $gte: subDays(now, 7) };
+    else if (timeRange === "month") filter.updatedAt = { $gte: subDays(now, 30) };
+
+    let sort: Record<string, -1> = {};
+    if (sortBy === "xp") sort = { points: -1 };
+    if (sortBy === "goals") sort = { completedGoals: -1 };
+    if (sortBy === "streaks") sort = { streakCount: -1 };
+
+    return User.find(filter)
+      .sort(sort)
+      .limit(10)
+      .select("username points completedGoals streakCount profilePicture");
+  }
+
+  static async pinGoal(
+    userId: string,
+    goalId: string
+  ): Promise<Types.ObjectId[]> {
+    const user = await User.findById(userId);
+    if (!user) throw new CustomError("User not found", 404);
+
+    const oid = new Types.ObjectId(goalId);
+    user.pinnedGoals = user.pinnedGoals ?? [];
+    if (!user.pinnedGoals.some((g) => g.equals(oid))) {
+      user.pinnedGoals.push(oid);
+      await user.save();
+    }
+    return user.pinnedGoals;
+  }
+
+  static async unpinGoal(
+    userId: string,
+    goalId: string
+  ): Promise<Types.ObjectId[]> {
+    const user = await User.findById(userId);
+    if (!user) throw new CustomError("User not found", 404);
+
+    user.pinnedGoals = (user.pinnedGoals ?? []).filter(
+      (g) => g.toString() !== goalId
+    );
+    await user.save();
+    return user.pinnedGoals;
+  }
+
+  static async getPinnedGoals(userId: string): Promise<IGoal[]> {
+    const user = await User.findById(userId).populate("pinnedGoals");
+    if (!user) throw new CustomError("User not found", 404);
+
+    const raw = Array.isArray(user.pinnedGoals)
+      ? (user.pinnedGoals as any[])
+      : [];
+    return raw.map((g) => g as IGoal);
+  }
+
+  static async featureAchievement(
+    userId: string,
+    achievementId: string
+  ): Promise<Types.ObjectId[]> {
+    const user = await User.findById(userId);
+    if (!user) throw new CustomError("User not found", 404);
+
+    const aid = new Types.ObjectId(achievementId);
+    user.featuredAchievements = user.featuredAchievements ?? [];
+    if (!user.featuredAchievements.some((a) => a.equals(aid))) {
+      user.featuredAchievements.push(aid);
+      await user.save();
+    }
+    return user.featuredAchievements;
+  }
+
+  static async unfeatureAchievement(
+    userId: string,
+    achievementId: string
+  ): Promise<Types.ObjectId[]> {
+    const user = await User.findById(userId);
+    if (!user) throw new CustomError("User not found", 404);
+
+    user.featuredAchievements = (user.featuredAchievements ?? []).filter(
+      (a) => a.toString() !== achievementId
+    );
+    await user.save();
+    return user.featuredAchievements;
+  }
+
+  static async getFeaturedAchievements(userId: string): Promise<IBadge[]> {
+    const user = await User.findById(userId).populate("featuredAchievements");
+    if (!user) throw new CustomError("User not found", 404);
+
+    const raw = Array.isArray(user.featuredAchievements)
+      ? (user.featuredAchievements as any[])
+      : [];
+    return raw.map((b) => b as IBadge);
+  }
+
+  static async fetchBadges(): Promise<IBadge[]> {
+    // .lean() gives plain objects, but we cast to IBadge[]
+    return (await Badge.find().lean()) as IBadge[];
+  }
+
+  static async fetchUserBadges(userId: string): Promise<IBadge[]> {
+    const user = await User.findById(userId).populate("badges");
+    if (!user) throw new CustomError("User not found", 404);
+
+    const raw = Array.isArray(user.badges) ? (user.badges as any[]) : [];
+    return raw.map((b) => b as IBadge);
+  }
+
+  static async awardBadge(
+    userId: string,
+    badgeId: string
+  ): Promise<IBadge[]> {
+    const user = await User.findById(userId);
+    if (!user) throw new CustomError("User not found", 404);
+
+    const bid = new Types.ObjectId(badgeId);
+    user.badges = user.badges ?? [];
+    if (!user.badges.some((b) => b.equals(bid))) {
+      user.badges.push(bid);
+      await user.save();
+    }
+
+    await user.populate("badges");
+    const raw = Array.isArray(user.badges) ? (user.badges as any[]) : [];
+    return raw.map((b) => b as IBadge);
+  }
+
+  static async getStatistics(userId: string): Promise<Record<string, unknown>> {
+    const user = await User.findById(userId).select(
+      "username profilePicture points completedGoals streakCount createdAt subscriptionTier subscription_status"
+    );
+    if (!user) throw new CustomError("User not found", 404);
+
+    const streakDoc = await Streak.findOne({ user: user._id });
+    const streak = streakDoc?.streakCount ?? 0;
+
+    const [
+      total,
+      done,
+      inProg,
+      notStarted,
+      archived,
+      milestoneAgg,
+    ] = await Promise.all([
+      Goal.countDocuments({ user: user._id }),
+      Goal.countDocuments({ user: user._id, status: "completed" }),
+      Goal.countDocuments({ user: user._id, status: "in-progress" }),
+      Goal.countDocuments({ user: user._id, status: "not-started" }),
+      Goal.countDocuments({ user: user._id, status: "archived" }),
+      Goal.aggregate([
+        { $match: { user: user._id } },
+        { $unwind: "$milestones" },
+        { $match: { "milestones.completed": true } },
+        { $count: "completedMilestones" },
+      ]),
+    ]);
+    const completedMilestones = milestoneAgg[0]?.completedMilestones ?? 0;
+
+    return {
+      username: user.username,
+      profilePicture: user.profilePicture,
+      memberSince: user.createdAt,
+      points: user.points,
+      completedGoals: user.completedGoals,
+      streakCount: streak,
+      subscription: {
+        tier: user.subscriptionTier,
+        status: user.subscription_status,
+      },
+      goals: {
+        total,
+        completed: done,
+        inProgress: inProg,
+        notStarted,
+        archived,
+      },
+      completedMilestones,
+    };
+  }
+
+  static async blockUser(userId: string): Promise<IUser> {
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { active: false },
+      { new: true }
+    );
+    if (!user) throw new CustomError("User not found", 404);
+    return user;
+  }
+
+  static async unblockUser(userId: string): Promise<IUser> {
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { active: true },
+      { new: true }
+    );
+    if (!user) throw new CustomError("User not found", 404);
+    return user;
+  }
+}

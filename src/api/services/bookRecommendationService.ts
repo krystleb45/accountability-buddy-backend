@@ -116,3 +116,14 @@ export const removeBookCommentService = async (
   await book.save();
   return book;
 };
+export default {
+  addBookService,
+  getAllBooksService,
+  getBookByIdService,
+  updateBookService,
+  deleteBookService,
+  likeBookService,
+  unlikeBookService,
+  addBookCommentService,
+  removeBookCommentService
+};

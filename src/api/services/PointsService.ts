@@ -1,48 +1,35 @@
 import { IUser, User } from "../models/User"; // Ensure the correct import for User model
 import Reward from "../models/Reward"; // Correct import for the Reward model
 import { Types } from "mongoose";
-
-// 🟢 Service to add points to a user
-
+import { createError } from "../middleware/errorHandler";
+// …
 export const addPoints = async (userId: string, points: number): Promise<IUser> => {
-  if (points <= 0) {
-    throw new Error("Points must be a positive number.");
-  }
-  
-  // Fetch the user
+  if (points <= 0) throw createError("Points must be a positive number", 400);
   const user = await User.findById(userId);
-  
-  if (!user) {
-    throw new Error("User not found");
-  }
-  
-  // Add points to the user
+  if (!user) throw createError("User not found", 404);
   user.points = (user.points ?? 0) + points;
-  
-  // Save the user and return the updated user
   await user.save();
-  return user;  // Return the updated user
+  return user;
 };
-
 
 // 🟢 Service to subtract points from a user
 export const subtractPoints = async (userId: string, points: number): Promise<IUser> => {
   if (points <= 0) {
     throw new Error("Points must be a positive number.");
   }
-    
+
   const user = await User.findById(userId);
   if (!user) {
     throw new Error("User not found.");
   }
-    
+
   if ((user.points ?? 0) < points) {
     throw new Error("Insufficient points.");
   }
-    
+
   user.points = (user.points ?? 0) - points;
   await user.save();
-  
+
   // Return the updated user document
   return user; // Return the Mongoose document
 };

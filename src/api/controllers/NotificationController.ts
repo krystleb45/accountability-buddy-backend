@@ -1,155 +1,95 @@
-import { Request, Response } from "express";
-import Notification from "../models/Notification";
-import { User } from "../models/User";
+// src/api/controllers/NotificationController.ts
+import type { Request, Response, NextFunction } from "express";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
 import { logger } from "../../utils/winstonLogger";
+import NotificationService from "../services/NotificationService";
 
-// Sanitize input utility
-const sanitizeInput = (input: any): any => {
-  if (typeof input === "string") {
-    return input.replace(/\$|\./g, "");
-  }
-  if (typeof input === "object" && input !== null) {
-    for (const key in input) {
-      input[key] = sanitizeInput(input[key]);
-    }
-  }
-  return input;
-};
+interface SendPayload {
+  receiverId: string;
+  message: string;
+  type?: string;
+  link?: string;
+}
 
-/**
- * @desc Send a notification
- * @route POST /api/notifications
- * @access Private
- */
+interface ReadPayload {
+  notificationIds: string[];
+}
+
 export const sendNotification = catchAsync(
-  async (
-    req: Request<{}, {}, { receiverId: string; message: string; type?: string; link?: string }>, 
-    res: Response,
-  ): Promise<void> => {
-    const { receiverId, message, type = "info", link } = sanitizeInput(req.body);
-    const senderId = req.user?.id;
+  async (req: Request<{}, {}, SendPayload>, res: Response, _next: NextFunction) => {
+    const { receiverId, message, type = "info", link } = req.body;
+    const senderId = req.user!.id;
 
-    if (!receiverId) {
-      sendResponse(res, 400, false, "Receiver ID is required");
+    if (!receiverId || !message.trim()) {
+      sendResponse(res, 400, false, "receiverId and non‐empty message are required");
       return;
     }
 
-    if (!message || message.trim() === "") {
-      sendResponse(res, 400, false, "Notification content cannot be empty");
-      return;
-    }
-
-    const receiver = await User.findById(receiverId);
-    if (!receiver) {
-      sendResponse(res, 404, false, "Receiver not found");
-      return;
-    }
-
-    const newNotification = await Notification.create({
-      sender: senderId,
-      user: receiverId,
-      message,
+    await NotificationService.sendInApp({
+      senderId,
+      receiverId,
+      message: message.trim(),
       type,
       link,
-      read: false,
     });
 
-    logger.info(`Notification sent from user ${senderId} to user ${receiverId}`);
-    sendResponse(res, 201, true, "Notification sent successfully", {
-      notification: newNotification,
-    });
-  },
+    logger.info(`Notification sent from ${senderId} to ${receiverId}`);
+    sendResponse(res, 201, true, "Notification sent successfully");
+  }
 );
 
-/**
- * @desc Get notifications for the user
- * @route GET /api/notifications
- * @access Private
- */
 export const getNotifications = catchAsync(
   async (
-    req: Request<{}, {}, {}, { limit?: string; page?: string }>, 
-    res: Response,
-  ): Promise<void> => {
-    const userId = req.user?.id;
-    const limit = parseInt(req.query.limit || "10", 10);
-    const page = parseInt(req.query.page || "1", 10);
+    req: Request<{}, {}, {}, { page?: string; limit?: string }>,
+    res: Response
+  ) => {
+    const userId = req.user!.id;
+    const page = Math.max(1, parseInt(req.query.page || "1", 10));
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || "10", 10)));
 
-    // Optional: Add checks to prevent invalid values
-    if (limit <= 0 || page <= 0) {
-      sendResponse(res, 400, false, "Invalid pagination values");
-      return;
-    }
-
-    const notifications = await Notification.find({ user: userId })
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit);
-
-    const totalNotifications = await Notification.countDocuments({ user: userId });
+    const { notifications, total } = await NotificationService.listForUser(userId, { page, limit });
 
     sendResponse(res, 200, true, "Notifications fetched successfully", {
       notifications,
       pagination: {
-        totalNotifications,
+        total,
         currentPage: page,
-        totalPages: Math.ceil(totalNotifications / limit),
+        totalPages: Math.ceil(total / limit),
       },
     });
-  },
+  }
 );
 
-/**
- * @desc Mark notifications as read
- * @route PATCH /api/notifications/read
- * @access Private
- */
 export const markNotificationsAsRead = catchAsync(
-  async (
-    req: Request<{}, {}, { notificationIds: string[] }>, 
-    res: Response,
-  ): Promise<void> => {
-    const userId = req.user?.id;
+  async (req: Request<{}, {}, ReadPayload>, res: Response) => {
+    const userId = req.user!.id;
     const { notificationIds } = req.body;
 
-    if (!notificationIds || notificationIds.length === 0) {
-      sendResponse(res, 400, false, "Notification IDs are required");
+    if (!Array.isArray(notificationIds) || notificationIds.length === 0) {
+      sendResponse(res, 400, false, "notificationIds array is required");
       return;
     }
 
-    const result = await Notification.updateMany(
-      { user: userId, _id: { $in: notificationIds }, read: false }, 
-      { read: true },
-    );
-
-    sendResponse(res, 200, true, "Notifications marked as read", {
-      updatedCount: result.modifiedCount,
-    });
-  },
+    const updatedCount = await NotificationService.markRead(userId, notificationIds);
+    sendResponse(res, 200, true, "Notifications marked as read", { updatedCount });
+  }
 );
 
-/**
- * @desc Delete a notification
- * @route DELETE /api/notifications/:notificationId
- * @access Private
- */
 export const deleteNotification = catchAsync(
-  async (
-    req: Request<{ notificationId: string }>, 
-    res: Response,
-  ): Promise<void> => {
+  async (req: Request<{ notificationId: string }>, res: Response) => {
     const { notificationId } = req.params;
+    const userId = req.user!.id;
 
-    const notification = await Notification.findById(notificationId);
-    if (!notification) {
-      sendResponse(res, 404, false, "Notification not found");
-      return;
-    }
-
-    await notification.deleteOne();
-    logger.info(`Notification with ID ${notificationId} deleted`);
+    await NotificationService.remove(userId, notificationId);
+    logger.info(`Notification ${notificationId} deleted by ${userId}`);
     sendResponse(res, 200, true, "Notification deleted successfully");
-  },
+  }
 );
+
+export default {
+  sendNotification,
+  getNotifications,
+  markNotificationsAsRead,
+  deleteNotification,
+};

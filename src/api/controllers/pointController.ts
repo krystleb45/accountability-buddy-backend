@@ -1,151 +1,95 @@
-import { Request, Response, NextFunction } from "express";
+// src/api/controllers/PointController.ts
+import type { Request, Response, NextFunction } from "express";
+import * as PointService from "../services/PointsService";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
-import Poll from "../models/Poll";
-import Group from "../models/Group"; // Importing the Group model to validate group existence
-import { Types } from "mongoose";
 
 
-// 🟢 Create a poll in a group
-export const createPoll = catchAsync(
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    const { groupId, question, options, expirationDate } = req.body;
-    const userId = req.user?.id;
-
-    if (!userId) {
-      return next(new Error("User not authenticated"));
+/**
+ * @desc    Add points to the authenticated user
+ * @route   POST /api/points/add
+ * @access  Private
+ */
+export const addPoints = catchAsync(
+  async (
+    req: Request<{}, {}, { points: number }>,
+    res: Response,
+    _next: NextFunction
+  ): Promise<void> => {
+    const userId = req.user!.id;
+    const { points } = req.body;
+    if (typeof points !== "number" || points <= 0) {
+      sendResponse(res, 400, false, "Points must be a positive number");
+      return;
     }
+    const updatedUser = await PointService.addPoints(userId, points);
+    sendResponse(res, 200, true, `Added ${points} points`, { user: updatedUser });
+  }
+);
 
-    // Check if the group exists
-    const group = await Group.findById(groupId);
-    if (!group) {
-      return next(new Error("Group not found"));
+/**
+ * @desc    Subtract points from the authenticated user
+ * @route   POST /api/points/subtract
+ * @access  Private
+ */
+export const subtractPoints = catchAsync(
+  async (
+    req: Request<{}, {}, { points: number }>,
+    res: Response,
+    _next: NextFunction
+  ): Promise<void> => {
+    const userId = req.user!.id;
+    const { points } = req.body;
+    if (typeof points !== "number" || points <= 0) {
+      sendResponse(res, 400, false, "Points must be a positive number");
+      return;
     }
+    const updatedUser = await PointService.subtractPoints(userId, points);
+    sendResponse(res, 200, true, `Subtracted ${points} points`, { user: updatedUser });
+  }
+);
 
-    const newPoll = await Poll.create({
-      groupId,
-      question,
-      options: options.map((option: string) => ({ option, votes: 0 })),
-      expirationDate,
-      status: "active",
-    });
+/**
+ * @desc    Get current points balance of the authenticated user
+ * @route   GET /api/points
+ * @access  Private
+ */
+export const getUserPoints = catchAsync(
+  async (_req: Request, res: Response): Promise<void> => {
+    const userId = _req.user!.id;
+    const points = await PointService.getUserPoints(userId);
+    sendResponse(res, 200, true, "Current points fetched successfully", { points });
+  }
+);
 
-    sendResponse(res, 201, true, "Poll created successfully", {
-      poll: newPoll,
+/**
+ * @desc    Redeem points for a reward
+ * @route   POST /api/points/redeem
+ * @access  Private
+ */
+export const redeemPoints = catchAsync(
+  async (
+    req: Request<{}, {}, { rewardId: string }>,
+    res: Response,
+    _next: NextFunction
+  ): Promise<void> => {
+    const userId = req.user!.id;
+    const { rewardId } = req.body;
+    if (!rewardId) {
+      sendResponse(res, 400, false, "Reward ID is required");
+      return;
+    }
+    const result = await PointService.redeemPoints(userId, rewardId);
+    sendResponse(res, 200, true, result.message, {
+      reward: result.reward,
+      userPoints: result.userPoints,
     });
   }
 );
 
-// 🟢 Fetch all polls for a group
-export const getPollsForGroup = catchAsync(
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    const { groupId } = req.params;
-    const userId = req.user?.id;
-
-    if (!userId) {
-      return next(new Error("User not authenticated"));
-    }
-
-    // Fetch polls for the specified group
-    const polls = await Poll.find({ groupId }).sort({ createdAt: -1 });
-
-    sendResponse(res, 200, true, "Polls fetched successfully", {
-      polls,
-    });
-  }
-);
-
-// 🟢 Submit a vote on a poll
-// 🟢 Submit a vote on a poll
-export const voteOnPoll = catchAsync(
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    const { pollId } = req.params;
-    const { optionId } = req.body; // The option selected by the user
-    const userId = req.user?.id;
-
-    if (!userId) {
-      return next(new Error("User not authenticated"));
-    }
-
-    const poll = await Poll.findById(pollId);
-    if (!poll) {
-      return next(new Error("Poll not found"));
-    }
-
-    // Check if the poll is expired
-    if (poll.get("isExpired")) {
-      return next(new Error("This poll has expired"));
-    }
-
-
-
-    // Check if the user has already voted
-    const hasVoted = poll.options.some((option) =>
-      option.votes.includes(new Types.ObjectId(userId)) // Convert userId to ObjectId for comparison
-    );
-    if (hasVoted) {
-      return next(new Error("You have already voted in this poll"));
-    }
-
-    // Find the option the user is voting for
-    const option = poll.options.find((option) => option._id.toString() === optionId);
-    if (!option) {
-      return next(new Error("Invalid poll option"));
-    }
-
-    // Add the user ID to the votes array for the selected option
-    option.votes.push(new Types.ObjectId(userId)); // Convert userId to ObjectId before pushing it
-    await poll.save();
-
-
-    sendResponse(res, 200, true, "Vote submitted successfully", {
-      poll,
-    });
-  }
-);
-
-
-
-// 🟢 Get poll results (including total votes)
-export const getPollResults = catchAsync(
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    const { pollId } = req.params;
-
-    const poll = await Poll.findById(pollId);
-    if (!poll) {
-      return next(new Error("Poll not found"));
-    }
-
-    // Return the poll results
-    const results = poll.options.map((option) => ({
-      option: option.option,
-      votes: option.votes.length, // Count the votes for each option
-    }));
-
-    sendResponse(res, 200, true, "Poll results fetched successfully", {
-      results,
-    });
-  }
-);
-
-// 🟢 Check poll expiration logic and mark poll as expired
-export const checkPollExpiration = catchAsync(
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    const { pollId } = req.params;
-
-    const poll = await Poll.findById(pollId);
-    if (!poll) {
-      return next(new Error("Poll not found"));
-    }
-
-    // If the poll has expired, update its status
-    if (new Date() > new Date(poll.expirationDate)) {
-      poll.status = "expired";
-      await poll.save();
-    }
-
-    sendResponse(res, 200, true, "Poll expiration status checked", {
-      poll,
-    });
-  }
-);
+export default {
+  addPoints,
+  subtractPoints,
+  getUserPoints,
+  redeemPoints,
+};

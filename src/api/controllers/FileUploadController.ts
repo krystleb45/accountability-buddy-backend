@@ -1,205 +1,105 @@
-import path from "path";
+// src/api/controllers/FileUploadController.ts
+import { Request, Response } from "express";
 import fs from "fs";
-import sanitizeFilename from "sanitize-filename";
-import { execSync } from "child_process";
-import { Request, Response, NextFunction } from "express";
+import path from "path";
+import multer from "multer";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
-import { logger } from "../../utils/winstonLogger";
+import FileUploadService from "../services/FileUploadService";
+import * as FileCleanupService from "../services/FileCleanupService";
 
-// Custom input sanitization function
-const sanitizeInput = (input: any): any => {
-  if (typeof input === "string") {
-    return input.replace(/[^\w\s.@-]/g, "");
-  }
-  if (typeof input === "object" && input !== null) {
-    const sanitized: Record<string, any> = {};
-    for (const key in input) {
-      sanitized[key] = sanitizeInput(input[key]);
-    }
-    return sanitized;
-  }
-  return input;
-};
-
-// Virus scan utility function
-const scanFileForVirus = (filePath: string): boolean => {
-  try {
-    const result = execSync(`clamscan ${filePath}`).toString();
-    return !result.includes("FOUND");
-  } catch (error) {
-    logger.error("Error during virus scan: " + (error as Error).message);
-    return false;
-  }
-};
-
-/**
- * @desc    Upload a single file
- * @route   POST /api/upload
- * @access  Private
- */
-export const uploadFile = catchAsync(async (
-  req: Request & { file?: Express.Multer.File },
-  res: Response,
-  _next: NextFunction
-): Promise<void> => {
-  req.params = sanitizeInput(req.params);
-  req.body = sanitizeInput(req.body);
-
-  if (!req.file) {
-    sendResponse(res, 400, false, "No file uploaded");
-    return;
-  }
-
-  const filePath = path.join(__dirname, "../uploads", req.file.filename);
-
-  if (!scanFileForVirus(filePath)) {
-    fs.unlinkSync(filePath);
-    sendResponse(res, 400, false, "File contains a virus and was not uploaded");
-    return;
-  }
-
-  const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
-  sendResponse(res, 200, true, "File uploaded successfully", { fileUrl });
+const upload = multer({
+  dest: path.join(__dirname, "../uploads/tmp"),
+  limits: { fileSize: 10 * 1024 * 1024 },
 });
 
-/**
- * @desc    Upload multiple files
- * @route   POST /api/uploads
- * @access  Private
- */
-export const uploadMultipleFiles = catchAsync(async (
-  req: Request & { files?: { [fieldname: string]: Express.Multer.File[] } | Express.Multer.File[] },
-  res: Response,
-  _next: NextFunction
-): Promise<void> => {
-  req.params = sanitizeInput(req.params);
-  req.body = sanitizeInput(req.body);
-
-  // Check if no files were uploaded
-  if (!req.files || !Object.keys(req.files).length) {
-    sendResponse(res, 400, false, "No files uploaded");
-    return;
-  }
-
-  const fileUrls: string[] = [];
-
-  // Check if req.files is an array or an object
-  if (Array.isArray(req.files)) {
-    // Single file upload case (req.files is an array)
-    for (const file of req.files) {
-      const filePath = path.join(__dirname, "../uploads", file.filename);
-
-      if (!scanFileForVirus(filePath)) {
-        fs.unlinkSync(filePath);
-        continue;
-      }
-
-      fileUrls.push(`${req.protocol}://${req.get("host")}/uploads/${file.filename}`);
-    }
-  } else {
-    // Multiple file upload case (req.files is an object with fieldname as keys)
-    for (const fieldname in req.files) {
-      const files = req.files[fieldname] as Express.Multer.File[]; // Casting to Express.Multer.File[]
-
-      for (const file of files) {
-        const filePath = path.join(__dirname, "../uploads", file.filename);
-
-        if (!scanFileForVirus(filePath)) {
-          fs.unlinkSync(filePath);
-          continue;
-        }
-
-        fileUrls.push(`${req.protocol}://${req.get("host")}/uploads/${file.filename}`);
-      }
-    }
-  }
-
-  if (fileUrls.length === 0) {
-    sendResponse(res, 400, false, "No files uploaded due to virus detection");
-    return;
-  }
-
-  sendResponse(res, 200, true, "Files uploaded successfully", { fileUrls });
-});
-
-// Save file metadata
-export const saveFileMetadata = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): Promise<void> => {
-  try {
-    const { originalname, mimetype, size, filename } = req.file as Express.Multer.File;
-
-    // Example logic: save file info to the database (or log it for now)
-    const fileInfo = {
-      filename,
-      originalname,
-      mimetype,
-      size,
-      uploadedBy: req.user?.id, // Assuming req.user.id exists via authMiddleware
-    };
-
-    logger.info(`File uploaded successfully: ${JSON.stringify(fileInfo)}`);
-    sendResponse(res, 201, true, "File uploaded successfully", fileInfo);
-  } catch (error) {
-    logger.error(`Error saving file metadata: ${(error as Error).message}`);
-    next(error); // Pass error to middleware
-  }
-};
-
-/**
- * @desc    Download a file
- * @route   GET /api/files/:fileId
- * @access  Private
- */
-export const downloadFile = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): Promise<void> => {
-  try {
-    const { fileId } = req.params;
-
-    const filePath = path.join(__dirname, "../../uploads/", `${fileId}.pdf`);
-
-    if (!fs.existsSync(filePath)) {
-      sendResponse(res, 404, false, "File not found");
+export const uploadSingle = [
+  upload.single("file"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.file) {
+      sendResponse(res, 400, false, "No file uploaded");
       return;
     }
 
-    res.download(filePath, (err) => {
-      if (err) {
-        logger.error(`Error downloading file: ${err.message}`);
-        next(err); // Pass error to middleware
-      }
+    const tmpPath = req.file.path;
+    const clean = await FileCleanupService.scanOrDelete(tmpPath);
+    if (!clean) {
+      sendResponse(res, 400, false, "File contained a virus and was removed");
+      return;
+    }
+
+    const buffer = fs.readFileSync(tmpPath);
+    const { url, key } = await FileUploadService.uploadToS3({
+      buffer,
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
     });
-  } catch (error) {
-    logger.error(`Error processing file download: ${(error as Error).message}`);
-    next(error);
-  }
-};
 
-/**
- * @desc    Delete a file
- * @route   DELETE /api/uploads/:filename
- * @access  Private
- */
-export const deleteFile = catchAsync(async (
-  req: Request & { params: { filename: string } },
-  res: Response,
-  _next: NextFunction,
-): Promise<void> => {
-  req.params = sanitizeInput(req.params);
-  const filename = sanitizeFilename(req.params.filename) || "unknown-file";
-  const filePath = path.join(__dirname, "../uploads", filename);
-
-  if (!fs.existsSync(filePath)) {
-    sendResponse(res, 404, false, "File not found");
+    fs.unlinkSync(tmpPath);
+    sendResponse(res, 201, true, "File uploaded successfully", { url, key });
     return;
-  }
+  }),
+];
 
-  fs.unlinkSync(filePath);
-  sendResponse(res, 200, true, "File deleted successfully");
+export const uploadMultiple = [
+  upload.array("files"),
+  catchAsync(async (req: Request, res: Response) => {
+    const files = Array.isArray(req.files) ? req.files as Express.Multer.File[] : [];
+    if (files.length === 0) {
+      sendResponse(res, 400, false, "No files uploaded");
+      return;
+    }
+
+    const results: Array<{ url: string; key: string }> = [];
+
+    for (const file of files) {
+      const tmpPath = file.path;
+      if (!await FileCleanupService.scanOrDelete(tmpPath)) {
+        continue;
+      }
+      const buffer = fs.readFileSync(tmpPath);
+      const out = await FileUploadService.uploadToS3({
+        buffer,
+        originalname: file.originalname,
+        mimetype: file.mimetype,
+      });
+      results.push(out);
+      fs.unlinkSync(tmpPath);
+    }
+
+    if (results.length === 0) {
+      sendResponse(res, 400, false, "All files were rejected due to virus detection");
+      return;
+    }
+
+    sendResponse(res, 201, true, "Files uploaded successfully", { files: results });
+    return;
+  }),
+];
+
+export const getSignedUrl = catchAsync(async (req: Request<{ key: string }>, res: Response) => {
+  try {
+    const url = await FileUploadService.generateSignedUrl(req.params.key);
+    sendResponse(res, 200, true, "Signed URL generated", { url });
+  } catch (err) {
+    sendResponse(res, 404, false, (err as Error).message);
+  }
+  return;
 });
+
+export const deleteFile = catchAsync(async (req: Request<{ key: string }>, res: Response) => {
+  try {
+    const { message } = await FileUploadService.deleteFromS3(req.params.key);
+    sendResponse(res, 200, true, message);
+  } catch (err) {
+    sendResponse(res, 404, false, (err as Error).message);
+  }
+  return;
+});
+
+export default {
+  uploadSingle,
+  uploadMultiple,
+  getSignedUrl,
+  deleteFile,
+};

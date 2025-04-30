@@ -1,162 +1,184 @@
-import GroupInvitation from "../models/GroupInvitation";
-import Group from "../models/g";
+// src/api/services/InviteService.ts
+import { Types } from "mongoose";
+import Group from "../models/Group";
+import GroupInvitation, { IInvitation } from "../models/Invitation";
 import NotificationService from "./NotificationService";
 import { logger } from "../../utils/winstonLogger";
-import mongoose from "mongoose";
+import { createError } from "../middleware/errorHandler";
 
-// Function to send a group invitation
-const sendGroupInvitation = async (
-  senderId: string,
-  recipientId: string,
-  groupId: string
-): Promise<void> => {
-  // Check if the user is already a member of the group
-  const group = await Group.findById(groupId);
-  if (!group) {
-    throw new Error("Group not found");
+class InviteService {
+  /**
+   * Send a group invitation
+   */
+  static async sendInvitation(
+    senderId: string,
+    recipientId: string,
+    groupId: string
+  ): Promise<IInvitation> {
+    // Validate IDs
+    if (
+      !Types.ObjectId.isValid(senderId) ||
+      !Types.ObjectId.isValid(recipientId) ||
+      !Types.ObjectId.isValid(groupId)
+    ) {
+      throw createError("Invalid IDs provided", 400);
+    }
+
+    // Make sure the group exists
+    const group = await Group.findById(groupId);
+    if (!group) {
+      throw createError("Group not found", 404);
+    }
+
+    // Prevent inviting someone who’s already in the group
+    if (group.members.some((m) => m.equals(recipientId))) {
+      throw createError("User is already a member of this group", 400);
+    }
+
+    // Prevent duplicate pending invitations
+    const existing = await GroupInvitation.findOne({
+      groupId,
+      recipient: recipientId,
+      status: "pending",
+    });
+    if (existing) {
+      throw createError("An invitation is already pending", 400);
+    }
+
+    // Create the invitation
+    const invitation = await GroupInvitation.create({
+      groupId,
+      sender: senderId,
+      recipient: recipientId,
+      status: "pending",
+      createdAt: new Date(),
+    });
+
+    // Send an in-app notification
+    await NotificationService.sendInAppNotification(
+      recipientId,
+      `${senderId} has invited you to join the group "${group.name}".`
+    );
+
+    logger.info(
+      `Group invitation ${invitation._id} sent by ${senderId} to ${recipientId}`
+    );
+    return invitation;
   }
 
-  if (group.members.includes(new mongoose.Types.ObjectId(recipientId))) {
-    throw new Error("The user is already a member of the group");
+  /**
+   * Accept a pending invitation
+   */
+  static async acceptInvitation(
+    userId: string,
+    invitationId: string
+  ): Promise<void> {
+    if (
+      !Types.ObjectId.isValid(userId) ||
+      !Types.ObjectId.isValid(invitationId)
+    ) {
+      throw createError("Invalid IDs provided", 400);
+    }
+
+    const invitation = await GroupInvitation.findById(invitationId);
+    if (!invitation || invitation.recipient.toString() !== userId) {
+      throw createError("Invitation not found or access denied", 404);
+    }
+    if (invitation.status !== "pending") {
+      throw createError("Invitation is not pending", 400);
+    }
+
+    // Mark accepted
+    invitation.status = "accepted";
+    await invitation.save();
+
+    // Add the user to the group
+    const group = await Group.findById(invitation.groupId);
+    if (!group) {
+      throw createError("Group not found", 404);
+    }
+    group.members.push(new Types.ObjectId(userId));
+    await group.save();
+
+    // Notify both parties
+    await NotificationService.sendInAppNotification(
+      invitation.sender.toString(),
+      `${userId} accepted your invitation to join "${group.name}".`
+    );
+    await NotificationService.sendInAppNotification(
+      userId,
+      `You have joined the group "${group.name}".`
+    );
+
+    logger.info(`Invitation ${invitationId} accepted by ${userId}`);
   }
 
-  // Check if there is already an invitation
-  const existingInvitation = await GroupInvitation.findOne({
-    groupId,
-    recipient: recipientId,
-    status: "pending",
-  });
+  /**
+   * Reject a pending invitation
+   */
+  static async rejectInvitation(
+    userId: string,
+    invitationId: string
+  ): Promise<void> {
+    if (
+      !Types.ObjectId.isValid(userId) ||
+      !Types.ObjectId.isValid(invitationId)
+    ) {
+      throw createError("Invalid IDs provided", 400);
+    }
 
-  if (existingInvitation) {
-    throw new Error("An invitation is already pending");
+    const invitation = await GroupInvitation.findById(invitationId);
+    if (!invitation || invitation.recipient.toString() !== userId) {
+      throw createError("Invitation not found or access denied", 404);
+    }
+    if (invitation.status !== "pending") {
+      throw createError("Invitation is not pending", 400);
+    }
+
+    invitation.status = "rejected";
+    await invitation.save();
+
+    // Notify the sender
+    await NotificationService.sendInAppNotification(
+      invitation.sender.toString(),
+      `${userId} has rejected your invitation to join group "${invitation.groupId}".`
+    );
+
+    logger.info(`Invitation ${invitationId} rejected by ${userId}`);
   }
 
-  // Create a new group invitation
-  const invitation = await GroupInvitation.create({
-    groupId,
-    sender: senderId,
-    recipient: recipientId,
-    status: "pending",
-  });
+  /**
+   * Cancel (withdraw) an invitation
+   */
+  static async cancelInvitation(
+    senderId: string,
+    invitationId: string
+  ): Promise<void> {
+    if (
+      !Types.ObjectId.isValid(senderId) ||
+      !Types.ObjectId.isValid(invitationId)
+    ) {
+      throw createError("Invalid IDs provided", 400);
+    }
 
-  // Log or use the invitation object
-  console.warn(`Invitation sent: ${invitation._id}`);
+    const invitation = await GroupInvitation.findById(invitationId);
+    if (!invitation || invitation.sender.toString() !== senderId) {
+      throw createError("Invitation not found or access denied", 404);
+    }
+    if (invitation.status !== "pending") {
+      throw createError("Cannot cancel a non-pending invitation", 400);
+    }
 
+    await invitation.deleteOne();
 
-  // Send notification to the recipient
-  await NotificationService.sendInAppNotification(
-    recipientId,
-    `${senderId} has invited you to join the group ${group?.name}`
-  );
+    // Notify the recipient
+    await NotificationService.sendInAppNotification(
+      invitation.recipient.toString(),
+      `Your invitation to join group "${invitation.groupId}" has been canceled by ${senderId}.`
+    );
 
-  logger.info(`Group invitation sent from ${senderId} to ${recipientId} for group ${groupId}`);
-};
-
-// Function to accept a group invitation
-const acceptGroupInvitation = async (
-  invitationId: string,
-  userId: string
-): Promise<void> => {
-  const invitation = await GroupInvitation.findById(invitationId);
-
-  if (!invitation) {
-    throw new Error("Invitation not found");
+    logger.info(`Invitation ${invitationId} canceled by ${senderId}`);
   }
+}
 
-  if (invitation.recipient.toString() !== userId) {
-    throw new Error("Unauthorized to accept this invitation");
-  }
-
-  // Update invitation status to accepted
-  invitation.status = "accepted";
-  await invitation.save();
-
-  // Add the user to the group
-  const group = await Group.findById(invitation.groupId);
-  if (!group) {
-    throw new Error("Group not found");
-  }
-
-  // Convert userId to ObjectId
-  const userObjectId = new mongoose.Types.ObjectId(userId);
-
-  // Add the user to the group's members array
-  group.members.push(userObjectId);
-  await group.save();
-
-
-  // Send notification to the sender and recipient
-  await NotificationService.sendInAppNotification(
-    invitation.sender.toString(),
-    `${userId} has accepted your group invitation`
-  );
-
-  await NotificationService.sendInAppNotification(
-    userId,
-    `You have joined the group ${group?.name}`
-  );
-
-  logger.info(`User ${userId} accepted the group invitation for group ${invitation.groupId}`);
-};
-
-// Function to reject a group invitation
-const rejectGroupInvitation = async (
-  invitationId: string,
-  userId: string
-): Promise<void> => {
-  const invitation = await GroupInvitation.findById(invitationId);
-
-  if (!invitation) {
-    throw new Error("Invitation not found");
-  }
-
-  if (invitation.recipient.toString() !== userId) {
-    throw new Error("Unauthorized to reject this invitation");
-  }
-
-  // Update invitation status to rejected
-  invitation.status = "rejected";
-  await invitation.save();
-
-  // Send notification to the sender
-  await NotificationService.sendInAppNotification(
-    invitation.sender.toString(),
-    `${userId} has rejected your group invitation`
-  );
-
-  logger.info(`User ${userId} rejected the group invitation for group ${invitation.groupId}`);
-};
-
-// Function to cancel a group invitation
-const cancelGroupInvitation = async (
-  invitationId: string,
-  senderId: string
-): Promise<void> => {
-  const invitation = await GroupInvitation.findById(invitationId);
-
-  if (!invitation) {
-    throw new Error("Invitation not found");
-  }
-
-  if (invitation.sender.toString() !== senderId) {
-    throw new Error("Unauthorized to cancel this invitation");
-  }
-
-  // Delete the invitation
-  await invitation.deleteOne();
-
-  // Send cancellation notification to the recipient
-  await NotificationService.sendInAppNotification(
-    invitation.recipient.toString(),
-    `The group invitation for ${invitation.groupId} has been canceled`
-  );
-
-  logger.info(`Group invitation canceled by ${senderId} for group ${invitation.groupId}`);
-};
-
-export default {
-  sendGroupInvitation,
-  acceptGroupInvitation,
-  rejectGroupInvitation,
-  cancelGroupInvitation,
-};
+export default InviteService;

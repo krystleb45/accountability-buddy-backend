@@ -1,209 +1,126 @@
+// src/api/services/RewardService.ts
 import { Types } from "mongoose";
-import Challenge from "../models/Challenge"; // Ensure this is correct
-import { IChallenge } from "../models/Challenge";
-import { rewardChallengeCompletion } from "../utils/rewardUtils"; // Utility to reward when challenge is completed
+import { Reward, IReward } from "../models/Reward";
+import { User, IUser } from "../models/User";
+import Redemption from "../models/Redemption"; // You’ll need a simple model to record redemptions
+import { createError } from "../middleware/errorHandler";
+import { logger } from "../../utils/winstonLogger";
 
-// 🟢 Service to create a new challenge
-export const createChallengeService = async (
-  title: string,
-  description: string,
-  pointsRequired: number,
-  rewardType: string,
-  visibility: "public" | "private" = "public"
-): Promise<IChallenge> => {
-  try {
-    // Create the new challenge
-    const newChallenge = await Challenge.create({
-      title,
+export interface PaginatedRewards {
+  items: IReward[];
+  total: number;
+}
+
+/**
+ * Manage rewards: creation, listing, retrieval, redemption.
+ */
+class RewardService {
+  /**
+   * Create a new reward.
+   */
+  static async createReward(data: {
+    name: string;
+    description: string;
+    pointsRequired: number;
+    rewardType: IReward["rewardType"];
+    imageUrl?: string;
+  }): Promise<IReward> {
+    const { name, description, pointsRequired, rewardType, imageUrl } = data;
+    const existing = await Reward.findOne({ name });
+    if (existing) throw createError("Reward name must be unique", 409);
+
+    const reward = await Reward.create({
+      name,
       description,
       pointsRequired,
       rewardType,
-      visibility,
-      participants: [], // No participants initially
-      status: "ongoing", // Default status
+      imageUrl: imageUrl || "",
+      createdAt: new Date(),
     });
 
-    // Return the created challenge
-    return newChallenge;
-  } catch (error) {
-    console.error("Error creating challenge:", error);
-    throw new Error("Error creating challenge");
+    logger.info(`Reward created: ${reward._id}`);
+    return reward;
   }
-};
 
-// 🟢 Service to fetch public challenges with filters
-export const getPublicChallengesService = async (
-  page: number = 1,
-  pageSize: number = 10,
-  status?: string,
-  visibility?: string
-): Promise<any> => {
-  // Ensure that page and pageSize are numbers
-  const pageNumber = parseInt(page as unknown as string, 10) || 1; // Convert to number
-  const limit = parseInt(pageSize as unknown as string, 10) || 10; // Convert to number
-  
-  const filters: any = { visibility: "public" };
-  if (status) filters.status = status; // Filter by challenge status (ongoing/completed)
-  if (visibility) filters.visibility = visibility; // Filter by visibility (public/private)
-  
-  try {
-    // Retrieve challenges based on filters
-    const challenges = await Challenge.find(filters)
-      .skip((pageNumber - 1) * limit) // Pagination logic
-      .limit(limit) // Limit results to the page size
-      .populate("creator", "username profilePicture") // Only include relevant fields
-      .sort({ createdAt: -1 }); // Sort by creation date
+  /**
+   * List all rewards, optionally filtering by type or by maxPoints.
+   */
+  static async listRewards(opts?: {
+    page?: number;
+    limit?: number;
+    type?: IReward["rewardType"];
+    maxPoints?: number;
+  }): Promise<PaginatedRewards> {
+    const page = Math.max(1, opts?.page || 1);
+    const limit = Math.min(100, Math.max(1, opts?.limit || 20));
+    const filter: Record<string, any> = {};
 
-    return challenges;
-  } catch (error) {
-    console.error("Error fetching challenges:", error);
-    throw new Error("Error fetching challenges");
+    if (opts?.type) filter.rewardType = opts.type;
+    if (opts?.maxPoints != null) filter.pointsRequired = { $lte: opts.maxPoints };
+
+    const [items, total] = await Promise.all([
+      Reward.find(filter)
+        .sort({ pointsRequired: 1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .exec(),
+      Reward.countDocuments(filter),
+    ]);
+
+    return { items, total };
   }
-};
 
-// 🟢 Service to fetch a specific challenge by ID
-export const getChallengeByIdService = async (challengeId: string): Promise<IChallenge> => {
-  try {
-    const challenge = await Challenge.findById(challengeId)
-      .populate("creator", "username profilePicture")
-      .populate("participants.user", "username profilePicture"); // Populate participants as well
-  
-    if (!challenge) throw new Error("Challenge not found");
-  
-    return challenge;
-  } catch (error) {
-    console.error("Error fetching challenge:", error);
-    throw new Error("Error fetching challenge");
+  /**
+   * Fetch a single reward by ID.
+   */
+  static async getById(rewardId: string): Promise<IReward> {
+    if (!Types.ObjectId.isValid(rewardId)) {
+      throw createError("Invalid reward ID", 400);
+    }
+    const reward = await Reward.findById(rewardId);
+    if (!reward) throw createError("Reward not found", 404);
+    return reward;
   }
-};
 
-// 🟢 Service to allow a user to join a challenge
-export const joinChallengeService = async (userId: string, challengeId: string): Promise<IChallenge> => {
-  try {
-    const challenge = await Challenge.findById(challengeId);
-    if (!challenge) throw new Error("Challenge not found");
-
-    const userObjectId = new Types.ObjectId(userId); // Ensure ObjectId is correct
-  
-    // Check if user is already a participant
-    if (challenge.participants.some((p) => p.user.equals(userObjectId))) {
-      throw new Error("User is already a participant");
+  /**
+   * Redeem a reward for a user: checks points, deducts, records redemption.
+   */
+  static async redeemReward(userId: string, rewardId: string): Promise<{
+    user: IUser;
+    reward: IReward;
+    remainingPoints: number;
+  }> {
+    if (!Types.ObjectId.isValid(userId) || !Types.ObjectId.isValid(rewardId)) {
+      throw createError("Invalid user or reward ID", 400);
     }
 
-    // Add user to participants list
-    challenge.participants.push({
-      user: userObjectId, // Store the ObjectId, not the IUser object
-      progress: 0,
-      joinedAt: new Date(),
+    const [user, reward] = await Promise.all([
+      User.findById(userId),
+      Reward.findById(rewardId),
+    ]);
+
+    if (!user) throw createError("User not found", 404);
+    if (!reward) throw createError("Reward not found", 404);
+
+    const current = user.points ?? 0;
+    if (current < reward.pointsRequired) {
+      throw createError("Insufficient points", 400);
+    }
+
+    // Deduct points
+    user.points = current - reward.pointsRequired;
+    await user.save();
+
+    // Record redemption
+    await Redemption.create({
+      user: user._id,
+      reward: reward._id,
+      redeemedAt: new Date(),
     });
 
-    await challenge.save();
-
-    return challenge;
-  } catch (error: unknown) {
-    if (error instanceof Error) {
-      // Now TypeScript knows `error` is an instance of `Error`
-      console.error("Error:", error.message);
-      throw new Error(error.message || "An error occurred");
-    } else {
-      // Handle the case where error is not an instance of `Error`
-      console.error("An unknown error occurred");
-      throw new Error("An unknown error occurred");
-    }
+    logger.info(`User ${userId} redeemed reward ${rewardId}`);
+    return { user, reward, remainingPoints: user.points };
   }
-};
+}
 
-// 🟢 Service to allow a user to leave a challenge
-export const leaveChallengeService = async (userId: string, challengeId: string): Promise<IChallenge> => {
-  try {
-    const challenge = await Challenge.findById(challengeId);
-    if (!challenge) throw new Error("Challenge not found");
-  
-    const userObjectId = new Types.ObjectId(userId);
-  
-    const participantIndex = challenge.participants.findIndex((p) =>
-      p.user.equals(userObjectId)
-    );
-
-    if (participantIndex === -1) {
-      throw new Error("User is not a participant of this challenge");
-    }
-
-    // Remove user from participants list
-    challenge.participants.splice(participantIndex, 1);
-    await challenge.save();
-
-    return challenge;
-  } catch (error: unknown) {
-    if (error instanceof Error) {
-      // Now TypeScript knows `error` is an instance of `Error`
-      console.error("Error:", error.message);
-      throw new Error(error.message || "An error occurred");
-    } else {
-      // Handle the case where error is not an instance of `Error`
-      console.error("An unknown error occurred");
-      throw new Error("An unknown error occurred");
-    }
-  }
-};
-
-// 🟢 Service to mark challenge as completed and reward the participants
-export const completeChallengeService = async (challengeId: string): Promise<IChallenge> => {
-  try {
-    const challenge = await Challenge.findById(challengeId);
-      
-    if (!challenge) throw new Error("Challenge not found");
-      
-    challenge.status = "completed"; // Mark the challenge as completed
-    await challenge.save();
-    
-    // Reward all participants of the challenge
-    for (let {} of challenge.participants) {
-      await rewardChallengeCompletion(challenge);    }
-    
-    return challenge;
-  } catch (error: unknown) {
-    if (error instanceof Error) {
-      console.error("Error:", error.message);
-      throw new Error(error.message || "An error occurred");
-    } else {
-      console.error("An unknown error occurred");
-      throw new Error("An unknown error occurred");
-    }
-  }
-};
-  
-  
-
-// 🟢 Service to fetch challenges with pagination
-export const fetchChallengesWithPaginationService = async (
-  page: number = 1,  // Default value is a number
-  pageSize: number = 10  // Default value is a number
-): Promise<any[]> => {
-  // Convert page and pageSize from query to numbers, if needed
-  const pageNumber = parseInt(page as unknown as string, 10) || 1;  // Parse as number
-  const limit = parseInt(pageSize as unknown as string, 10) || 10;  // Parse as number
-  
-  try {
-    const challenges = await Challenge.find()
-      .skip((pageNumber - 1) * limit)
-      .limit(limit)
-      .populate("creator", "username profilePicture")
-      .sort({ createdAt: -1 });
-
-    return challenges;
-  } catch (error) {
-    console.error("Error fetching challenges:", error);
-    throw new Error("Error fetching challenges");
-  }
-};
-
-export default {
-  createChallengeService,
-  getPublicChallengesService,
-  getChallengeByIdService,
-  joinChallengeService,
-  leaveChallengeService,
-  completeChallengeService,
-  fetchChallengesWithPaginationService,
-};
+export default RewardService;

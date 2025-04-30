@@ -8,7 +8,8 @@ export interface INewsletter extends Document {
   email: string;
   subscribedAt: Date;
   status: "subscribed" | "unsubscribed";
-  unsubscribeToken: string;
+  // make this optional:
+  unsubscribeToken?: string;
   createdAt: Date;
   updatedAt: Date;
 

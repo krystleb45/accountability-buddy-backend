@@ -1,83 +1,98 @@
-import Streak from "../models/Streak";
+// src/api/services/LeaderboardService.ts
+import Leaderboard from "../models/Leaderboard";
+import Goal from "../models/Goal";
+import Redis from "ioredis";
+import { SortOrder } from "mongoose";
 import { logger } from "../../utils/winstonLogger";
 
-/**
- * Calculate the leaderboard rankings based on the streak count of users.
- * This method fetches all users' streaks and sorts them based on streak count in descending order.
- * 
- * @param {number} limit - The number of leaderboard entries to return.
- * @param {number} page - The page number for pagination.
- * @returns {Promise<{streaks: Document[], totalPages: number, totalEntries: number}>} - The leaderboard data with pagination.
- */
-export const calculateLeaderboard = async (
-  limit: number,
-  page: number
-): Promise<{
-  streaks: Document[],
-  totalPages: number,
-  totalEntries: number
-}> => {
-  try {
-    const streaks = await Streak.find()
-      .sort({ streakCount: -1, lastCheckIn: -1 }) // Improved sorting
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .lean() // Optimize performance
-      .populate("user", "username profilePicture");
+const redis = new Redis(process.env.REDIS_URL || "redis://localhost:6379");
 
-    const totalEntries = await Streak.countDocuments();
+// default sort: highest goals → milestones → points
+const SORT_CRITERIA: Record<string, SortOrder> = {
+  completedGoals: -1,
+  completedMilestones: -1,
+  totalPoints: -1,
+};
+
+export interface PageResult<T> {
+  data: T[];
+  pagination: { totalEntries: number; currentPage: number; totalPages: number };
+}
+
+export default class LeaderboardService {
+  static async fetchPage(limit: number, page: number): Promise<PageResult<any>> {
+    const cacheKey = `leaderboard:${page}:${limit}`;
+    const ttl = 60 * 60; // 1h
+
+    // try cache
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      logger.info(`Leaderboard cache hit ${cacheKey}`);
+      const data = JSON.parse(cached);
+      return {
+        data,
+        pagination: { totalEntries: 0, currentPage: page, totalPages: 0 },
+      };
+    }
+
+    // query DB
+    const [entries, totalEntries] = await Promise.all([
+      Leaderboard.find()
+        .sort(SORT_CRITERIA)
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .populate("user", "username profilePicture"),
+      Leaderboard.countDocuments(),
+    ]);
     const totalPages = Math.ceil(totalEntries / limit);
 
+    // cache
+    void redis.setex(cacheKey, ttl, JSON.stringify(entries));
+
+    logger.info(`Leaderboard cache set ${cacheKey}`);
     return {
-      streaks: streaks as unknown as Document[],
-      totalPages,
-      totalEntries,
+      data: entries,
+      pagination: { totalEntries, currentPage: page, totalPages },
     };
-  } catch (error) {
-    logger.error(`❌ Error calculating leaderboard: ${(error as Error).message}`);
-    throw new Error("Error calculating leaderboard");
   }
-};
 
+  static async getUserPosition(userId: string): Promise<{ position: number; entry: any }> {
+    const entries: any[] = await Leaderboard.find()
+      .sort(SORT_CRITERIA)
+      .populate("user", "username profilePicture");
 
-/**
- * Update the leaderboard entry for a user when their streak count changes.
- * 
- * @param {string} userId - The user ID to update.
- * @param {number} newStreakCount - The new streak count for the user.
- * @returns {Promise<void>} - A promise that resolves once the leaderboard entry is updated.
- */
-export const updateLeaderboard = async (userId: string, newStreakCount: number): Promise<void> => {
-  try {
-    // Find the streak entry for the user
-    const streak = await Streak.findOne({ user: userId });
-  
-    if (streak) {
-      // Update the streak count and save the changes
-      streak.streakCount = newStreakCount;
-      await streak.save();
-      logger.info(`✅ Leaderboard updated for user: ${userId} with streak count: ${newStreakCount}`);
-    } else {
-      logger.warn(`⚠️ No streak found for user: ${userId}`);
-    }
-  } catch (error) {
-    logger.error(`❌ Error updating leaderboard for user ${userId}: ${(error as Error).message}`);
-    throw new Error("Error updating leaderboard");
+    const idx = entries.findIndex((e) => e.user._id.toString() === userId);
+    if (idx === -1) throw new Error("User not on leaderboard");
+
+    return { position: idx + 1, entry: entries[idx] };
   }
-};
 
-/**
- * Reset the leaderboard for all users (this will reset their streak counts).
- * 
- * @returns {Promise<void>} - A promise that resolves once the leaderboard is reset for all users.
- */
-export const resetLeaderboard: () => Promise<void> = async () => {
-  try {
-    // Reset all streaks to zero
-    await Streak.updateMany({}, { streakCount: 0, lastCheckIn: null });
-    logger.info(" Leaderboard reset for all users");
-  } catch (error) {
-    logger.error(` Error resetting leaderboard: ${(error as Error).message}`);
-    throw new Error("Error resetting leaderboard");
+  static async resetAll(): Promise<void> {
+    await Leaderboard.deleteMany();
+    const keys = await redis.keys("leaderboard:*");
+    if (keys.length) await redis.del(...keys);
+    logger.info("Leaderboard reset and cache cleared");
   }
-};
+
+  static async updateForUser(userId: string): Promise<void> {
+    // recalc aggregates
+    const goals = await Goal.find({ user: userId, status: "completed" });
+    const completedGoals = goals.length;
+    const completedMilestones = goals.reduce(
+      (sum, g) => sum + (g.milestones?.filter((m) => m.completed).length || 0),
+      0
+    );
+    const totalPoints = goals.reduce((sum, g) => sum + (g.points || 0), 0);
+
+    await Leaderboard.findOneAndUpdate(
+      { user: userId },
+      { completedGoals, completedMilestones, totalPoints },
+      { upsert: true, new: true }
+    );
+
+    // clear cache
+    const keys = await redis.keys("leaderboard:*");
+    if (keys.length) await redis.del(...keys);
+    logger.info(`Leaderboard entry updated for ${userId}`);
+  }
+}

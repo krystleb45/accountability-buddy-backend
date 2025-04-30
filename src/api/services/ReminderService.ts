@@ -1,121 +1,123 @@
+// src/api/services/ReminderService.ts
 import type { ScheduledTask } from "node-cron";
 import cron from "node-cron";
-import type { IReminder } from "../models/Reminder";
-import { Reminder } from "../models/Reminder";
+import { Reminder, IReminder } from "../models/Reminder";
 import NotificationService from "./NotificationService";
+import { sendEmail } from "./emailService";
 import LoggingService from "./LoggingService";
 
-/**
- * Function to check and send reminders that are due
- */
+/** Send due reminders now, then delete them */
 export const checkReminders = async (): Promise<void> => {
+  const now = new Date();
+  let due: IReminder[];
   try {
-    const now = new Date();
-    const reminders = await Reminder.find({ remindAt: { $lte: now } }); // Find all due reminders
+    due = await Reminder.find({ remindAt: { $lte: now } });
+  } catch (err) {
+    return void LoggingService.logError(
+      "Failed to query due reminders",
+      err as Error
+    );
+  }
 
-    for (const reminder of reminders) {
-      try {
-        // Send in-app notification
-        await NotificationService.sendInAppNotification(reminder.user.toString(), reminder.message);
+  for (const rem of due) {
+    const userId = rem.user.toString();
+    const message = rem.message;
 
-        // Optionally send an email notification
-        if (reminder.reminderType === "email" && reminder.email) {
-          await NotificationService.sendEmail(reminder.email, "Reminder", reminder.message);
-        }
-
-        // Remove the reminder after sending
-        await Reminder.findByIdAndDelete(reminder._id);
-        LoggingService.logInfo(`Reminder sent and removed for user: ${reminder.user}`);
-      } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : "Unknown error";
-        LoggingService.logError("Error sending reminder", new Error(errorMessage), { reminder });
+    try {
+      // In-app
+      await NotificationService.sendInAppNotification(
+        "system",
+        userId,
+        message
+      );
+      // Email
+      if (rem.reminderType === "email" && rem.email) {
+        await sendEmail(rem.email, "Reminder", message);
       }
+      // remove
+      await Reminder.findByIdAndDelete(rem.id);
+      void LoggingService.logInfo(`Sent & removed reminder ${rem.id}`, { userId });
+    } catch (err) {
+      void LoggingService.logError(
+        "Error sending reminder",
+        err as Error,
+        { reminderId: rem.id }
+      );
     }
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    LoggingService.logError("Error checking and sending reminders", new Error(errorMessage));
   }
 };
 
-/**
- * Function to create a cron schedule string from a Date object
- * @param {Date} date - The date for the reminder
- * @returns {string} - The cron schedule string
- */
-const getCronScheduleFromDate = (date: Date): string => {
-  const seconds = date.getSeconds();
-  const minutes = date.getMinutes();
-  const hours = date.getHours();
-  const dayOfMonth = date.getDate();
-  const month = date.getMonth() + 1; // Month in cron is 1-12
-  const dayOfWeek = "*"; // Run on any day of the week
-
-  return `${seconds} ${minutes} ${hours} ${dayOfMonth} ${month} ${dayOfWeek}`;
+const toCronExpr = (date: Date): string => {
+  return [
+    date.getSeconds(),
+    date.getMinutes(),
+    date.getHours(),
+    date.getDate(),
+    date.getMonth() + 1,
+    "*",
+  ].join(" ");
 };
 
-/**
- * Function to schedule a reminder
- * @param {IReminder} reminder - The reminder object from the database
- * @returns {ScheduledTask | null} - The scheduled task or null if scheduling failed
- */
-export const scheduleReminder = async (reminder: IReminder): Promise<ScheduledTask | null> => {
+/** Schedule one cron task for a reminder */
+export const scheduleReminderTask = async (
+  rem: IReminder
+): Promise<ScheduledTask | null> => {
+  const dt = new Date(rem.remindAt);
+  if (isNaN(dt.getTime())) {
+    void LoggingService.logError("Invalid remindAt date", new Error());
+    return null;
+  }
+
+  const expr = toCronExpr(dt);
   try {
-    const reminderDate = new Date(reminder.remindAt);
-
-    if (isNaN(reminderDate.getTime())) {
-      throw new Error("Invalid reminder date");
-    }
-
-    // Generate a cron expression based on the reminder date
-    const cronSchedule = getCronScheduleFromDate(reminderDate);
-
-    // Schedule the job using node-cron
     const task = cron.schedule(
-      cronSchedule,
+      expr,
       async () => {
         try {
-          // Send in-app notification
-          await NotificationService.sendInAppNotification(reminder.user.toString(), reminder.message);
+          const userId = rem.user.toString();
+          const message = rem.message;
 
-          // Optionally send an email notification
-          if (reminder.reminderType === "email" && reminder.email) {
-            await NotificationService.sendEmail(reminder.email, "Reminder", reminder.message);
+          await NotificationService.sendInAppNotification(
+            "system",
+            userId,
+            message
+          );
+
+          if (rem.reminderType === "email" && rem.email) {
+            await sendEmail(rem.email, "Reminder", message);
           }
 
-          // Log the reminder event
-          LoggingService.logInfo(`Reminder triggered for user: ${reminder.user}`);
-
-          // Remove the reminder from the database after it's triggered
-          await Reminder.findByIdAndDelete(reminder._id);
-        } catch (error: unknown) {
-          const errorMessage = error instanceof Error ? error.message : "Unknown error";
-          LoggingService.logError("Error during scheduled reminder execution", new Error(errorMessage), { reminder });
+          await Reminder.findByIdAndDelete(rem.id);
+          void LoggingService.logInfo(`Cron fired for reminder ${rem.id}`);
+        } catch (err) {
+          void LoggingService.logError(
+            "Error in cron reminder",
+            err as Error,
+            { reminderId: rem.id }
+          );
         }
       },
-      { scheduled: true, timezone: process.env.TIMEZONE || "UTC" }, // Set timezone if needed
+      { scheduled: true, timezone: process.env.TIMEZONE || "UTC" }
     );
 
-    LoggingService.logInfo(`Reminder scheduled for user: ${reminder.user} at ${reminder.remindAt}`);
+    void LoggingService.logInfo(`Scheduled reminder ${rem.id} at ${rem.remindAt}`);
     return task;
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    LoggingService.logError("Error scheduling reminder", new Error(errorMessage), { reminder });
+  } catch (err) {
+    void LoggingService.logError(
+      "Failed to schedule reminder",
+      err as Error,
+      { reminderId: rem.id }
+    );
     return null;
   }
 };
 
-/**
- * Function to cancel a scheduled reminder task
- * @param {ScheduledTask} task - The cron task to cancel
- */
+/** Cancel a scheduled task */
 export const cancelReminderTask = (task: ScheduledTask): void => {
   try {
-    task.stop(); // Stop the cron task
-    LoggingService.logInfo("Scheduled reminder task canceled");
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    LoggingService.logError("Error canceling scheduled reminder task", new Error(errorMessage));
+    task.stop();
+    void LoggingService.logInfo("Canceled scheduled reminder task");
+  } catch (err) {
+    void LoggingService.logError("Error canceling reminder task", err as Error);
   }
 };
-
-export default { checkReminders, scheduleReminder, cancelReminderTask };

@@ -1,115 +1,83 @@
+// src/api/services/MiddlewareService.ts
 import type { Request, Response, NextFunction } from "express";
 import type { JwtPayload } from "jsonwebtoken";
 import jwt from "jsonwebtoken";
-import { CustomError } from "../services/errorHandler"; // Centralized error handling
-import { IUser, User } from "../models/User"; // User model for authorization
+import { createError, errorHandler as defaultErrorHandler } from "../middleware/errorHandler";
+import { IUser, User } from "../models/User";
 import { logger } from "../../utils/winstonLogger";
+import type Joi from "joi";
 
-export const MiddlewareService = {
+declare global {
+  namespace Express {
+    interface Request {
+      user?: IUser;
+    }
+  }
+}
+
+export default class MiddlewareService {
   /**
-   * Authenticate a user via JWT.
-   * Verifies the token, loads the full IUser, and attaches it to req.user.
+   * Verify a Bearer JWT, look up the user, attach to req.user.
    */
-  async authenticateToken(
+  static authenticateToken = async (
     req: Request,
     _res: Response,
     next: NextFunction
-  ): Promise<void> {
-    const token = req.headers.authorization?.split(" ")[1];
-    if (!token) {
-      return next(new CustomError("Authentication token missing", 401));
+  ): Promise<void> => {
+    const header = req.headers.authorization;
+    if (!header || !header.startsWith("Bearer ")) {
+      return next(createError("Authentication token missing", 401));
     }
-
+    const token = header.slice(7);
     try {
-      const secretKey = process.env.JWT_SECRET!;
-      const payload = jwt.verify(token, secretKey) as JwtPayload & { userId: string };
-
-      // 1) Lookup the full user document (minus password)
-      const userDoc = await User.findById(payload.userId)
-        .select("-password")
-        .exec();
-
-      if (!userDoc) {
-        return next(new CustomError("User not found", 404));
+      const secret = process.env.JWT_SECRET!;
+      const payload = jwt.verify(token, secret) as JwtPayload & { userId: string };
+      const user = await User.findById(payload.userId).select("-password").exec();
+      if (!user) {
+        return next(createError("User not found", 404));
       }
-
-      // 2) Attach it as IUser
-      req.user = userDoc as IUser;
-
-      return next();
+      req.user = user;
+      next();
     } catch (err) {
       logger.error("Token authentication failed:", err);
-      return next(new CustomError("Invalid or expired token", 403));
+      next(createError("Invalid or expired token", 403));
     }
-  },
+  };
 
   /**
-   * Authorize a user based on roles.
-   * Checks if the user has the required role(s) to access a resource.
-   * @param roles - Allowed roles for the resource.
-   * @returns Middleware function.
+   * Only allow users whose .role is in `roles`.
    */
-  authorizeRoles(roles: string[]) {
+  static authorizeRoles = (...roles: string[]) => {
     return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
-      try {
-        const user = await User.findById(req.user?.id);
-        if (!user) {
-          return next(new CustomError("User not found", 404));
-        }
-
-        if (!roles.includes(user.role)) {
-          return next(new CustomError("Access denied", 403));
-        }
-
-        next();
-      } catch (error) {
-        logger.error("Authorization failed:", error);
-        next(new CustomError("Authorization error", 500));
+      const id = req.user?.id;
+      if (!id) {
+        return next(createError("Not authenticated", 401));
       }
-    };
-  },
-
-  /**
-   * Validate request data against a schema.
-   * Uses a validation library like Joi or Zod.
-   * @param schema - Validation schema.
-   * @returns Middleware function.
-   */
-  validateRequest(schema: any) {
-    return (req: Request, _res: Response, next: NextFunction): void => {
-      const { error } = schema.validate(req.body, { abortEarly: false });
-      if (error) {
-        const errorMessage = error.details.map((detail: any) => detail.message).join(", ");
-        logger.error("Validation error:", errorMessage);
-        return next(new CustomError(`Validation error: ${errorMessage}`, 400));
+      const user = await User.findById(id).select("role").exec();
+      if (!user || !roles.includes(user.role)) {
+        return next(createError("Access denied", 403));
       }
       next();
     };
-  },
+  };
 
   /**
-   * Error handling middleware.
-   * Catches and formats errors for the client.
-   * @param err - Error object.
-   * @param req - Express Request object.
-   * @param res - Express Response object.
-   * @param next - Express NextFunction.
+   * Validate req.body against a Joi schema.
    */
-  errorHandler(
-    err: CustomError | Error,
-    _req: Request,
-    res: Response,
-    _next: NextFunction,
-  ): void {
-    const statusCode = (err as CustomError).statusCode || 500;
-    const message = err.message || "Internal Server Error";
+  static validateRequest = (schema: Joi.ObjectSchema) => {
+    return (req: Request, _res: Response, next: NextFunction): void => {
+      const { error } = schema.validate(req.body, { abortEarly: false });
+      if (error) {
+        const msg = error.details.map(d => d.message).join(", ");
+        logger.warn("Validation failed:", msg);
+        return next(createError(`Validation error: ${msg}`, 400));
+      }
+      next();
+    };
+  };
 
-    logger.error(`Error: ${message} | StatusCode: ${statusCode}`);
-    res.status(statusCode).json({
-      success: false,
-      message,
-    });
-  },
-};
-
-export default MiddlewareService;
+  /**
+   * Central error‐handler to plug into express last.
+   */
+  static errorHandler = defaultErrorHandler;
+}

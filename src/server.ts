@@ -21,6 +21,7 @@ import morgan from "morgan";
 import bodyParser from "body-parser";
 
 import { stripeRawBodyParser } from "./api/middleware/stripeWebhookParser";
+import { handleStripeWebhook } from "./api/controllers/StripeWebhookController";  // ← make sure to import your handler
 import { authenticateJwt } from "./api/middleware/authJwt";
 import notFoundMiddleware from "./api/middleware/notFoundMiddleware";
 import { errorHandler } from "./api/middleware/errorHandler";
@@ -29,7 +30,8 @@ import setupSwagger from "./config/swaggerConfig";
 import { applySecurityMiddlewares } from "./config/securityConfig";
 import { logger } from "./utils/winstonLogger";
 
-// ——— Routes —————————————————————————————
+// ——— Import your routers —————————————————————
+import healthRoutes from "./api/routes/healthRoutes";
 import authRoutes from "./api/routes/auth";
 import userRoutes from "./api/routes/user";
 import supportRoutes from "./api/routes/support";
@@ -59,61 +61,75 @@ import challengeRoutes from "./api/routes/challenge";
 import feedRoutes from "./api/routes/feed";
 import progressRoutes from "./api/routes/progress";
 import searchRoutes from "./api/routes/search";
+import rateLimitRoutes from "./api/routes/rateLimit";
+import catchAsync from "./api/utils/catchAsync";
+
+// Extend NodeJS global with `io`
+declare global {
+  namespace NodeJS {
+    interface Global {
+      io: Server;
+    }
+  }
+}
 
 async function startServer(): Promise<void> {
   try {
+    // ——— Load secrets & connect to MongoDB —————————————————
     await loadSecretsFromAWS();
     await mongoose.connect(process.env.MONGO_URI!);
 
+    // ——— Create Express + HTTP + Socket.io ——————————————
     const app: Application = express();
     const httpServer = createServer(app);
 
-    // Socket.IO
     global.io = new Server(httpServer, {
       cors: { origin: process.env.ALLOWED_ORIGINS?.split(",") },
     });
 
-    // Security & sanitization
+    // Put each socket into a room by its userId
+    global.io.on("connection", (socket) => {
+      const userId = socket.handshake.auth.userId;
+      if (typeof userId === "string") {
+        void socket.join(userId);  // ⚠️ mark promise as ignored
+        logger.info(`Socket ${socket.id} joined room ${userId}`);
+      }
+    });
+
+    // ——— SECURITY & SANITIZATION ——————————————————————
     app.use(helmet());
     applySecurityMiddlewares(app);
     app.use(mongoSanitize());
     app.use(xssClean());
     app.use(hpp());
-    app.use(
-      rateLimit({
-        windowMs: 15 * 60e3,
-        max: 100,
-      })
-    );
-    app.use(
-      cors({
-        origin: process.env.ALLOWED_ORIGINS?.split(","),
-        credentials: true,
-        methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-      })
+    app.use(rateLimit({ windowMs: 15 * 60e3, max: 100 }));
+    app.use(cors({
+      origin: process.env.ALLOWED_ORIGINS?.split(","),
+      credentials: true,
+      methods: ["GET","POST","PUT","DELETE","OPTIONS"],
+    }));
+
+    // ——— STRIPE WEBHOOK (raw body) ————————————————————
+    app.post(
+      "/webhooks/stripe",
+      stripeRawBodyParser,
+      catchAsync((req, res) => handleStripeWebhook(req, res, () => {}))
     );
 
-    // Stripe webhook (raw body)
-    app.post("/webhooks/stripe", stripeRawBodyParser /* handler */);
-
-    // Body parsers & compression
+    // ——— BODY PARSERS & COMPRESSION ————————————————————
     app.use(bodyParser.json());
     app.use(bodyParser.urlencoded({ extended: true }));
     app.use(compression());
 
-    // Request logging
-    app.use(
-      morgan("dev", {
-        stream: {
-          write: (msg) => logger.info(msg.trim()),
-        },
-      })
-    );
+    // ——— REQUEST LOGGING —————————————————————————
+    app.use(morgan("dev", {
+      stream: { write: (msg) => logger.info(msg.trim()) }
+    }));
 
-    // Public routes
+    // ——— PUBLIC ROUTES ——————————————————————————
     app.use("/api/auth", authRoutes);
 
-    // Protected routes
+    // ——— PROTECTED ROUTES ————————————————————————
     app.use("/api", authenticateJwt);
     app.use("/api/users", userRoutes);
     app.use("/api/support", supportRoutes);
@@ -143,20 +159,25 @@ async function startServer(): Promise<void> {
     app.use("/api/feed", feedRoutes);
     app.use("/api/progress", progressRoutes);
     app.use("/api/search", searchRoutes);
+    app.use("/api", healthRoutes);
+    app.use("/api/rate-limit", rateLimitRoutes);
 
-    // 404 handler
+
+    // ——— 404 handler —————————————————————————————
     app.use(notFoundMiddleware);
 
-    // Main error handler (must come last)
+    // ——— Main error handler —————————————————————————
     app.use(errorHandler);
 
-    // Swagger UI
+    // ——— Swagger UI ————————————————————————————
     setupSwagger(app);
 
+    // ——— Start listening ——————————————————————————
     const PORT = parseInt(process.env.PORT || "5000", 10);
     httpServer.listen(PORT, () => {
       logger.info(`Server running on port ${PORT}`);
     });
+
   } catch (err) {
     logger.error("Fatal startup error:", err);
     process.exit(1);

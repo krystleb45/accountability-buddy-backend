@@ -1,178 +1,187 @@
+// src/api/services/SubscriptionService.ts
 import Stripe from "stripe";
 import { logger } from "../../utils/winstonLogger";
 import { User } from "../models/User";
-import Subscription from "../models/Subscription"; // Assume a Subscription model exists
+import Subscription, { ISubscription } from "../models/Subscription";
 import { CustomError } from "./errorHandler";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
-  apiVersion: "2025-02-24.acacia", // Update to match the required version
+  apiVersion: "2025-02-24.acacia",
 });
-  
 
-const SubscriptionManagementService = {
-  /**
-   * Create a new subscription for a user.
-   * @param userId - The ID of the user subscribing.
-   * @param planId - The Stripe price ID of the subscription plan.
-   * @returns The created subscription details.
-   */
-  async createSubscription(userId: string, planId: string): Promise<any> {
-    try {
-      const user = await User.findById(userId);
-      if (!user) throw new CustomError("User not found", 404);
+export type UserStatus = "trial" | "active" | "expired";
 
-      // Ensure the user has a Stripe customer ID
-      if (!user.stripeCustomerId) {
-        const customer = await stripe.customers.create({
-          email: user.email,
-          name: user.get("name"), // Assuming the 'name' field is stored in the MongoDB document
-        });
-        user.stripeCustomerId = customer.id;
-        await user.save();
-      }
+/** Helper: map raw Stripe status → your own UserStatus */
+function mapStatus(stripeStatus: string): UserStatus {
+  if (stripeStatus === "active") return "active";
+  if (stripeStatus === "trialing" || stripeStatus === "trial") return "trial";
+  return "expired";
+}
 
-      // Create the subscription
-      const subscription = await stripe.subscriptions.create({
-        customer: user.stripeCustomerId,
-        items: [{ price: planId }],
-        payment_behavior: "default_incomplete",
-        expand: ["latest_invoice.payment_intent"],
-      });
+/** Helper: map a Stripe price ID → your own plan name */
+function mapPriceToPlan(priceId: string): ISubscription["plan"] {
+  switch (priceId) {
+    case process.env.STRIPE_PRICE_BASIC:   return "basic";
+    case process.env.STRIPE_PRICE_STANDARD:return "standard";
+    case process.env.STRIPE_PRICE_PREMIUM: return "premium";
+    default:                                return "free-trial";
+  }
+}
 
-      // Save subscription details to the database
-      const newSubscription = new Subscription({
-        userId,
-        stripeSubscriptionId: subscription.id,
-        status: subscription.status,
-        planId,
-        currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-      });
-      await newSubscription.save();
+export default class SubscriptionService {
+  /** Get the user’s currently active subscription from the DB */
+  static async getCurrent(userId: string): Promise<ISubscription | null> {
+    const user = await User.findById(userId).populate("subscriptions");
+    if (!user) throw new CustomError("User not found", 404);
 
-      logger.info(`Subscription created successfully for user ${user.email}`);
-      return subscription;
-    } catch (error) {
-      logger.error("Error creating subscription:", error);
-      throw new CustomError("Failed to create subscription", 500);
-    }
-  },
+    const active = (user.subscriptions as ISubscription[]).find(s => s.isActive);
+    return active || null;
+  }
 
-  /**
-   * Cancel a subscription for a user.
-   * @param userId - The ID of the user.
-   * @param subscriptionId - The Stripe subscription ID to cancel.
-   * @returns The canceled subscription details.
-   */
-  async cancelSubscription(
+  /** Create a Stripe Checkout session */
+  static async createCheckoutSession(
     userId: string,
-    subscriptionId: string,
-  ): Promise<any> {
-    try {
-      const userSubscription = await Subscription.findOne({
-        userId,
-        stripeSubscriptionId: subscriptionId,
-      });
-  
-      if (!userSubscription) {
-        throw new CustomError("Subscription not found", 404);
-      }
-  
-      // Update the subscription to cancel it
-      const canceledSubscription = await stripe.subscriptions.update(
-        subscriptionId,
-        { cancel_at_period_end: true }, // Cancels the subscription at the end of the current period
-      );
-  
-      // Update subscription status in the database
-      userSubscription.status = "canceled";
-      await userSubscription.save();
-  
-      logger.info(`Subscription canceled successfully for user ID ${userId}`);
-      return canceledSubscription;
-    } catch (error) {
-      logger.error("Error canceling subscription:", error);
-      throw new CustomError("Failed to cancel subscription", 500);
+    priceId: string,
+    successUrl: string,
+    cancelUrl: string
+  ): Promise<Stripe.Checkout.Session> {
+    const user = await User.findById(userId);
+    if (!user) throw new CustomError("User not found", 404);
+
+    if (!user.stripeCustomerId) {
+      const cust = await stripe.customers.create({ email: user.email });
+      user.stripeCustomerId = cust.id;
+      await user.save();
     }
-  },
 
-  /**
-   * Upgrade or downgrade a subscription.
-   * @param subscriptionId - The Stripe subscription ID to update.
-   * @param newPlanId - The new Stripe price ID.
-   * @returns The updated subscription details.
-   */
-  async updateSubscription(
-    subscriptionId: string,
-    newPlanId: string,
-  ): Promise<any> {
+    return stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      mode: "subscription",
+      customer: user.stripeCustomerId,
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      client_reference_id: userId,
+    });
+  }
+
+  /** Change the plan on an existing active subscription */
+  static async changePlan(
+    userId: string,
+    newPriceId: string
+  ): Promise<Stripe.Subscription> {
+    const existing = await this.getCurrent(userId);
+    if (!existing || !existing.stripeSubscriptionId) {
+      throw new CustomError("No active subscription", 404);
+    }
+
+    const stripeSub = await stripe.subscriptions.retrieve(existing.stripeSubscriptionId);
+    const updated = await stripe.subscriptions.update(stripeSub.id, {
+      items: [{ id: stripeSub.items.data[0].id, price: newPriceId }],
+    });
+
+    // store the raw priceId
+    existing.priceId = newPriceId;
+    // also update your own plan enum
+    existing.plan = mapPriceToPlan(newPriceId);
+    existing.status = mapStatus(updated.status);
+    existing.currentPeriodEnd = new Date(updated.current_period_end * 1000);
+    await existing.save();
+
+    return updated;
+  }
+
+  /** Cancel (and optionally refund) the current subscription */
+  static async cancel(
+    userId: string,
+    refund: boolean
+  ): Promise<void> {
+    const existing = await this.getCurrent(userId);
+    if (!existing || !existing.stripeSubscriptionId) {
+      throw new CustomError("No active subscription", 404);
+    }
+
+    const canceled = await stripe.subscriptions.cancel(existing.stripeSubscriptionId);
+    existing.isActive = false;
+    existing.status = "expired";
+    existing.subscriptionEnd = canceled.canceled_at
+      ? new Date(canceled.canceled_at * 1000)
+      : new Date();
+    await existing.save();
+
+    if (refund && canceled.latest_invoice) {
+      const inv = await stripe.invoices.retrieve(canceled.latest_invoice as string);
+      if (inv.payment_intent) {
+        await stripe.refunds.create({ payment_intent: inv.payment_intent.toString() });
+      }
+    }
+  }
+
+  /** Handle Stripe webhook — keeps your DB in sync */
+  static async handleWebhook(
+    rawBody: Buffer,
+    sig: string
+  ): Promise<void> {
+    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET || "";
+    let event: Stripe.Event;
     try {
-      const updatedSubscription = await stripe.subscriptions.update(
-        subscriptionId,
-        {
-          items: [
-            {
-              id: (await stripe.subscriptions.retrieve(subscriptionId))
-                .items.data[0].id,
-              price: newPlanId,
-            },
-          ],
-        },
-      );
+      event = stripe.webhooks.constructEvent(rawBody, sig, endpointSecret);
+    } catch (err) {
+      logger.error("Invalid Stripe webhook signature", err);
+      throw err;
+    }
 
-      // Update the database with new subscription details
-      const userSubscription = await Subscription.findOne({
-        stripeSubscriptionId: subscriptionId,
-      });
-      if (userSubscription) {
-        userSubscription.plan = newPlanId;
-        userSubscription.status = updatedSubscription.status;
-        userSubscription.currentPeriodEnd = new Date(
-          updatedSubscription.current_period_end * 1000,
+    switch (event.type) {
+      case "customer.subscription.created":
+      case "customer.subscription.updated": {
+        const sub = event.data.object as Stripe.Subscription;
+        await Subscription.findOneAndUpdate(
+          { stripeSubscriptionId: sub.id },
+          {
+            stripeSubscriptionId: sub.id,
+            priceId: sub.items.data[0].price.id,
+            plan: mapPriceToPlan(sub.items.data[0].price.id),
+            status: mapStatus(sub.status),
+            isActive: ["active", "trialing"].includes(sub.status),
+            currentPeriodEnd: new Date(sub.current_period_end * 1000),
+            user: sub.customer,        // we'll rely on upsert to associate
+            provider: "stripe",
+            origin: "webhook" as ISubscription["origin"],
+          },
+          { upsert: true }
         );
-        await userSubscription.save();
+        logger.info(`Subscription ${event.type}: ${sub.id}`);
+        break;
       }
 
-      logger.info(`Subscription updated successfully for ID ${subscriptionId}`);
-      return updatedSubscription;
-    } catch (error) {
-      logger.error("Error updating subscription:", error);
-      throw new CustomError("Failed to update subscription", 500);
-    }
-  },
+      case "customer.subscription.deleted": {
+        const sub = event.data.object as Stripe.Subscription;
+        await Subscription.findOneAndUpdate(
+          { stripeSubscriptionId: sub.id },
+          { status: "canceled", isActive: false },
+        );
+        logger.info(`Subscription canceled: ${sub.id}`);
+        break;
+      }
 
-  /**
-   * Retrieve subscription status for a user.
-   * @param subscriptionId - The Stripe subscription ID to check.
-   * @returns The subscription details.
-   */
-  async getSubscriptionStatus(subscriptionId: string): Promise<any> {
-    try {
-      const subscription = await stripe.subscriptions.retrieve(
-        subscriptionId,
-      );
-      logger.info(`Fetched subscription status for ID ${subscriptionId}`);
-      return subscription;
-    } catch (error) {
-      logger.error("Error fetching subscription status:", error);
-      throw new CustomError("Failed to fetch subscription status", 500);
-    }
-  },
+      case "invoice.payment_succeeded":
+      case "invoice.payment_failed": {
+        const inv = event.data.object as Stripe.Invoice;
+        const user = await User.findOne({ stripeCustomerId: inv.customer as string });
+        if (!user) break;
+        const existing = await Subscription.findOne({ stripeSubscriptionId: inv.subscription });
+        if (!existing) break;
 
-  /**
-   * List all subscriptions for a user.
-   * @param userId - The ID of the user.
-   * @returns An array of subscription details.
-   */
-  async listUserSubscriptions(userId: string): Promise<any[]> {
-    try {
-      const subscriptions = await Subscription.find({ userId });
-      logger.info(`Fetched subscriptions for user ID ${userId}`);
-      return subscriptions;
-    } catch (error) {
-      logger.error("Error fetching user subscriptions:", error);
-      throw new CustomError("Failed to fetch user subscriptions", 500);
-    }
-  },
-};
+        const success = event.type === "invoice.payment_succeeded";
+        existing.isActive = success;
+        existing.status   = success ? "active" : "expired";
+        await existing.save();
+        logger.info(`Invoice ${event.type}: ${inv.id}`);
+        break;
+      }
 
-export default SubscriptionManagementService;
+      default:
+        logger.warn(`Unhandled Stripe event: ${event.type}`);
+    }
+  }
+}

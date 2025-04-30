@@ -1,183 +1,89 @@
+// src/api/controllers/integrationController.ts
 import type { Request, Response } from "express";
-import { Integration } from "../models/Integration";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
-import sanitize from "mongo-sanitize";
-import { logger } from "../../utils/winstonLogger";
-import { createError } from "../middleware/errorHandler";
+import IntegrationService from "../services/IntegrationService";
+import type { IntegrationSettings } from "../models/Integration"; 
 
-/**
- * @desc Create a new integration
- * @route POST /api/integrations
- * @access Private
- */
+/** POST /api/integrations */
 export const createIntegration = catchAsync(
-  async (
-    req: Request<{}, any, { type: string; settings: object }>,
-    res: Response,
-  ): Promise<void> => {
-    const { type, settings } = sanitize(req.body);
-    const userId = req.user?.id;
-
-    if (!type || !settings) {
-      throw createError("Integration type and settings are required", 400);
-    }
-
-    const newIntegration = new Integration({
-      user: userId,
-      type,
-      settings,
-    });
-
-    await newIntegration.save();
-
-    sendResponse(res, 201, true, "Integration created successfully", {
-      integration: newIntegration,
-    });
-  },
+  async (req: Request<{}, any, { type: string; settings: object }>, res: Response) => {
+    const userId = req.user!.id;
+    const integration = await IntegrationService.create(
+      userId,
+      req.body.type,
+      req.body.settings as Record<string, unknown>
+    );
+    sendResponse(res, 201, true, "Integration created successfully", { integration });
+  }
 );
 
-/**
- * @desc Get all integrations for the authenticated user
- * @route GET /api/integrations
- * @access Private
- */
+/** GET /api/integrations */
 export const getUserIntegrations = catchAsync(
-  async (req: Request<{}, {}, {}, {}>, res: Response): Promise<void> => {
-    const userId = req.user?.id;
-
-    const integrations = await Integration.find({ user: userId });
-
-    sendResponse(res, 200, true, "Integrations fetched successfully", {
-      integrations,
-    });
-  },
+  async (_req: Request, res: Response) => {
+    const userId = _req.user!.id;
+    const integrations = await IntegrationService.listForUser(userId);
+    sendResponse(res, 200, true, "Integrations fetched successfully", { integrations });
+  }
 );
 
-/**
- * @desc Get a specific integration by ID
- * @route GET /api/integrations/:integrationId
- * @access Private
- */
+/** GET /api/integrations/:integrationId */
 export const getIntegrationById = catchAsync(
-  async (
-    req: Request<{ integrationId: string }>,
-    res: Response,
-  ): Promise<void> => {
-    const { integrationId } = sanitize(req.params);
-    const userId = req.user?.id;
-
-    const integration = await Integration.findOne({
-      _id: integrationId,
-      user: userId,
-    });
-
-    if (!integration) {
-      sendResponse(res, 404, false, "Integration not found or access denied");
-      return;
-    }
-
-    sendResponse(res, 200, true, "Integration fetched successfully", {
-      integration,
-    });
-  },
+  async (req: Request<{ integrationId: string }>, res: Response) => {
+    const userId = req.user!.id;
+    const integration = await IntegrationService.getById(req.params.integrationId, userId);
+    sendResponse(res, 200, true, "Integration fetched successfully", { integration });
+  }
 );
 
-/**
- * @desc Update an integration
- * @route PUT /api/integrations/:integrationId
- * @access Private
- */
+/** PUT /api/integrations/:integrationId */
 export const updateIntegration = catchAsync(
   async (
-    req: Request<{ integrationId: string }, any, { settings: object }>,
-    res: Response,
-  ): Promise<void> => {
-    const { integrationId } = sanitize(req.params);
-    const updates = sanitize(req.body);
-    const userId = req.user?.id;
+    req: Request<
+      { integrationId: string },
+      any,
+      { settings: IntegrationSettings }    // ← use the correct type here
+    >,
+    res: Response
+  ) => {
+    const userId = req.user!.id;
+    const { integrationId } = req.params;
 
-    const integration = await Integration.findOne({
-      _id: integrationId,
-      user: userId,
-    });
-    if (!integration) {
-      sendResponse(res, 404, false, "Integration not found or access denied");
-      return;
-    }
+    // Cast to IntegrationSettings so TS knows it matches
+    const settings = req.body.settings as IntegrationSettings;
 
-    Object.assign(integration, updates);
-    await integration.save();
+    const integration = await IntegrationService.update(
+      integrationId,
+      userId,
+      { settings }
+    );
 
-    sendResponse(res, 200, true, "Integration updated successfully", {
-      integration,
-    });
-  },
+    sendResponse(res, 200, true, "Integration updated successfully", { integration });
+  }
 );
-
-/**
- * @desc Delete an integration
- * @route DELETE /api/integrations/:integrationId
- * @access Private
- */
+/** DELETE /api/integrations/:integrationId */
 export const deleteIntegration = catchAsync(
-  async (
-    req: Request<{ integrationId: string }>,
-    res: Response,
-  ): Promise<void> => {
-    const { integrationId } = sanitize(req.params);
-    const userId = req.user?.id;
-
-    const integration = await Integration.findOneAndDelete({
-      _id: integrationId,
-      user: userId,
-    });
-
-    if (!integration) {
-      sendResponse(res, 404, false, "Integration not found or access denied");
-      return;
-    }
-
+  async (req: Request<{ integrationId: string }>, res: Response) => {
+    const userId = req.user!.id;
+    await IntegrationService.delete(req.params.integrationId, userId);
     sendResponse(res, 200, true, "Integration deleted successfully");
-  },
+  }
 );
 
-/**
- * @desc Test an integration
- * @route POST /api/integrations/:integrationId/test
- * @access Private
- */
+/** POST /api/integrations/:integrationId/test */
 export const testIntegration = catchAsync(
-  async (
-    req: Request<{ integrationId: string }>,
-    res: Response,
-  ): Promise<void> => {
-    const { integrationId } = sanitize(req.params);
-    const userId = req.user?.id;
-
-    const integration = await Integration.findOne({
-      _id: integrationId,
-      user: userId,
-    });
-    if (!integration) {
-      sendResponse(res, 404, false, "Integration not found or access denied");
-      return;
-    }
-
-    try {
-      // Integration testing logic goes here
-      sendResponse(res, 200, true, "Integration test successful");
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        logger.error("Integration error:", { message: error.message });
-        sendResponse(res, 500, false, "An error occurred", {
-          error: error.message,
-        });
-        return;
-      }
-
-      logger.error("Integration error:", { error });
-      sendResponse(res, 500, false, "An unknown error occurred");
-    }
-  },
+  async (req: Request<{ integrationId: string }>, res: Response) => {
+    const userId = req.user!.id;
+    await IntegrationService.test(req.params.integrationId, userId);
+    sendResponse(res, 200, true, "Integration test successful");
+  }
 );
+
+export default {
+  createIntegration,
+  getUserIntegrations,
+  getIntegrationById,
+  updateIntegration,
+  deleteIntegration,
+  testIntegration,
+};

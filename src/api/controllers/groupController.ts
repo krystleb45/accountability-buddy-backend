@@ -1,130 +1,79 @@
 // src/api/controllers/groupController.ts
 import { Request, Response } from "express";
-import mongoose from "mongoose";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
-import Group from "../models/Group"; // make sure this points at your group model
+import GroupService from "../services/GroupService";
 
 /**
- * @desc Create a new group
- * @route POST /group/create
- * @access Private
+ * POST /api/group/create
  */
-export const createGroup = catchAsync(
-  async (req: Request, res: Response): Promise<void> => {
-    const { name, interests, inviteOnly } = req.body;
-    const createdBy = req.user!.id;
+export const createGroup = catchAsync(async (req: Request, res: Response) => {
+  const { name, interests, inviteOnly } = req.body;
+  const creatorId = req.user!.id;
 
-    const group = await Group.create({
-      name,
-      interests,
-      inviteOnly,
-      createdBy: new mongoose.Types.ObjectId(createdBy),
-    });
+  const group = await GroupService.createGroup(
+    name,
+    interests,
+    inviteOnly,
+    creatorId
+  );
 
-    sendResponse(res, 201, true, "Group created successfully", { group });
-  }
-);
+  sendResponse(res, 201, true, "Group created successfully", { group });
+});
 
 /**
- * @desc Join an existing group
- * @route POST /group/join
- * @access Private
+ * POST /api/group/join
  */
-export const joinGroup = catchAsync(
-  async (req: Request<{}, {}, { groupId: string }>, res: Response): Promise<void> => {
-    const { groupId } = req.body;
-    const userId = req.user!.id;
+export const joinGroup = catchAsync(async (req: Request, res: Response) => {
+  const { groupId } = req.body;
+  const userId = req.user!.id;
 
-    if (!mongoose.Types.ObjectId.isValid(groupId)) {
-      sendResponse(res, 400, false, "Invalid group ID");
-      return;
-    }
-
-    const group = await Group.findById(groupId);
-    if (!group) {
-      sendResponse(res, 404, false, "Group not found");
-      return;
-    }
-
-    await group.addMember(new mongoose.Types.ObjectId(userId));
-    sendResponse(res, 200, true, "Joined group successfully", { group });
-  }
-);
+  const group = await GroupService.joinGroup(groupId, userId, global.io);
+  sendResponse(res, 200, true, "Joined group successfully", { group });
+});
 
 /**
- * @desc Leave a group
- * @route POST /group/leave
- * @access Private
+ * POST /api/group/leave
  */
-export const leaveGroup = catchAsync(
-  async (req: Request<{}, {}, { groupId: string }>, res: Response): Promise<void> => {
-    const { groupId } = req.body;
-    const userId = req.user!.id;
+export const leaveGroup = catchAsync(async (req: Request, res: Response) => {
+  const { groupId } = req.body;
+  const userId = req.user!.id;
 
-    if (!mongoose.Types.ObjectId.isValid(groupId)) {
-      sendResponse(res, 400, false, "Invalid group ID");
-      return;
-    }
-
-    const group = await Group.findById(groupId);
-    if (!group) {
-      sendResponse(res, 404, false, "Group not found");
-      return;
-    }
-
-    await group.removeMember(new mongoose.Types.ObjectId(userId));
-    sendResponse(res, 200, true, "Left group successfully", { group });
-  }
-);
+  const group = await GroupService.leaveGroup(groupId, userId, global.io);
+  sendResponse(res, 200, true, "Left group successfully", { group });
+});
 
 /**
- * @desc Get all groups the logged-in user has joined
- * @route GET /group/my-groups
- * @access Private
+ * GET /api/group/my-groups
  */
-export const getMyGroups = catchAsync(
-  async (_req: Request, res: Response): Promise<void> => {
-    const userId = _req.user!.id;
-    const groups = await Group.find({ members: userId }).sort({ createdAt: -1 });
-    sendResponse(res, 200, true, "Your groups retrieved successfully", { groups });
-  }
-);
+export const getMyGroups = catchAsync(async (req: Request, res: Response) => {
+  const userId = req.user!.id;
+  const groups = await GroupService.getMyGroups(userId);
+  sendResponse(res, 200, true, "Your groups retrieved successfully", { groups });
+});
 
 /**
- * @desc Delete a group (only creator or admin)
- * @route DELETE /group/:groupId
- * @access Private/Admin or Creator
+ * DELETE /api/group/:groupId
  */
-export const deleteGroup = catchAsync(
-  async (req: Request<{ groupId: string }>, res: Response): Promise<void> => {
-    const { groupId } = req.params;
-    const userId = req.user!.id;
+export const deleteGroup = catchAsync(async (req: Request, res: Response) => {
+  const { groupId } = req.params;
+  const userId = req.user!.id;
+  const isAdmin = req.user!.role === "admin";
 
-    if (!mongoose.Types.ObjectId.isValid(groupId)) {
-      sendResponse(res, 400, false, "Invalid group ID");
-      return;
-    }
+  await GroupService.deleteGroup(groupId, userId, isAdmin);
+  sendResponse(res, 200, true, "Group deleted successfully");
+});
 
-    const group = await Group.findById(groupId);
-    if (!group) {
-      sendResponse(res, 404, false, "Group not found");
-      return;
-    }
+/**
+ * POST /api/group/invite
+ * Body: { groupId, userId }
+ */
+export const inviteToGroup = catchAsync(async (req: Request, res: Response) => {
+  const { groupId, userId } = req.body;
 
-    // Only creator or admin can delete
-    if (
-      group.createdBy.toString() !== userId &&
-      req.user!.role !== "admin"
-    ) {
-      sendResponse(res, 403, false, "Not authorized to delete this group");
-      return;
-    }
-
-    await group.deleteOne();
-    sendResponse(res, 200, true, "Group deleted successfully");
-  }
-);
+  await GroupService.inviteToGroup(groupId, userId, global.io);
+  sendResponse(res, 200, true, "Invitation sent successfully");
+});
 
 export default {
   createGroup,
@@ -132,4 +81,5 @@ export default {
   leaveGroup,
   getMyGroups,
   deleteGroup,
+  inviteToGroup,
 };

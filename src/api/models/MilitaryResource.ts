@@ -6,6 +6,7 @@ export type ResourceCategory = "hotline" | "website" | "forum" | "organization" 
 
 // --- Document Interface ---
 export interface IExternalSupportResource extends Document {
+  length: number;
   title: string;
   url: string;
   description?: string;
