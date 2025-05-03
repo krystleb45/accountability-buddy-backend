@@ -7,16 +7,24 @@ import handleValidationErrors from "../middleware/handleValidationErrors";
 import * as userCtrl from "../controllers/userController";
 import { getLeaderboard } from "../controllers/LeaderboardController";
 
+
 const router = Router();
 
-const sensitiveLimiter = rateLimit({ windowMs: 15*60e3, max: 5, message: "Too many requests." });
+const sensitiveLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: "Too many requests.",
+});
 
 // Profile
 router.get("/profile", protect, userCtrl.getUserProfile);
 router.put(
   "/profile",
   protect,
-  [ check("email").optional().isEmail(), check("username").optional().notEmpty() ],
+  [
+    check("email").optional().isEmail().withMessage("Must be a valid email"),
+    check("username").optional().notEmpty().withMessage("Username cannot be empty"),
+  ],
   handleValidationErrors,
   userCtrl.updateUserProfile
 );
@@ -26,7 +34,10 @@ router.patch(
   "/password",
   protect,
   sensitiveLimiter,
-  [ check("currentPassword").notEmpty(), check("newPassword").isLength({ min: 8 }) ],
+  [
+    check("currentPassword").notEmpty().withMessage("Current password is required"),
+    check("newPassword").isLength({ min: 8 }).withMessage("New password must be at least 8 characters"),
+  ],
   handleValidationErrors,
   userCtrl.changePassword
 );

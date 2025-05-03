@@ -1,61 +1,114 @@
-// src/api/controllers/milestoneController.ts
-import type { Request, Response, NextFunction } from "express";
+// src/api/controllers/MilestoneController.ts
+import type { Request, Response } from "express";
 import mongoose from "mongoose";
 import Milestone, { IMilestone } from "../models/Milestone";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
 
-// only fields we allow clients to update:
-const ALLOWED_UPDATE_FIELDS = ["title", "description", "dueDate"] as const;
-type UpdatableKeys = typeof ALLOWED_UPDATE_FIELDS[number];
+// GET /api/milestones
+export const getUserMilestones = catchAsync(async (req: Request, res: Response) => {
+  const userId = req.user!.id;
+  const milestones = await Milestone.find({ user: userId }).sort({ dueDate: 1 });
+  sendResponse(res, 200, true, "Milestones fetched", { milestones });
+});
 
-type UpdateBody = {
-  milestoneId: string;
-  updates: Partial<Pick<IMilestone, UpdatableKeys>>;
-};
+// POST /api/milestones
+export const addMilestone = catchAsync(
+  async (
+    req: Request<{}, {}, { title: string; description?: string; dueDate?: string }>,
+    res: Response
+  ) => {
+    const userId = req.user!.id;
+    const { title, description, dueDate } = req.body;
+    const newMilestone = await Milestone.create({
+      title,
+      description,
+      dueDate: dueDate ? new Date(dueDate) : undefined,
+      user: userId,
+    });
+    sendResponse(res, 201, true, "Milestone created", { milestone: newMilestone });
+  }
+);
 
+// PUT /api/milestones/:milestoneId
 export const updateMilestone = catchAsync(
   async (
-    req: Request<{}, {}, UpdateBody>,
-    res: Response,
-    _next: NextFunction,
-  ): Promise<void> => {
+    req: Request<
+      { milestoneId: string },
+      {},
+      { title?: string; description?: string; dueDate?: string }
+    >,
+    res: Response
+  ) => {
     const userId = req.user!.id;
-    const { milestoneId, updates } = req.body;
+    const { milestoneId } = req.params;
 
-    if (!userId) {
-      sendResponse(res, 401, false, "Unauthorized");
-      return;
-    }
-    if (!mongoose.Types.ObjectId.isValid(milestoneId)) {
+    if (!mongoose.isValidObjectId(milestoneId)) {
       sendResponse(res, 400, false, "Invalid milestone ID");
       return;
     }
 
-    // Build a $set object containing only allowed fields that were actually provided
-    const sanitizedSet: Partial<Record<UpdatableKeys, unknown>> = {};
-    for (const key of ALLOWED_UPDATE_FIELDS) {
-      if (key in updates) {
-        sanitizedSet[key] = updates[key]!;
+    // Only pick fields that were passed
+    const updates: Partial<Pick<IMilestone, "title" | "description" | "dueDate">> = {};
+    if (req.body.title !== undefined) {
+      updates.title = req.body.title;
+    }
+    if (req.body.description !== undefined) {
+      updates.description = req.body.description;
+    }
+    if (req.body.dueDate !== undefined) {
+      const d = new Date(req.body.dueDate);
+      if (isNaN(d.getTime())) {
+        sendResponse(res, 400, false, "Invalid dueDate format");
+        return;
       }
+      updates.dueDate = d;
     }
 
-    if (Object.keys(sanitizedSet).length === 0) {
+    if (Object.keys(updates).length === 0) {
       sendResponse(res, 400, false, "No valid fields provided for update");
       return;
     }
 
-    const milestone = await Milestone.findOneAndUpdate(
+    const updated = await Milestone.findOneAndUpdate(
       { _id: milestoneId, user: userId },
-      { $set: sanitizedSet },
-      { new: true, runValidators: true },
+      updates,
+      { new: true, runValidators: true }
     );
 
-    if (!milestone) {
+    if (!updated) {
       sendResponse(res, 404, false, "Milestone not found");
       return;
     }
 
-    sendResponse(res, 200, true, "Milestone updated successfully", { milestone });
+    sendResponse(res, 200, true, "Milestone updated successfully", { milestone: updated });
   }
 );
+
+// DELETE /api/milestones/:milestoneId
+export const deleteMilestone = catchAsync(
+  async (req: Request<{ milestoneId: string }>, res: Response) => {
+    const userId = req.user!.id;
+    const { milestoneId } = req.params;
+
+    if (!mongoose.isValidObjectId(milestoneId)) {
+      sendResponse(res, 400, false, "Invalid milestone ID");
+      return;
+    }
+
+    const deleted = await Milestone.findOneAndDelete({ _id: milestoneId, user: userId });
+    if (!deleted) {
+      sendResponse(res, 404, false, "Milestone not found");
+      return;
+    }
+
+    sendResponse(res, 200, true, "Milestone deleted successfully");
+  }
+);
+
+export default {
+  getUserMilestones,
+  addMilestone,
+  updateMilestone,
+  deleteMilestone,
+};

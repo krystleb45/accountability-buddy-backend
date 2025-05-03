@@ -1,163 +1,146 @@
 // src/api/routes/events.ts
-import type { Router, Request, Response } from "express";
-import express from "express";
-import { check, validationResult } from "express-validator";
+import { Router, Request, Response, NextFunction } from "express";
 import rateLimit from "express-rate-limit";
+import { check, param } from "express-validator";
 import mongoose from "mongoose";
-import Event from "../models/Event";
+
 import { protect } from "../middleware/authMiddleware";
-import * as eventController from "../controllers/EventController";
+import handleValidationErrors from "../middleware/handleValidationErrors";
+import catchAsync from "../utils/catchAsync";
+import Event from "../models/Event";
 
-const router: Router = express.Router();
+const router = Router();
 
-const isValidObjectId = (id: string): boolean =>
-  mongoose.Types.ObjectId.isValid(id);
+// ── Rate limiter ─────────────────────────────────────────────────────────────
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { success: false, message: "Too many requests. Please try again later." },
+});
+
+// ── Validation chains ────────────────────────────────────────────────────────
+const validateEventIdParam = [
+  param("eventId", "Invalid event ID").isMongoId(),
+];
 
 const validateEventCreation = [
   check("eventTitle", "Event title is required").notEmpty(),
   check("description", "Description is required").notEmpty(),
   check("date", "A valid date is required").isISO8601(),
-  check("participants", "Participants must be an array").isArray(),
+  check("participants", "Participants must be an array of user IDs")
+    .isArray({ min: 1 }),
+  check("participants.*", "Each participant must be a valid Mongo ID")
+    .isMongoId(),
   check("location", "Location is required").notEmpty(),
 ];
 
-const validateEventProgress = [
-  check("progress", "Progress must be a number between 0 and 100").isInt({ min: 0, max: 100 }),
+const validateProgressUpdate = [
+  param("id", "Invalid event ID").isMongoId(),
+  check("progress", "Progress must be a number between 0 and 100")
+    .isInt({ min: 0, max: 100 }),
 ];
 
-const rateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
-  message: "Too many requests. Please try again later.",
-});
-
-// ─── Join an Event ────────────────────────────────────────────────────────────
-router.post("/:eventId/join", protect, eventController.joinEvent);
-
-// ─── Leave an Event ───────────────────────────────────────────────────────────
-router.post("/:eventId/leave", protect, eventController.leaveEvent);
-
-/**
- * @swagger
- * /api/events/create:
- *   post:
- *     summary: Create a new event
- *     tags: [Events]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - eventTitle
- *               - description
- *               - date
- *               - participants
- *               - location
- *             properties:
- *               eventTitle:
- *                 type: string
- *               description:
- *                 type: string
- *               date:
- *                 type: string
- *                 format: date-time
- *               participants:
- *                 type: array
- *                 items:
- *                   type: string
- *               location:
- *                 type: string
- *     responses:
- *       201:
- *         description: Event created
- */
+// ── POST /api/events/:eventId/join ──────────────────────────────────────────
 router.post(
-  "/create",
-  rateLimiter,
+  "/:eventId/join",
+  limiter,
   protect,
-  validateEventCreation,
-  async (req: Request, res: Response) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      res.status(400).json({ success: false, errors: errors.array() });
+  validateEventIdParam,
+  handleValidationErrors,
+  catchAsync(async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
+    const { eventId } = req.params;
+    const userId      = req.user!.id;
+    const userOid     = new mongoose.Types.ObjectId(String(userId));
+
+    const event = await Event.findById(eventId);
+    if (!event) {
+      res.status(404).json({ success: false, message: "Event not found" });
       return;
     }
 
+    // Add participant subdoc if not already present
+    if (!event.participants.some(p => p.user.equals(userOid))) {
+      event.participants.push({ user: userOid });
+      await event.save();
+    }
+
+    res.status(200).json({ success: true, event });
+  })
+);
+
+// ── POST /api/events/:eventId/leave ─────────────────────────────────────────
+router.post(
+  "/:eventId/leave",
+  limiter,
+  protect,
+  validateEventIdParam,
+  handleValidationErrors,
+  catchAsync(async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
+    const { eventId } = req.params;
+    const userId      = req.user!.id;
+    const userOid     = new mongoose.Types.ObjectId(String(userId));
+
+    const event = await Event.findById(eventId);
+    if (!event) {
+      res.status(404).json({ success: false, message: "Event not found" });
+      return;
+    }
+
+    // Remove any participant subdocs matching this user
+    for (let i = event.participants.length - 1; i >= 0; i--) {
+      if (event.participants[i].user.equals(userOid)) {
+        event.participants.splice(i, 1);
+      }
+    }
+    await event.save();
+
+    res.status(200).json({ success: true, event });
+  })
+);
+
+// ── POST /api/events/create ─────────────────────────────────────────────────
+router.post(
+  "/create",
+  limiter,
+  protect,
+  validateEventCreation,
+  handleValidationErrors,
+  catchAsync(async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
     const { eventTitle, description, date, participants, location } = req.body;
-    const userId = req.user?.id;
+    const userId  = req.user!.id;
+    const userOid = new mongoose.Types.ObjectId(String(userId));
+
+    // Convert all participant IDs to ObjectId (hex-string overload)
+    const participantOids = (participants as string[]).map(id =>
+      new mongoose.Types.ObjectId(String(id))
+    );
 
     const newEvent = new Event({
       eventTitle,
       description,
-      date,
-      createdBy: new mongoose.Types.ObjectId(userId),
-      participants: [
-        new mongoose.Types.ObjectId(userId),
-        ...participants.map((p: string) => new mongoose.Types.ObjectId(p)),
-      ],
+      date: new Date(date),
+      createdBy: userOid,
+      participants: [userOid, ...participantOids],
       location,
     });
 
     await newEvent.save();
     res.status(201).json({ success: true, event: newEvent });
-  }
+  })
 );
 
-/**
- * @swagger
- * /api/events/{id}/update-progress:
- *   put:
- *     summary: Update progress for an event
- *     tags: [Events]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: The event ID
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [progress]
- *             properties:
- *               progress:
- *                 type: integer
- *                 minimum: 0
- *                 maximum: 100
- *     responses:
- *       200:
- *         description: Progress updated
- */
+// ── PUT /api/events/:id/update-progress ────────────────────────────────────
 router.put(
   "/:id/update-progress",
-  rateLimiter,
+  limiter,
   protect,
-  validateEventProgress,
-  async (req: Request, res: Response) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      res.status(400).json({ success: false, errors: errors.array() });
-      return;
-    }
-
-    const { id } = req.params;
-    const { progress } = req.body;
-    const userId = req.user?.id;
-
-    if (!isValidObjectId(id)) {
-      res.status(400).json({ success: false, message: "Invalid event ID" });
-      return;
-    }
+  validateProgressUpdate,
+  handleValidationErrors,
+  catchAsync(async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
+    const { id }     = req.params;
+    const progress   = parseInt(req.body.progress, 10);
+    const userId     = req.user!.id;
+    const userOid    = new mongoose.Types.ObjectId(String(userId));
 
     const event = await Event.findById(id);
     if (!event) {
@@ -165,45 +148,32 @@ router.put(
       return;
     }
 
-    const isAuthorized =
-      event.participants.some((p) => p.user.toString() === userId) ||
-      event.createdBy.equals(new mongoose.Types.ObjectId(userId));
-
-    if (!isAuthorized) {
+    const isParticipant = event.participants.some(p => p.user.equals(userOid));
+    const isCreator     = event.createdBy.equals(userOid);
+    if (!isParticipant && !isCreator) {
       res.status(403).json({ success: false, message: "Not authorized to update this event" });
       return;
     }
 
     event.progress = progress;
     await event.save();
-
     res.status(200).json({ success: true, event });
-  }
+  })
 );
 
-/**
- * @swagger
- * /api/events/my-events:
- *   get:
- *     summary: Get events for authenticated user
- *     tags: [Events]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: List of events
- */
+// ── GET /api/events/my-events ──────────────────────────────────────────────
 router.get(
   "/my-events",
-  rateLimiter,
+  limiter,
   protect,
-  async (req: Request, res: Response) => {
-    const userId = req.user?.id;
+  catchAsync(async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
+    const userId   = req.user!.id;
+    const userOid  = new mongoose.Types.ObjectId(String(userId));
 
     const events = await Event.find({
       $or: [
-        { participants: new mongoose.Types.ObjectId(userId) },
-        { createdBy: new mongoose.Types.ObjectId(userId) },
+        { "participants.user": userOid },
+        { createdBy: userOid },
       ],
     }).sort({ createdAt: -1 });
 
@@ -213,42 +183,23 @@ router.get(
     }
 
     res.status(200).json({ success: true, events });
-  }
+  })
 );
 
-/**
- * @swagger
- * /api/events/{id}:
- *   get:
- *     summary: Get event by ID
- *     tags: [Events]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - name: id
- *         in: path
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Event retrieved
- */
+// ── GET /api/events/:id ────────────────────────────────────────────────────
 router.get(
   "/:id",
-  rateLimiter,
+  limiter,
   protect,
-  async (req: Request, res: Response) => {
-    const { id } = req.params;
-    const userId = req.user?.id;
-
-    if (!isValidObjectId(id)) {
-      res.status(400).json({ success: false, message: "Invalid event ID" });
-      return;
-    }
+  [param("id", "Invalid event ID").isMongoId()],
+  handleValidationErrors,
+  catchAsync(async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
+    const { id }    = req.params;
+    const userId    = req.user!.id;
+    const userOid   = new mongoose.Types.ObjectId(String(userId));
 
     const event = await Event.findById(id)
-      .populate("participants", "username")
+      .populate("participants.user", "username")   // adjust path if needed
       .populate("createdBy", "username");
 
     if (!event) {
@@ -256,17 +207,15 @@ router.get(
       return;
     }
 
-    const isAuthorized =
-      event.participants.some((p) => p.user.toString() === userId) ||
-      event.createdBy.equals(new mongoose.Types.ObjectId(userId));
-
-    if (!isAuthorized) {
+    const isParticipant = event.participants.some(p => p.user.equals(userOid));
+    const isCreator     = event.createdBy.equals(userOid);
+    if (!isParticipant && !isCreator) {
       res.status(403).json({ success: false, message: "Not authorized to view this event" });
       return;
     }
 
     res.status(200).json({ success: true, event });
-  }
+  })
 );
 
 export default router;

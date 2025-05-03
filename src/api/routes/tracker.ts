@@ -1,4 +1,5 @@
-import { Router, Request, Response, NextFunction } from "express";
+// src/api/routes/tracker.ts
+import { Router } from "express";
 import { check } from "express-validator";
 import { protect } from "../middleware/authMiddleware";
 import * as trackerCtrl from "../controllers/TrackerController";
@@ -6,35 +7,23 @@ import handleValidationErrors from "../middleware/handleValidationErrors";
 
 const router = Router();
 
-// fetch all trackers
+// GET /api/tracker/ → fetch all trackers
 router.get(
   "/",
   protect,
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      await trackerCtrl.getAllTrackers(req, res, next);
-    } catch (err) {
-      next(err);
-    }
-  }
+  trackerCtrl.getAllTrackers
 );
 
-// create a tracker
+// POST /api/tracker/ → create a tracker
 router.post(
   "/",
   protect,
   [ check("name", "Tracker name is required").notEmpty() ],
   handleValidationErrors,
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      await trackerCtrl.createTracker(req, res, next);
-    } catch (err) {
-      next(err);
-    }
-  }
+  trackerCtrl.createTracker
 );
 
-// update a tracker’s progress
+// PUT /api/tracker/:id → update a tracker’s progress
 router.put(
   "/:id",
   protect,
@@ -43,69 +32,39 @@ router.put(
     check("progress", "Progress must be a number").isNumeric(),
   ],
   handleValidationErrors,
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      await trackerCtrl.updateTracker(req, res, next);
-    } catch (err) {
-      next(err);
-    }
-  }
+  trackerCtrl.updateTracker
 );
 
-// delete a tracker
+// DELETE /api/tracker/:id → delete a tracker
 router.delete(
   "/:id",
   protect,
   [ check("id", "Invalid tracker id").isMongoId() ],
   handleValidationErrors,
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      await trackerCtrl.deleteTracker(req, res, next);
-    } catch (err) {
-      next(err);
-    }
-  }
+  trackerCtrl.deleteTracker
 );
 
-// get all raw tracking data
+// GET /api/tracker/data → get all raw tracking data
 router.get(
   "/data",
   protect,
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      await trackerCtrl.getTrackingData(req, res, next);
-    } catch (err) {
-      next(err);
-    }
-  }
+  trackerCtrl.getTrackingData
 );
 
-// add a new tracking data entry
+// POST /api/tracker/add → add a new tracking data entry
 router.post(
   "/add",
   protect,
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      await trackerCtrl.addTrackingData(req, res, next);
-    } catch (err) {
-      next(err);
-    }
-  }
+  trackerCtrl.addTrackingData
 );
 
-// delete a tracking data entry
+// DELETE /api/tracker/delete/:id → delete a tracking data entry
 router.delete(
   "/delete/:id",
   protect,
   [ check("id", "Invalid entry id").isMongoId() ],
   handleValidationErrors,
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      await trackerCtrl.deleteTrackingData(req, res, next);
-    } catch (err) {
-      next(err);
-    }
-  }
+  trackerCtrl.deleteTrackingData
 );
 
 export default router;

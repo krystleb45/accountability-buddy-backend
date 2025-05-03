@@ -1,72 +1,48 @@
 // src/api/routes/fileUpload.ts
-import { Router, Request, Response, NextFunction} from "express";
-import path from "path";
-import multer from "multer";
+import { Router } from "express";
 import { protect } from "../middleware/authMiddleware";
-import catchAsync from "../utils/catchAsync";
-import * as fileController from "../controllers/EventController"; // adjust if your controller lives elsewhere
+import * as fileController from "../controllers/FileUploadController";
 
-
-// ─── Multer Setup ───────────────────────────────────────────────────────────────
-const uploadDir = path.join(__dirname, "../../uploads");
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadDir),
-  filename: (_req, file, cb) => {
-    // keep original name but sanitize in controller
-    cb(null, `${Date.now()}-${file.originalname}`);
-  },
-});
-const upload = multer({ storage });
-
-// ─── Router ────────────────────────────────────────────────────────────────────
 const router = Router();
 
-// POST /api/upload       → single file
+/**
+ * POST /api/upload
+ * Upload a single file
+ */
 router.post(
   "/upload",
   protect,
-  upload.single("file"),
-  catchAsync((req: Request, res: Response, next: NextFunction) =>
-    fileController.uploadFile(req, res, next)
-  )
+  ...fileController.uploadSingle
 );
 
-// POST /api/uploads      → multiple files
+/**
+ * POST /api/uploads
+ * Upload multiple files
+ */
 router.post(
   "/uploads",
   protect,
-  upload.any(),
-  catchAsync((req: Request, res: Response, next: NextFunction) =>
-    fileController.uploadMultipleFiles(req, res, next)
-  )
+  ...fileController.uploadMultiple
 );
 
-// POST /api/upload/metadata → save metadata after upload
-router.post(
-  "/upload/metadata",
-  protect,
-  upload.single("file"),
-  catchAsync((req: Request, res: Response, next: NextFunction) =>
-    fileController.saveFileMetadata(req, res, next)
-  )
-);
-
-// GET  /api/files/:fileId → download
+/**
+ * GET /api/uploads/:key/url
+ * Generate a signed URL for downloading a file
+ */
 router.get(
-  "/files/:fileId",
+  "/uploads/:key/url",
   protect,
-  catchAsync((req: Request, res: Response, next: NextFunction) =>
-    fileController.downloadFile(req, res, next)
-  )
+  fileController.getSignedUrl
 );
 
-// DELETE /api/uploads/:filename → remove from disk
+/**
+ * DELETE /api/uploads/:key
+ * Delete a file by key
+ */
 router.delete(
-  "/uploads/:filename",
+  "/uploads/:key",
   protect,
-  catchAsync((req: Request, res: Response, next: NextFunction) =>
-    fileController.deleteFile(req, res, next)
-  )
+  fileController.deleteFile
 );
 
 export default router;

@@ -1,47 +1,25 @@
-import { Router } from "express";
-import { check } from "express-validator";
+// src/api/routes/chat.ts
+import { Router, Request, Response, NextFunction } from "express";
+import { check, param } from "express-validator";
 import rateLimit from "express-rate-limit";
-import * as chatController from "../controllers/chatController";
 import { protect } from "../middleware/authMiddleware";
 import handleValidationErrors from "../middleware/handleValidationErrors";
+import catchAsync from "../utils/catchAsync";
+import * as chatController from "../controllers/chatController";
 
-const router: Router = Router();
+const router = Router();
 
+// Throttle to 60 requests per minute
 const chatLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 60,
-  message: "Too many requests from this IP, please try again later.",
+  message: { success: false, message: "Too many requests from this IP, please try again later." },
 });
-
 router.use(chatLimiter);
 
 /**
- * @swagger
- * /api/chat/send:
- *   post:
- *     summary: Send a message in a group chat
- *     tags: [Chat]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [message, chatId]
- *             properties:
- *               message:
- *                 type: string
- *                 example: "Hello group!"
- *               chatId:
- *                 type: string
- *                 example: "642fcfd02fd8f3b1c13a3e88"
- *     responses:
- *       200:
- *         description: Message sent successfully
- *       400:
- *         description: Validation error or bad request
+ * POST /api/chat/send
+ * Send a message in a group chat
  */
 router.post(
   "/send",
@@ -51,73 +29,39 @@ router.post(
     check("chatId", "Invalid chat ID").isMongoId(),
     handleValidationErrors,
   ],
-  chatController.editMessage
+  catchAsync(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    await chatController.editMessage(req, res, next);
+  })
 );
 
 /**
- * @swagger
- * /api/chat/private/{friendId}:
- *   post:
- *     summary: Send a private message to a friend
- *     tags: [Chat]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: friendId
- *         required: true
- *         schema:
- *           type: string
- *         description: Mongo ID of the friend to message
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [message]
- *             properties:
- *               message:
- *                 type: string
- *                 example: "Hey, how’s your goal going?"
- *     responses:
- *       200:
- *         description: Private message sent successfully
- *       400:
- *         description: Validation failed
+ * POST /api/chat/private/:friendId
+ * Send a private message to a friend
  */
 router.post(
   "/private/:friendId",
   protect,
-  [check("message", "Message cannot be empty").notEmpty(), handleValidationErrors],
-  chatController.sendPrivateMessage
+  [
+    param("friendId", "Invalid friend ID").isMongoId(),
+    check("message", "Message cannot be empty").notEmpty(),
+    handleValidationErrors,
+  ],
+  catchAsync(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    await chatController.sendPrivateMessage(req, res, next);
+  })
 );
 
 /**
- * @swagger
- * /api/chat/private/{friendId}:
- *   get:
- *     summary: Get private chat history with a friend
- *     tags: [Chat]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: friendId
- *         required: true
- *         schema:
- *           type: string
- *         description: Mongo ID of the friend
- *     responses:
- *       200:
- *         description: Retrieved chat history
- *       404:
- *         description: Chat not found
+ * GET /api/chat/private/:friendId
+ * Get private chat history with a friend
  */
 router.get(
   "/private/:friendId",
   protect,
-  chatController.getPrivateChats
+  [ param("friendId", "Invalid friend ID").isMongoId(), handleValidationErrors ],
+  catchAsync(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    await chatController.getPrivateChats(req, res, next);
+  })
 );
 
 export default router;

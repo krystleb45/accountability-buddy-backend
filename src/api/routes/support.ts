@@ -1,4 +1,6 @@
-import type { Router, Request, Response, NextFunction } from "express";
+// src/api/routes/support.ts
+import type { Router } from "express";
+import { Request, Response, NextFunction } from "express";
 import express from "express";
 import { check } from "express-validator";
 import rateLimit from "express-rate-limit";
@@ -10,45 +12,22 @@ import * as supportController from "../controllers/supportController";
 
 const router: Router = express.Router();
 
+// throttle all support endpoints
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
-  message: { success: false, message: "Too many requests; please try later." },
+  message: { success: false, message: "Too many requests; please try again later." },
 });
 
-// middleware to sanitize req.body
-function sanitizeBody(req: Request, _res: Response, next: NextFunction): void {
+// sanitize body helper
+const sanitizeBody = (req: Request, _res: Response, next: NextFunction): void => {
   req.body = sanitize(req.body);
   next();
-}
+};
 
 /**
- * @swagger
- * /support/contact:
- *   post:
- *     summary: Submit a support request
- *     tags: [Support]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             required: [name, email, subject, message]
- *             properties:
- *               name:
- *                 type: string
- *               email:
- *                 type: string
- *               subject:
- *                 type: string
- *               message:
- *                 type: string
- *               priority:
- *                 type: string
- *                 enum: [low, normal, high]
- *     responses:
- *       201:
- *         description: Ticket created
+ * POST /api/support/contact
+ * Public: submit a support request
  */
 router.post(
   "/contact",
@@ -62,23 +41,12 @@ router.post(
   ],
   handleValidationErrors,
   sanitizeBody,
-  // call controller as an async handler
-  async (req: Request, res: Response, next: NextFunction) => {
-    await supportController.contactSupport(req, res, next);
-  }
+  supportController.contactSupport
 );
 
 /**
- * @swagger
- * /support/tickets:
- *   get:
- *     summary: List all support tickets
- *     tags: [Support]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Tickets fetched
+ * GET /api/support/tickets
+ * Admin only: list all tickets
  */
 router.get(
   "/tickets",
@@ -89,61 +57,20 @@ router.get(
 );
 
 /**
- * @swagger
- * /support/tickets/{ticketId}:
- *   get:
- *     summary: Get details of a single ticket
- *     tags: [Support]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: ticketId
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Ticket details fetched
+ * GET /api/support/tickets/:ticketId
+ * Admin only: get single ticket
  */
 router.get(
   "/tickets/:ticketId",
   protect,
   roleBasedAccessControl(["admin"]),
+  limiter,
   supportController.getTicketDetails
 );
 
 /**
- * @swagger
- * /support/tickets/{ticketId}:
- *   put:
- *     summary: Update a support ticket
- *     tags: [Support]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: ticketId
- *         required: true
- *         schema:
- *           type: string
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             properties:
- *               status:
- *                 type: string
- *                 enum: [open, pending, closed]
- *               priority:
- *                 type: string
- *                 enum: [low, normal, high]
- *               message:
- *                 type: string
- *     responses:
- *       200:
- *         description: Ticket updated
+ * PUT /api/support/tickets/:ticketId
+ * Admin only: update a ticket
  */
 router.put(
   "/tickets/:ticketId",
@@ -151,10 +78,7 @@ router.put(
   roleBasedAccessControl(["admin"]),
   limiter,
   sanitizeBody,
-  // async wrapper to await the controller call
-  async (req: Request, res: Response, next: NextFunction) => {
-    await supportController.updateSupportTicket(req, res, next);
-  }
+  supportController.updateSupportTicket
 );
 
 export default router;

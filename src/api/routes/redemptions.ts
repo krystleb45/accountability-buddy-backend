@@ -5,26 +5,26 @@ import {
   getMyRedemptions,
   getRedemptionsByDate,
 } from "../controllers/RedemptionController";
-import MiddlewareService from "../services/MiddlewareService"; // for auth & roles
+import { protect, restrictTo } from "../middleware/authMiddleware";
 
 const router = Router();
 
 router.post(
   "/",
-  MiddlewareService.authenticateToken,
+  protect,
   createRedemption
 );
 
 router.get(
   "/",
-  MiddlewareService.authenticateToken,
+  protect,
   getMyRedemptions
 );
 
 router.get(
   "/range",
-  MiddlewareService.authenticateToken,
-  MiddlewareService.authorizeRoles("admin"),
+  protect,
+  restrictTo("admin"),
   getRedemptionsByDate
 );
 

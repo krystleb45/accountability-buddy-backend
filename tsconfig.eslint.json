@@ -6,6 +6,7 @@
     "jest.setup.ts",
     "jest.setup.js",
     "jest.config.js",
+    "src/test/**/*.ts",
     ".eslintrc.js",
     ".eslintrc.cjs",
     ".eslintrc.mjs"
@@ -28,10 +29,6 @@
     "coverage",
     "build",
     "@types",
-    "**/*.test.js",
-    "**/*.spec.js",
-    "**/*.test.ts",
-    "**/*.spec.ts",
     "*.d.ts",
     "**/static/**",
     "**/public/**",

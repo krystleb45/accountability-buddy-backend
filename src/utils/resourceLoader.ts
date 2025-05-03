@@ -1,5 +1,3 @@
-// utils/resourceLoader.ts
-
 import fs from "fs";
 import path from "path";
 import mongoose from "mongoose";
@@ -16,7 +14,9 @@ const defaultSeedPath = path.join(__dirname, "../seed/military_resources.json");
  * Load and seed external military resources from a JSON file
  * @param {string} [jsonPath] - Optional path to the JSON file
  */
-export const seedMilitaryResources = async (jsonPath?: string): Promise<void> => {
+export const seedMilitaryResources = async (
+  jsonPath?: string
+): Promise<void> => {
   try {
     const filePath = jsonPath || defaultSeedPath;
 
@@ -34,19 +34,25 @@ export const seedMilitaryResources = async (jsonPath?: string): Promise<void> =>
     let insertedCount = 0;
 
     for (const resource of resources) {
-      const exists = await MilitaryResource.findOne({ title: resource.title, url: resource.url });
+      const exists = await MilitaryResource.findOne({
+        title: resource.title,
+        url: resource.url,
+      });
       if (!exists) {
         await MilitaryResource.create(resource);
         insertedCount++;
       }
     }
 
-    LoggingService.logInfo("✅ Military resources seeded successfully", {
-      insertedCount,
-      filePath,
-    });
+    await LoggingService.logInfo(
+      "✅ Military resources seeded successfully",
+      { insertedCount, filePath }
+    );
   } catch (error) {
-    LoggingService.logError("❌ Failed to seed military resources", error as Error);
+    await LoggingService.logError(
+      "❌ Failed to seed military resources",
+      error as Error
+    );
   }
 };
 
@@ -54,15 +60,21 @@ export const seedMilitaryResources = async (jsonPath?: string): Promise<void> =>
  * Direct command-line execution
  */
 if (require.main === module) {
-  mongoose
-    .connect(process.env.MONGO_URI || "")
-    .then(() => seedMilitaryResources())
-    .then(() => {
-      LoggingService.logInfo("🌱 Resource loading finished. Closing DB.");
-      return mongoose.disconnect();
-    })
-    .catch((err) => {
-      LoggingService.logFatal("💥 Error during DB connection or resource loading", err);
+  // Prefix the IIFE with `void` so we're not leaving its returned promise unhandled
+  void (async () => {
+    try {
+      await mongoose.connect(process.env.MONGO_URI || "");
+      await seedMilitaryResources();
+      await LoggingService.logInfo(
+        "🌱 Resource loading finished. Closing DB."
+      );
+      await mongoose.disconnect();
+    } catch (err) {
+      await LoggingService.logFatal(
+        "💥 Error during DB connection or resource loading",
+        err as Error
+      );
       process.exit(1);
-    });
+    }
+  })();
 }

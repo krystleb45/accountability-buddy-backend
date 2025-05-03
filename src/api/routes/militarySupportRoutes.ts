@@ -1,119 +1,84 @@
-import express from "express";
-import {
-  sendMessage,
-  getResources,
-  getDisclaimer,
-  getChatrooms,
-  createChatroom,
-} from "../controllers/militarySupportController";
+// src/api/routes/militarySupportRoutes.ts
+import { Router, Request, Response, NextFunction } from "express";
+import { check } from "express-validator";
 import { protect, militaryAuth } from "../middleware/authMiddleware";
+import handleValidationErrors from "../middleware/handleValidationErrors";
+import catchAsync from "../utils/catchAsync";
+import * as militarySupportController from "../controllers/militarySupportController";
 
-const router = express.Router();
-
-/**
- * @swagger
- * /api/military-support/resources:
- *   get:
- *     summary: Get external military support resources
- *     tags: [Military Support]
- *     security:
- *       - bearerAuth: []
- *     description: Fetches links and descriptions of external military support resources.
- *     responses:
- *       200:
- *         description: List of resources returned successfully.
- *       401:
- *         description: Unauthorized (if not military authenticated).
- */
-router.get("/resources", protect, militaryAuth, getResources);
+const router = Router();
 
 /**
- * @swagger
- * /api/military-support/disclaimer:
- *   get:
- *     summary: Get military support disclaimer
- *     tags: [Military Support]
- *     description: Returns a disclaimer about the nature of military peer support and liability limitations.
- *     responses:
- *       200:
- *         description: Disclaimer message returned.
+ * GET /api/military-support/resources
+ * Get external military support resources (military members only)
  */
-router.get("/disclaimer", getDisclaimer);
+router.get(
+  "/resources",
+  protect,
+  militaryAuth,
+  catchAsync(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    await militarySupportController.getResources(req, res, next);
+  })
+);
 
 /**
- * @swagger
- * /api/military-support/chat/send:
- *   post:
- *     summary: Send a message in military support chatroom
- *     tags: [Military Support]
- *     security:
- *       - bearerAuth: []
- *     description: Sends a message to an active military chatroom.
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               message:
- *                 type: string
- *                 example: "We’ve got your six. Stay strong!"
- *               chatroomId:
- *                 type: string
- *     responses:
- *       201:
- *         description: Message sent successfully.
- *       401:
- *         description: Unauthorized access.
+ * GET /api/military-support/disclaimer
+ * Get military support disclaimer (public)
  */
-router.post("/chat/send", protect, militaryAuth, sendMessage);
+router.get(
+  "/disclaimer",
+  catchAsync(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    await militarySupportController.getDisclaimer(req, res, next);
+  })
+);
 
 /**
- * @swagger
- * /api/military-support/chatrooms:
- *   get:
- *     summary: Get military support chatrooms
- *     tags: [Military Support]
- *     security:
- *       - bearerAuth: []
- *     description: Returns a list of military peer support chatrooms.
- *     responses:
- *       200:
- *         description: List of chatrooms returned.
- *       401:
- *         description: Unauthorized access.
+ * POST /api/military-support/chat/send
+ * Send a message in military support chatroom (military members only)
  */
-router.get("/chatrooms", protect, militaryAuth, getChatrooms);
+router.post(
+  "/chat/send",
+  protect,
+  militaryAuth,
+  [
+    check("chatroomId", "chatroomId is required and must be a valid ID").isMongoId(),
+    check("message", "Message text is required").notEmpty(),
+  ],
+  handleValidationErrors,
+  catchAsync(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    await militarySupportController.sendMessage(req, res, next);
+  })
+);
 
 /**
- * @swagger
- * /api/military-support/chatrooms:
- *   post:
- *     summary: Create a military chatroom
- *     tags: [Military Support]
- *     security:
- *       - bearerAuth: []
- *     description: Allows authenticated military users to create a new chatroom.
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               name:
- *                 type: string
- *                 example: "Veteran Mental Health"
- *               topic:
- *                 type: string
- *                 example: "Open support thread for PTSD discussion"
- *     responses:
- *       201:
- *         description: Chatroom created successfully.
- *       401:
- *         description: Unauthorized access.
+ * GET /api/military-support/chatrooms
+ * Get military support chatrooms (military members only)
  */
-router.post("/chatrooms", protect, militaryAuth, createChatroom);
+router.get(
+  "/chatrooms",
+  protect,
+  militaryAuth,
+  catchAsync(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    await militarySupportController.getChatrooms(req, res, next);
+  })
+);
+
+/**
+ * POST /api/military-support/chatrooms
+ * Create a military chatroom (military members only)
+ */
+router.post(
+  "/chatrooms",
+  protect,
+  militaryAuth,
+  [
+    check("name", "Chatroom name is required").notEmpty(),
+    check("topic", "Chatroom topic is required").notEmpty(),
+  ],
+  handleValidationErrors,
+  catchAsync(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    await militarySupportController.createChatroom(req, res, next);
+  })
+);
 
 export default router;

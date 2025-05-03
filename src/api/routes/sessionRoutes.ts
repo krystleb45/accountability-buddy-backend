@@ -1,119 +1,59 @@
-import { Router, Request, Response, NextFunction } from "express";
-import bodyParser from "body-parser";
-import { login, logout, deleteAllSessions as deleteAll, refreshSession, getSession, getUserSessions, deleteSession as destroySession } from "../controllers/SessionController";
+import { Router } from "express";
+import { check, param } from "express-validator";
 import { protect } from "../middleware/authMiddleware";
+import handleValidationErrors from "../middleware/handleValidationErrors";
+import catchAsync from "../utils/catchAsync";
+import {
+  login,
+  logout,
+  deleteAllSessions,
+  refreshSession,
+  getSession,
+  getUserSessions,
+  deleteSession,
+} from "../controllers/SessionController";
 
 const router = Router();
 
-// For parsing JSON bodies in login
-router.use(bodyParser.json());
-
-/**
- * @route POST /api/session/login
- * @desc  Authenticate user and start a session
- * @access Public
- */
+// POST /api/session/login
 router.post(
   "/login",
-  async (req: Request, res: Response, next: NextFunction) => {
-    const { email, password } = req.body;
-    await login(email, password, req, res).catch(next);
-  }
+  [
+    check("email", "Valid email is required").isEmail(),
+    check("password", "Password is required").notEmpty(),
+  ],
+  handleValidationErrors,
+  catchAsync(login)
 );
 
-/**
- * @route POST /api/session/logout
- * @desc  Log out of current session
- * @access Private
- */
-router.post(
-  "/logout",
-  protect,
-  async (req: Request, res: Response, next: NextFunction) => {
-    await logout(req, res).catch(next);
-  }
-);
+// POST /api/session/logout
+router.post("/logout", protect, catchAsync(logout));
 
-/**
- * @route DELETE /api/session/all
- * @desc  Invalidate all other sessions for the user
- * @access Private
- */
-router.delete(
-  "/all",
-  protect,
-  async (req: Request, res: Response, next: NextFunction) => {
-    const userId = req.user?.id as string;
-    const sessionId = req.headers["x-session-id"] as string || req.body.sessionId;
-    await deleteAll(userId, sessionId).then(() => {
-      res.status(200).json({ success: true, message: "Other sessions invalidated" });
-    }).catch(next);
-  }
-);
+// DELETE /api/session/all
+router.delete("/all", protect, catchAsync(deleteAllSessions));
 
-/**
- * @route POST /api/session/refresh
- * @desc  Extend token and session expiration
- * @access Private
- */
-router.post(
-  "/refresh",
-  protect,
-  async (req: Request, res: Response, next: NextFunction) => {
-    await refreshSession(req, res).catch(next);
-  }
-);
+// POST /api/session/refresh
+router.post("/refresh", protect, catchAsync(refreshSession));
 
-/**
- * @route GET /api/session/:sessionId
- * @desc  Get a single session
- * @access Private
- */
+// GET /api/session/:sessionId
 router.get(
   "/:sessionId",
   protect,
-  async (req: Request<{ sessionId: string }>, res: Response, next: NextFunction) => {
-    await getSession(req, res).catch(next);
-  }
+  param("sessionId", "Invalid session ID").isMongoId(),
+  handleValidationErrors,
+  catchAsync(getSession)
 );
 
-/**
- * @route GET /api/session
- * @desc  Get all active sessions for current user
- * @access Private
- */
-router.get(
-  "/",
-  protect,
-  async (req: Request, res: Response, next: NextFunction) => {
-    const userId = req.user?.id as string;
-    try {
-      const sessions = await getUserSessions(userId);
-      res.status(200).json({ success: true, data: sessions });
-    } catch (err) {
-      next(err);
-    }
-  }
-);
+// GET /api/session
+router.get("/", protect, catchAsync(getUserSessions));
 
-/**
- * @route DELETE /api/session/:sessionId
- * @desc  Delete a specific session
- * @access Private
- */
+// DELETE /api/session/:sessionId
 router.delete(
   "/:sessionId",
   protect,
-  async (req: Request<{ sessionId: string }>, res: Response, next: NextFunction) => {
-    const userId = req.user?.id as string;
-    const sessionId = req.params.sessionId;
-    try {
-      await destroySession(sessionId, userId);
-      res.status(200).json({ success: true, message: "Session deleted" });
-    } catch (err) {
-      next(err);
-    }
-  }
+  param("sessionId", "Invalid session ID").isMongoId(),
+  handleValidationErrors,
+  catchAsync(deleteSession)
 );
 
 export default router;

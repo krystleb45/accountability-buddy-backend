@@ -1,43 +1,51 @@
+// src/api/routes/activity.ts
 import { Router } from "express";
-import { check } from "express-validator";
+import { check, param } from "express-validator";
 import rateLimit from "express-rate-limit";
 import { protect } from "../middleware/authMiddleware";
 import validationMiddleware from "../middleware/validationMiddleware";
-import express from "express";
-
 import {
   getUserActivities,
-  getActivityById,      // NEW
-  createActivity,       // NEW
-  updateActivity,       // NEW
+  getActivityById,
+  createActivity,
+  updateActivity,
   deleteActivity,
   logActivity,
-  joinActivity,         // NEW
-  leaveActivity,        // NEW
+  joinActivity,
+  leaveActivity,
 } from "../controllers/ActivityController";
 
-const router: Router = express.Router();
+const router = Router();
 
-const rateLimiter = rateLimit({
+// Throttle mutating endpoints
+const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
-  message: {
-    success: false,
-    message: "Too many requests. Please try again later.",
-  },
+  message: { success: false, message: "Too many requests. Please try again later." },
 });
 
 /**
  * GET /api/activity
- * List (with optional ?page & ?limit)
+ * List user’s activities (paginated via ?page & ?limit)
  */
-router.get("/", protect, getUserActivities);
+router.get(
+  "/",
+  protect,
+  getUserActivities
+);
 
 /**
  * GET /api/activity/:activityId
  * Fetch a single activity
  */
-router.get("/:activityId", protect, getActivityById);
+router.get(
+  "/:activityId",
+  protect,
+  validationMiddleware([
+    param("activityId", "Invalid activity ID").isMongoId(),
+  ]),
+  getActivityById
+);
 
 /**
  * POST /api/activity
@@ -46,11 +54,10 @@ router.get("/:activityId", protect, getActivityById);
 router.post(
   "/",
   protect,
-  rateLimiter,
+  limiter,
   validationMiddleware([
-    check("title").notEmpty().withMessage("Title is required"),
+    check("title", "Title is required").notEmpty(),
     check("description").optional().isString(),
-    // any other fields...
   ]),
   createActivity
 );
@@ -62,8 +69,9 @@ router.post(
 router.put(
   "/:activityId",
   protect,
-  rateLimiter,
+  limiter,
   validationMiddleware([
+    param("activityId", "Invalid activity ID").isMongoId(),
     check("title").optional().isString(),
     check("description").optional().isString(),
   ]),
@@ -74,32 +82,54 @@ router.put(
  * DELETE /api/activity/:activityId
  * Soft-delete an activity
  */
-router.delete("/:activityId", protect, deleteActivity);
+router.delete(
+  "/:activityId",
+  protect,
+  validationMiddleware([
+    param("activityId", "Invalid activity ID").isMongoId(),
+  ]),
+  deleteActivity
+);
 
 /**
  * POST /api/activity/:activityId/join
+ * Join an activity
  */
-router.post("/:activityId/join", protect, joinActivity);
+router.post(
+  "/:activityId/join",
+  protect,
+  validationMiddleware([
+    param("activityId", "Invalid activity ID").isMongoId(),
+  ]),
+  joinActivity
+);
 
 /**
  * POST /api/activity/:activityId/leave
+ * Leave an activity
  */
-router.post("/:activityId/leave", protect, leaveActivity);
+router.post(
+  "/:activityId/leave",
+  protect,
+  validationMiddleware([
+    param("activityId", "Invalid activity ID").isMongoId(),
+  ]),
+  leaveActivity
+);
 
 /**
- * (Optional) Legacy log endpoint—can redirect to createActivity or kept for audit
+ * POST /api/activity/log
+ * Legacy logging endpoint
  */
 router.post(
   "/log",
-  [
-    protect,
-    rateLimiter,
-    validationMiddleware([
-      check("type").notEmpty().withMessage("Activity type is required."),
-      check("description").optional().isString(),
-      check("metadata").optional().isObject(),
-    ]),
-  ],
+  protect,
+  limiter,
+  validationMiddleware([
+    check("title", "Activity type is required").notEmpty(),
+    check("description").optional().isString(),
+    check("metadata").optional().isObject(),
+  ]),
   logActivity
 );
 

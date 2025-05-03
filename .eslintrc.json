@@ -28,7 +28,7 @@
       }
     ],
     "no-console": [
-      "warn", 
+      "warn",
       { "allow": ["warn", "error"] }
     ], // Allow warn and error, disallow console.log() in production
     "no-unused-vars": "off",
@@ -73,6 +73,7 @@
     "*.config.cjs",
     "*.config.mjs",
     "*.json",
-    "jest.setup.js" // Exclude jest.setup.js from linting
+    "jest.setup.js", // Exclude jest.setup.js from linting
+    "src/scripts/**"
   ]
 }

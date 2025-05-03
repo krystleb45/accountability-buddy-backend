@@ -39,11 +39,11 @@
       "@test/*": ["src/test/*"]
     },
 
-    // ─── Type roots & only these types (no stray @types/date-fns) ────────────
+    // ─── Type roots & only these ambient types ────────────
     "typeRoots": [
-  "../shared/types",
-  "src/types",
-    "node_modules/@types"
+      "../shared/types",      // if you have shared type definitions here
+      "./src/types",          // your local augmentation folder
+      "./node_modules/@types" // default @types
     ],
     "types": [
       "node",

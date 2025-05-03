@@ -1,15 +1,11 @@
-import express from "express";
+// src/api/routes/friends.ts
+import { Router } from "express";
+import { check, param } from "express-validator";
 import { protect } from "../middleware/authMiddleware";
-import {
-  sendFriendRequest,
-  acceptFriendRequest,
-  removeFriend,
-  getFriendsList,
-} from "../controllers/FriendshipController";
-import { check } from "express-validator";
 import handleValidationErrors from "../middleware/handleValidationErrors";
+import friendshipController from "../controllers/FriendshipController";
 
-const router = express.Router();
+const router = Router();
 
 /**
  * @swagger
@@ -19,175 +15,93 @@ const router = express.Router();
  */
 
 /**
- * @swagger
- * /api/friends/request:
- *   post:
- *     summary: Send a friend request
- *     tags: [Friends]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               recipientId:
- *                 type: string
- *                 description: MongoDB ID of the user to send request to
- *     responses:
- *       200:
- *         description: Friend request sent
- *       400:
- *         description: Invalid input
+ * POST /api/friends/request
+ * Send a friend request
  */
 router.post(
   "/request",
   protect,
-  [check("recipientId", "Recipient ID is required").isMongoId(), handleValidationErrors],
-  sendFriendRequest
+  [
+    check("recipientId", "Recipient ID is required").isMongoId(),
+  ],
+  handleValidationErrors,
+  friendshipController.sendFriendRequest
 );
 
 /**
- * @swagger
- * /api/friends/accept:
- *   post:
- *     summary: Accept a friend request
- *     tags: [Friends]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               requestId:
- *                 type: string
- *                 description: ID of the friend request to accept
- *     responses:
- *       200:
- *         description: Friend request accepted
- *       400:
- *         description: Invalid input
+ * POST /api/friends/accept
+ * Accept a friend request
  */
 router.post(
   "/accept",
   protect,
-  [check("requestId", "Request ID is required").isMongoId(), handleValidationErrors],
-  acceptFriendRequest
+  [
+    check("requestId", "Request ID is required").isMongoId(),
+  ],
+  handleValidationErrors,
+  friendshipController.acceptFriendRequest
 );
 
 /**
- * @swagger
- * /api/friends/decline:
- *   post:
- *     summary: Decline a friend request
- *     tags: [Friends]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               requestId:
- *                 type: string
- *     responses:
- *       200:
- *         description: Friend request declined
- *       400:
- *         description: Invalid input
+ * POST /api/friends/decline
+ * Decline a friend request
  */
 router.post(
   "/decline",
   protect,
-  [check("requestId", "Request ID is required").isMongoId(), handleValidationErrors],
-  sendFriendRequest // Note: consider renaming handler to declineFriendRequest
+  [
+    check("requestId", "Request ID is required").isMongoId(),
+  ],
+  handleValidationErrors,
+  friendshipController.rejectFriendRequest
 );
 
 /**
- * @swagger
- * /api/friends/remove/{friendId}:
- *   delete:
- *     summary: Remove a friend
- *     tags: [Friends]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - name: friendId
- *         in: path
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Friend removed
- *       400:
- *         description: Invalid friend ID
+ * DELETE /api/friends/remove/:friendId
+ * Remove a friend
  */
 router.delete(
   "/remove/:friendId",
   protect,
-  removeFriend
+  [
+    param("friendId", "Friend ID must be a valid Mongo ID").isMongoId(),
+  ],
+  handleValidationErrors,
+  friendshipController.removeFriend
 );
 
 /**
- * @swagger
- * /api/friends:
- *   get:
- *     summary: Get user's friend list
- *     tags: [Friends]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: List of friends
+ * GET /api/friends
+ * Get user's friend list
  */
-router.get("/", protect, getFriendsList);
+router.get(
+  "/",
+  protect,
+  friendshipController.getFriendsList
+);
 
 /**
- * @swagger
- * /api/friends/requests:
- *   get:
- *     summary: Get all pending friend requests
- *     tags: [Friends]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: List of pending requests
+ * GET /api/friends/requests
+ * Get all pending friend requests
  */
-router.get("/requests", protect, sendFriendRequest); // Consider renaming to getPendingRequests
+router.get(
+  "/requests",
+  protect,
+  friendshipController.getPendingFriendRequests
+);
 
 /**
- * @swagger
- * /api/friends/cancel/{requestId}:
- *   delete:
- *     summary: Cancel a sent friend request
- *     tags: [Friends]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - name: requestId
- *         in: path
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Request canceled
- *       400:
- *         description: Invalid request ID
+ * DELETE /api/friends/cancel/:requestId
+ * Cancel a sent friend request
  */
 router.delete(
   "/cancel/:requestId",
   protect,
-  acceptFriendRequest // Consider renaming to cancelFriendRequest
+  [
+    param("requestId", "Request ID must be a valid Mongo ID").isMongoId(),
+  ],
+  handleValidationErrors,
+  friendshipController.cancelFriendRequest
 );
 
 export default router;

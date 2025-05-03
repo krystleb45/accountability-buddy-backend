@@ -16,7 +16,6 @@ import { logger } from "../../utils/winstonLogger";
 
 const router: Router = express.Router();
 
-// ─── rate limiter ───────────────────────────────────────────────────────────────
 const reminderLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
@@ -26,17 +25,13 @@ const reminderLimiter = rateLimit({
   },
 });
 
-// ─── Create ────────────────────────────────────────────────────────────────────
-/**
- * POST /api/reminders
- */
 router.post(
   "/",
   protect,
   checkSubscription("paid"),
   reminderLimiter,
   validateReminder,
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       await createCustomReminder(req, res, next);
     } catch (err: any) {
@@ -46,15 +41,11 @@ router.post(
   }
 );
 
-// ─── Read (all for user) ───────────────────────────────────────────────────────
-/**
- * GET /api/reminders
- */
 router.get(
   "/",
   protect,
   checkSubscription("trial"),
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       await getCustomReminders(req, res, next);
     } catch (err: any) {
@@ -64,16 +55,12 @@ router.get(
   }
 );
 
-// ─── Update ────────────────────────────────────────────────────────────────────
-/**
- * PUT /api/reminders/:id
- */
 router.put(
   "/:id",
   protect,
   checkSubscription("paid"),
   validateReminder,
-  async (req: Request<{ id: string }>, res: Response, next: NextFunction) => {
+  async (req: Request<{ id: string }>, res: Response, next: NextFunction): Promise<void> => {
     try {
       await updateCustomReminder(req, res, next);
     } catch (err: any) {
@@ -83,15 +70,11 @@ router.put(
   }
 );
 
-// ─── Disable (soft-delete) ─────────────────────────────────────────────────────
-/**
- * PUT /api/reminders/disable/:id
- */
 router.put(
   "/disable/:id",
   protect,
   checkSubscription("paid"),
-  async (req: Request<{ id: string }>, res: Response, next: NextFunction) => {
+  async (req: Request<{ id: string }>, res: Response, next: NextFunction): Promise<void> => {
     try {
       await disableCustomReminder(req, res, next);
     } catch (err: any) {
@@ -101,15 +84,11 @@ router.put(
   }
 );
 
-// ─── Delete ────────────────────────────────────────────────────────────────────
-/**
- * DELETE /api/reminders/:id
- */
 router.delete(
   "/:id",
   protect,
   checkSubscription("paid"),
-  async (req: Request<{ id: string }>, res: Response, next: NextFunction) => {
+  async (req: Request<{ id: string }>, res: Response, next: NextFunction): Promise<void> => {
     try {
       await deleteCustomReminder(req, res, next);
     } catch (err: any) {

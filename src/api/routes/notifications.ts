@@ -1,16 +1,14 @@
-import type { Router } from "express";
-import express from "express";
+// src/api/routes/notifications.ts
+import { Router } from "express";
 import { check } from "express-validator";
 import rateLimit from "express-rate-limit";
-import { protect } from "../middleware/authMiddleware"; // Corrected import
+import { protect } from "../middleware/authMiddleware";
 import * as NotificationController from "../controllers/NotificationController";
 import handleValidationErrors from "../middleware/handleValidationErrors";
 
-const router: Router = express.Router();
+const router = Router();
 
-/**
- * Rate limiter to prevent spam requests for sending notifications.
- */
+// Limit posts to avoid spam
 const notificationLimiter = rateLimit({
   windowMs: 10 * 60 * 1000, // 10 minutes
   max: 10,
@@ -23,46 +21,15 @@ const notificationLimiter = rateLimit({
 });
 
 /**
- * @swagger
- * /api/notifications:
- *   post:
- *     summary: Send a notification
- *     tags: [Notifications]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - receiverId
- *               - message
- *               - type
- *             properties:
- *               receiverId:
- *                 type: string
- *                 description: MongoDB ObjectId of the receiver
- *               message:
- *                 type: string
- *               type:
- *                 type: string
- *                 enum: [friend_request, message, group_invite, blog_activity, goal_milestone]
- *     responses:
- *       200:
- *         description: Notification sent successfully
- *       400:
- *         description: Validation error
- *       401:
- *         description: Unauthorized
+ * POST /api/notifications
+ * Send a notification
  */
 router.post(
   "/",
   protect,
   notificationLimiter,
   [
-    check("receiverId", "Receiver ID is required").notEmpty(),
+    check("receiverId", "Receiver ID is required").notEmpty().isMongoId(),
     check("message", "Notification message is required").notEmpty(),
     check("type", "Notification type is required").isIn([
       "friend_request",
@@ -77,81 +44,44 @@ router.post(
 );
 
 /**
- * @swagger
- * /api/notifications:
- *   get:
- *     summary: Get all notifications for the authenticated user
- *     tags: [Notifications]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: List of notifications
- *       401:
- *         description: Unauthorized
+ * GET /api/notifications
+ * Get all notifications for current user
  */
-router.get("/", protect, NotificationController.getNotifications);
+router.get(
+  "/",
+  protect,
+  NotificationController.getNotifications
+);
 
 /**
- * @swagger
- * /api/notifications/read:
- *   patch:
- *     summary: Mark notifications as read
- *     tags: [Notifications]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - notificationIds
- *             properties:
- *               notificationIds:
- *                 type: array
- *                 items:
- *                   type: string
- *     responses:
- *       200:
- *         description: Notifications marked as read
- *       400:
- *         description: Invalid payload
- *       401:
- *         description: Unauthorized
+ * PATCH /api/notifications/read
+ * Mark a batch of notifications as read
  */
 router.patch(
   "/read",
   protect,
-  [check("notificationIds", "Notification IDs array is required").isArray()],
+  [
+    check("notificationIds", "notificationIds must be an array of IDs")
+      .isArray({ min: 1 })
+      .custom((arr: any[]) => arr.every((id) => typeof id === "string" && /^[0-9a-fA-F]{24}$/.test(id)))
+      .withMessage("Each notificationId must be a valid Mongo ID"),
+  ],
   handleValidationErrors,
   NotificationController.markNotificationsAsRead
 );
 
 /**
- * @swagger
- * /api/notifications/{notificationId}:
- *   delete:
- *     summary: Delete a specific notification
- *     tags: [Notifications]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: notificationId
- *         required: true
- *         schema:
- *           type: string
- *         description: ID of the notification to delete
- *     responses:
- *       200:
- *         description: Notification deleted
- *       401:
- *         description: Unauthorized
- *       404:
- *         description: Notification not found
+ * DELETE /api/notifications/:notificationId
+ * Delete a single notification
  */
-router.delete("/:notificationId", protect, NotificationController.deleteNotification);
+router.delete(
+  "/:notificationId",
+  protect,
+  [
+    check("notificationId", "notificationId must be a valid Mongo ID").isMongoId()
+  ],
+  handleValidationErrors,
+  NotificationController.deleteNotification
+);
 
 export default router;

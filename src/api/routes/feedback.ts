@@ -1,60 +1,23 @@
-import type { Router, Request, Response, NextFunction } from "express";
-import express from "express";
+// src/api/routes/feedback.ts
+import { Router } from "express";
 import { check } from "express-validator";
 import rateLimit from "express-rate-limit";
 import { protect } from "../middleware/authMiddleware";
 import handleValidationErrors from "../middleware/handleValidationErrors";
-import { logger } from "../../utils/winstonLogger";
-
 import feedbackController from "../controllers/FeedbackController";
 
-const router: Router = express.Router();
+const router = Router();
 
-/**
- * @swagger
- * tags:
- *   name: Feedback
- *   description: User feedback management
- */
-
-// Rate limiter to prevent spam in feedback submissions
+// 5 submissions per hour
 const feedbackLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
+  windowMs: 60 * 60 * 1000,
   max: 5,
-  message: "Too many feedback submissions, please try again later",
+  message: { success: false, message: "Too many feedback submissions, please try again later." },
 });
 
 /**
- * @swagger
- * /api/feedback:
- *   post:
- *     summary: Submit user feedback
- *     tags: [Feedback]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - message
- *               - type
- *             properties:
- *               message:
- *                 type: string
- *                 maxLength: 1000
- *               type:
- *                 type: string
- *                 enum: [bug, feature-request, other]
- *     responses:
- *       201:
- *         description: Feedback submitted successfully
- *       400:
- *         description: Validation error
- *       429:
- *         description: Rate limit exceeded
+ * POST /api/feedback
+ * Submit user feedback
  */
 router.post(
   "/",
@@ -63,84 +26,35 @@ router.post(
   [
     check("message", "Feedback message is required").notEmpty().isLength({ max: 1000 }),
     check("type", "Invalid feedback type").isIn(["bug", "feature-request", "other"]),
-    handleValidationErrors,
   ],
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      await feedbackController.submitFeedback(req as any, res, next);
-    } catch (err) {
-      logger.error(`Error submitting feedback: ${(err as Error).message}`, { err });
-      next(err);
-    }
-  }
+  handleValidationErrors,
+  feedbackController.submitFeedback
 );
 
 /**
- * @swagger
- * /api/feedback:
- *   get:
- *     summary: Get feedback submitted by the authenticated user
- *     tags: [Feedback]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: List of feedback
- *       401:
- *         description: Unauthorized
+ * GET /api/feedback
+ * Get feedback submitted by the authenticated user
  */
 router.get(
   "/",
   protect,
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      await feedbackController.getUserFeedback(req as any, res, next);
-    } catch (err) {
-      logger.error(`Error fetching feedback: ${(err as Error).message}`, { err });
-      next(err);
-    }
-  }
+  feedbackController.getUserFeedback
 );
 
 /**
- * @swagger
- * /api/feedback/{feedbackId}:
- *   delete:
- *     summary: Delete feedback by ID
- *     tags: [Feedback]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: feedbackId
- *         required: true
- *         schema:
- *           type: string
- *           pattern: '^[0-9a-fA-F]{24}$'
- *     responses:
- *       200:
- *         description: Feedback deleted
- *       400:
- *         description: Invalid ID
- *       404:
- *         description: Feedback not found
+ * DELETE /api/feedback/:feedbackId
+ * Delete feedback by ID
  */
 router.delete(
   "/:feedbackId",
   protect,
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    const { feedbackId } = req.params;
-    if (!feedbackId.match(/^[0-9a-fA-F]{24}$/)) {
-      res.status(400).json({ success: false, msg: "Invalid feedback ID" });
-      return;
-    }
-    try {
-      await feedbackController.deleteFeedback(req as any, res, next);
-    } catch (err) {
-      logger.error(`Error deleting feedback: ${(err as Error).message}`, { err });
-      next(err);
-    }
-  }
+  [
+    check("feedbackId", "Invalid feedback ID")
+      .matches(/^[0-9a-fA-F]{24}$/)
+      .withMessage("Must be a 24-char hex string"),
+  ],
+  handleValidationErrors,
+  feedbackController.deleteFeedback
 );
 
 export default router;

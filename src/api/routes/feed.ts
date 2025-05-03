@@ -1,64 +1,26 @@
-import type { Router, Response, NextFunction } from "express";
-import express from "express";
-import { check } from "express-validator";
+// src/api/routes/feed.ts
+import { Router } from "express";
+import { check, param } from "express-validator";
 import rateLimit from "express-rate-limit";
 import { protect } from "../middleware/authMiddleware";
-import * as feedController from "../controllers/feedController";
-import type { AuthenticatedRequest } from "../../types/AuthenticatedRequest";
 import handleValidationErrors from "../middleware/handleValidationErrors";
+import * as feedController from "../controllers/feedController";
 
-const router: Router = express.Router();
+const router = Router();
 
-// Rate limiter to prevent abuse
-const rateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+// throttle to 10 requests per 15 minutes
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
   max: 10,
   message: { success: false, msg: "Too many requests. Please try again later." },
 });
 
 /**
- * @swagger
- * tags:
- *   name: Feed
- *   description: User goal progress feed & social interaction
- */
-
-/**
- * @swagger
- * /api/feed/post:
- *   post:
- *     summary: Create a new feed post
- *     tags: [Feed]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - goalId
- *               - milestone
- *             properties:
- *               goalId:
- *                 type: string
- *               milestone:
- *                 type: string
- *               message:
- *                 type: string
- *                 maxLength: 500
- *     responses:
- *       201:
- *         description: Post created
- *       400:
- *         description: Validation error
- *       401:
- *         description: Unauthorized
+ * POST /api/feed/post
  */
 router.post(
   "/post",
-  rateLimiter,
+  limiter,
   protect,
   [
     check("goalId", "Goal ID is required").notEmpty().isMongoId(),
@@ -68,208 +30,72 @@ router.post(
       .isLength({ max: 500 }),
   ],
   handleValidationErrors,
-  async (
-    req: AuthenticatedRequest<{}, {}, { goalId: string; milestone: string; message: string }>,
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> => {
-    try {
-      await feedController.createPost(req as any, res, next);
-    } catch (err) {
-      next(err);
-    }
-  },
+  feedController.createPost
 );
 
 /**
- * @swagger
- * /api/feed:
- *   get:
- *     summary: Get all feed posts
- *     tags: [Feed]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Posts retrieved
- *       401:
- *         description: Unauthorized
+ * GET /api/feed
  */
 router.get(
   "/",
-  rateLimiter,
+  limiter,
   protect,
-  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    try {
-      await feedController.getFeed(req as any, res, next);
-    } catch (err) {
-      next(err);
-    }
-  },
+  feedController.getFeed
 );
 
 /**
- * @swagger
- * /api/feed/like/{id}:
- *   post:
- *     summary: Like a feed post
- *     tags: [Feed]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Post liked
- *       404:
- *         description: Post not found
+ * POST /api/feed/like/:id
  */
 router.post(
   "/like/:id",
-  rateLimiter,
+  limiter,
   protect,
-  async (req: AuthenticatedRequest<{ id: string }>, res: Response, next: NextFunction) => {
-    try {
-      await feedController.addLike(req as any, res, next);
-    } catch (err) {
-      next(err);
-    }
-  },
+  [ param("id", "Invalid post ID").isMongoId() ],
+  handleValidationErrors,
+  feedController.addLike
 );
 
 /**
- * @swagger
- * /api/feed/unlike/{id}:
- *   delete:
- *     summary: Unlike a post
- *     tags: [Feed]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Like removed
- *       404:
- *         description: Post not found
+ * DELETE /api/feed/unlike/:id
  */
 router.delete(
   "/unlike/:id",
-  rateLimiter,
+  limiter,
   protect,
-  async (req: AuthenticatedRequest<{ id: string }>, res: Response, next: NextFunction) => {
-    try {
-      await feedController.removeLike(req as any, res, next);
-    } catch (err) {
-      next(err);
-    }
-  },
+  [ param("id", "Invalid post ID").isMongoId() ],
+  handleValidationErrors,
+  feedController.removeLike
 );
 
 /**
- * @swagger
- * /api/feed/comment/{id}:
- *   post:
- *     summary: Add a comment to a post
- *     tags: [Feed]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - text
- *             properties:
- *               text:
- *                 type: string
- *                 maxLength: 200
- *     responses:
- *       200:
- *         description: Comment added
- *       400:
- *         description: Validation error
- *       404:
- *         description: Post not found
+ * POST /api/feed/comment/:id
  */
 router.post(
   "/comment/:id",
-  rateLimiter,
+  limiter,
   protect,
   [
+    param("id", "Invalid post ID").isMongoId(),
     check("text", "Comment must not be empty").notEmpty(),
     check("text", "Comment must not exceed 200 characters").isLength({ max: 200 }),
   ],
   handleValidationErrors,
-  async (
-    req: AuthenticatedRequest<{ id: string }, {}, { text: string }>,
-    res: Response,
-    next: NextFunction,
-  ) => {
-    try {
-      await feedController.addComment(req as any, res, next);
-    } catch (err) {
-      next(err);
-    }
-  },
+  feedController.addComment
 );
 
 /**
- * @swagger
- * /api/feed/comment/{postId}/{commentId}:
- *   delete:
- *     summary: Delete a comment from a post
- *     tags: [Feed]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: postId
- *         required: true
- *         schema:
- *           type: string
- *       - in: path
- *         name: commentId
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Comment deleted
- *       404:
- *         description: Comment not found
+ * DELETE /api/feed/comment/:postId/:commentId
  */
 router.delete(
   "/comment/:postId/:commentId",
-  rateLimiter,
+  limiter,
   protect,
-  async (
-    req: AuthenticatedRequest<{ postId: string; commentId: string }>,
-    res: Response,
-    next: NextFunction,
-  ) => {
-    try {
-      await feedController.removeComment(req as any, res, next);
-    } catch (err) {
-      next(err);
-    }
-  },
+  [
+    param("postId", "Invalid post ID").isMongoId(),
+    param("commentId", "Invalid comment ID").isMongoId(),
+  ],
+  handleValidationErrors,
+  feedController.removeComment
 );
 
 export default router;

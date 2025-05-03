@@ -5,7 +5,8 @@ import * as bookService from "../services/bookRecommendationService";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
 
-const isValidId = (id: string) => mongoose.Types.ObjectId.isValid(id);
+// helper to validate Mongo IDs
+const isValidId = (id: string): boolean => mongoose.Types.ObjectId.isValid(id);
 
 export const addBook = catchAsync(async (req: Request, res: Response): Promise<void> => {
   const userId = req.user?.id;
@@ -19,7 +20,11 @@ export const addBook = catchAsync(async (req: Request, res: Response): Promise<v
     return;
   }
   const book = await bookService.addBookService(userId, {
-    title, author, category, description, coverImage,
+    title,
+    author,
+    category,
+    description,
+    coverImage,
   });
   sendResponse(res, 201, true, "Book added", { book });
 });

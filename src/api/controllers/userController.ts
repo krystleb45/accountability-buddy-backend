@@ -92,7 +92,38 @@ export const getUserStatistics = catchAsync(async (req: Request, res: Response) 
   const stats = await UserService.getStatistics(req.params.userId);
   sendResponse(res, 200, true, "User statistics fetched", { stats });
 });
+/**
+ * @desc    Update the current user's profile
+ * @route   PUT /api/user/profile
+ * @access  Private
+ */
+export const updateUserProfile = catchAsync(async (req: Request, res: Response) => {
+  const updates: Partial<{ email: string; username: string }> = {};
+  if (typeof req.body.email === "string") updates.email = req.body.email;
+  if (typeof req.body.username === "string") updates.username = req.body.username;
+  const user = await UserService.updateProfile(req.user!.id, updates);
+  sendResponse(res, 200, true, "Profile updated successfully", { user });
+});
 
+/**
+ * @desc    Get the timestamp of the user's last check‑in
+ * @route   GET /api/user/check-in/last
+ * @access  Private
+ */
+export const getLastCheckIn = catchAsync(async (req: Request, res: Response) => {
+  const last = await UserService.getLastCheckIn(req.user!.id);
+  sendResponse(res, 200, true, "Last check‑in fetched", { last });
+});
+
+/**
+ * @desc    Record a new check‑in for the user
+ * @route   POST /api/user/check-in
+ * @access  Private
+ */
+export const logCheckIn = catchAsync(async (req: Request, res: Response) => {
+  const entry = await UserService.logCheckIn(req.user!.id);
+  sendResponse(res, 200, true, "Check‑in logged", { entry });
+});
 export default {
   getUserProfile,
   changePassword,
@@ -111,4 +142,7 @@ export default {
   fetchUserBadges,
   awardBadge,
   getUserStatistics,
+  updateUserProfile,
+  getLastCheckIn,
+  logCheckIn,
 };

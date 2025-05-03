@@ -1,234 +1,63 @@
-import type { Router, Request, Response, NextFunction } from "express";
-import express from "express";
-import { check, validationResult } from "express-validator";
-import sanitize from "mongo-sanitize";
+// src/api/routes/streaks.ts
+import { Router, Request, Response, NextFunction } from "express";
 import { protect } from "../middleware/authMiddleware";
-import { logger } from "../../utils/winstonLogger";
+import rateLimit from "express-rate-limit";
+import { check } from "express-validator";
+import handleValidationErrors from "../middleware/handleValidationErrors";
+import catchAsync from "../utils/catchAsync";
 import {
-  createTask,
-  updateTask,
-  deleteTask,
-  getTaskById,
-  getAllTasks,
-} from "../controllers/TaskController";
+  getUserStreak,
+  logDailyCheckIn,
+  getStreakLeaderboard,
+} from "../controllers/StreakController";
 
-const router: Router = express.Router();
+const router = Router();
 
-/**
- * @swagger
- * tags:
- *   name: Tasks
- *   description: Task management endpoints (CRUD)
- */
+// Throttle check-in requests to 5 per 15 minutes
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { success: false, message: "Too many requests. Please try again later." },
+});
 
 /**
- * Error handler
+ * GET /api/streaks
+ * Get the user's current streak and check-in history
  */
-const handleError = (
-  error: unknown,
-  res: Response,
-  defaultMessage: string,
-): void => {
-  const errorMessage = error instanceof Error ? error.message : "Unexpected error occurred.";
-  logger.error(`${defaultMessage}: ${errorMessage}`);
-  res.status(500).json({ success: false, msg: defaultMessage, error: errorMessage });
-};
-
-/**
- * @swagger
- * /tasks:
- *   post:
- *     summary: Create a new task
- *     tags: [Tasks]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               title:
- *                 type: string
- *               dueDate:
- *                 type: string
- *                 format: date
- *     responses:
- *       201:
- *         description: Task created successfully
- *       400:
- *         description: Validation error
- */
-router.post(
+router.get(
   "/",
   protect,
-  [
-    check("title", "Task title is required").notEmpty(),
-    check("dueDate", "Invalid due date").optional().isISO8601(),
-  ],
-  async (
-    req: Request<{}, {}, { title: string; dueDate?: string }>,
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      res.status(400).json({ errors: errors.array() });
-      return;
-    }
-
-    try {
-      const sanitizedBody = sanitize(req.body);
-      const newTask = await createTask(req.user?.id as string, sanitizedBody);
-      res.status(201).json({ success: true, data: newTask });
-    } catch (error) {
-      handleError(error, res, "Error creating task");
-      return next(error);
-    }
-  },
+  catchAsync(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    // call the controller wrapper inside an async function
+    await getUserStreak(req, res, next);
+  })
 );
 
 /**
- * @swagger
- * /tasks:
- *   get:
- *     summary: Get all tasks for the authenticated user
- *     tags: [Tasks]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: List of user tasks
+ * POST /api/streaks/check-in
+ * Log a daily check-in to increment user's streak
  */
-router.get("/", protect, async (req, res, next) => {
-  try {
-    await getAllTasks(req, res, next);
-  } catch (error) {
-    handleError(error, res, "Error fetching tasks");
-  }
-});
-
-/**
- * @swagger
- * /tasks/{id}:
- *   get:
- *     summary: Get a specific task by ID
- *     tags: [Tasks]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Task ID
- *     responses:
- *       200:
- *         description: Task retrieved
- *       404:
- *         description: Task not found
- */
-router.get("/:id", protect, async (req, res, next) => {
-  try {
-    await getTaskById(req as Request<{ id: string }>, res, next);
-
-  } catch (error) {
-    handleError(error, res, "Error fetching task");
-    next(error);
-  }
-});
-
-/**
- * @swagger
- * /tasks/{id}:
- *   put:
- *     summary: Update a task by ID
- *     tags: [Tasks]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Task ID
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               title:
- *                 type: string
- *               dueDate:
- *                 type: string
- *                 format: date
- *     responses:
- *       200:
- *         description: Task updated successfully
- *       400:
- *         description: Validation error
- */
-router.put(
-  "/:id",
+router.post(
+  "/check-in",
   protect,
-  [
-    check("title", "Task title is required").optional().notEmpty(),
-    check("dueDate", "Invalid due date").optional().isISO8601(),
-  ],
-  async (
-    req: Request<{ id: string }, {}, { title?: string; dueDate?: string }>,
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      res.status(400).json({ errors: errors.array() });
-      return;
-    }
-
-    try {
-      await updateTask(req, res, next);
-    } catch (error) {
-      handleError(error, res, "Error updating task");
-      next(error);
-    }
-  },
+  limiter,
+  [check("date").optional().isISO8601().withMessage("Date must be ISO8601")],
+  handleValidationErrors,
+  catchAsync(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    await logDailyCheckIn(req, res, next);
+  })
 );
 
 /**
- * @swagger
- * /tasks/{id}:
- *   delete:
- *     summary: Delete a task by ID
- *     tags: [Tasks]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Task ID
- *     responses:
- *       200:
- *         description: Task deleted successfully
- *       404:
- *         description: Task not found
+ * GET /api/streaks/leaderboard
+ * Get the streak leaderboard
  */
-router.delete("/:id", protect, async (req, res, next) => {
-  try {
-    await deleteTask(req as Request<{ id: string }>, res, next);
-
-  } catch (error) {
-    handleError(error, res, "Error deleting task");
-    next(error);
-  }
-});
+router.get(
+  "/leaderboard",
+  protect,
+  catchAsync(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    await getStreakLeaderboard(req, res, next);
+  })
+);
 
 export default router;

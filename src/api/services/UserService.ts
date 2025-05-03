@@ -1,12 +1,13 @@
 // src/api/services/UserService.ts
 import { FilterQuery, Types } from "mongoose";
-import type { IUser } from "../models/User";
-import { User } from "../models/User";
+import bcrypt from "bcryptjs";
+import { subDays } from "date-fns";
+
+import { User, IUser } from "../models/User";
 import Goal, { IGoal } from "../models/Goal";
 import Badge, { IBadge } from "../models/Badge";
 import Streak from "../models/Streak";
-import { subDays } from "date-fns";
-import bcrypt from "bcryptjs";
+import CheckIn, { CheckInDocument } from "../models/CheckIn"; // <-- ensure this model exists
 import { CustomError } from "./errorHandler";
 
 interface LeaderboardOpts {
@@ -28,8 +29,11 @@ export default class UserService {
   ): Promise<void> {
     const user = await User.findById(userId).select("+password");
     if (!user) throw new CustomError("User not found", 404);
-    if (!(await bcrypt.compare(current, user.password)))
+
+    if (!(await bcrypt.compare(current, user.password))) {
       throw new CustomError("Current password incorrect", 400);
+    }
+
     user.password = await bcrypt.hash(nextPwd, 12);
     await user.save();
   }
@@ -70,10 +74,7 @@ export default class UserService {
       .select("username points completedGoals streakCount profilePicture");
   }
 
-  static async pinGoal(
-    userId: string,
-    goalId: string
-  ): Promise<Types.ObjectId[]> {
+  static async pinGoal(userId: string, goalId: string): Promise<Types.ObjectId[]> {
     const user = await User.findById(userId);
     if (!user) throw new CustomError("User not found", 404);
 
@@ -86,10 +87,7 @@ export default class UserService {
     return user.pinnedGoals;
   }
 
-  static async unpinGoal(
-    userId: string,
-    goalId: string
-  ): Promise<Types.ObjectId[]> {
+  static async unpinGoal(userId: string, goalId: string): Promise<Types.ObjectId[]> {
     const user = await User.findById(userId);
     if (!user) throw new CustomError("User not found", 404);
 
@@ -104,9 +102,7 @@ export default class UserService {
     const user = await User.findById(userId).populate("pinnedGoals");
     if (!user) throw new CustomError("User not found", 404);
 
-    const raw = Array.isArray(user.pinnedGoals)
-      ? (user.pinnedGoals as any[])
-      : [];
+    const raw = Array.isArray(user.pinnedGoals) ? (user.pinnedGoals as any[]) : [];
     return raw.map((g) => g as IGoal);
   }
 
@@ -151,7 +147,6 @@ export default class UserService {
   }
 
   static async fetchBadges(): Promise<IBadge[]> {
-    // .lean() gives plain objects, but we cast to IBadge[]
     return (await Badge.find().lean()) as IBadge[];
   }
 
@@ -163,10 +158,7 @@ export default class UserService {
     return raw.map((b) => b as IBadge);
   }
 
-  static async awardBadge(
-    userId: string,
-    badgeId: string
-  ): Promise<IBadge[]> {
+  static async awardBadge(userId: string, badgeId: string): Promise<IBadge[]> {
     const user = await User.findById(userId);
     if (!user) throw new CustomError("User not found", 404);
 
@@ -235,22 +227,61 @@ export default class UserService {
     };
   }
 
+  // ─── APPLICATION FEATURES ────────────────────────────────────────────────
+
+  /** Update email/username on the current user */
+  static async updateProfile(
+    userId: string,
+    updates: Partial<{ email: string; username: string }>
+  ): Promise<IUser> {
+    const user = await User.findByIdAndUpdate(
+      userId,
+      updates,
+      { new: true, runValidators: true }
+    ).select("-password");
+    if (!user) throw new CustomError("User not found", 404);
+    return user;
+  }
+
+  /** Fetch the timestamp of the user's most recent check‑in */
+  static async getLastCheckIn(userId: string): Promise<Date | null> {
+    const last = await CheckIn
+      .findOne({ user: userId })
+      .sort({ createdAt: -1 })
+      .select("createdAt")
+      .lean();
+    return last?.createdAt ?? null;
+  }
+
+  /** Record a new check‑in for this user */
+  static async logCheckIn(userId: string): Promise<CheckInDocument> {
+    const entry = await CheckIn.create({
+      user: userId,
+      createdAt: new Date(),
+    });
+    return entry;
+  }
+
+  // ─── ADMIN CONTROLS ────────────────────────────────────────────────────────
+
+  /** Block (deactivate) a user account by ID */
   static async blockUser(userId: string): Promise<IUser> {
     const user = await User.findByIdAndUpdate(
       userId,
       { active: false },
       { new: true }
-    );
+    ).select("-password");
     if (!user) throw new CustomError("User not found", 404);
     return user;
   }
 
+  /** Unblock (reactivate) a user account by ID */
   static async unblockUser(userId: string): Promise<IUser> {
     const user = await User.findByIdAndUpdate(
       userId,
       { active: true },
       { new: true }
-    );
+    ).select("-password");
     if (!user) throw new CustomError("User not found", 404);
     return user;
   }

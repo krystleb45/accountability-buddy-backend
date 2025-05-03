@@ -1,106 +1,53 @@
-import { Router } from "express";
+// src/api/routes/follow.ts
+import { Router, Request, Response, NextFunction } from "express";
 import { protect } from "../middleware/authMiddleware";
+import { param } from "express-validator";
+import handleValidationErrors from "../middleware/handleValidationErrors";
+import catchAsync from "../utils/catchAsync";
 import FollowController from "../controllers/FollowController";
 
 const router = Router();
 
-/**
- * @swagger
- * tags:
- *   name: Followers
- *   description: API for managing user followers and following
- */
+// Follow a user
+router.post(
+  "/:userId",
+  protect,
+  param("userId", "Invalid user ID").isMongoId(),
+  handleValidationErrors,
+  catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+    await FollowController.followUser(req, res, next);
+  })
+);
 
-/**
- * @swagger
- * /api/follow/{userId}:
- *   post:
- *     summary: Follow a user
- *     tags: [Followers]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: userId
- *         schema:
- *           type: string
- *         required: true
- *         description: ID of the user to follow
- *     responses:
- *       200:
- *         description: Successfully followed the user
- *       400:
- *         description: Invalid user ID
- *       401:
- *         description: Unauthorized
- */
-router.post("/:userId", protect, FollowController.followUser);
+// Unfollow a user
+router.delete(
+  "/:userId",
+  protect,
+  param("userId", "Invalid user ID").isMongoId(),
+  handleValidationErrors,
+  catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+    await FollowController.unfollowUser(req, res, next);
+  })
+);
 
-/**
- * @swagger
- * /api/follow/{userId}:
- *   delete:
- *     summary: Unfollow a user
- *     tags: [Followers]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: userId
- *         schema:
- *           type: string
- *         required: true
- *         description: ID of the user to unfollow
- *     responses:
- *       200:
- *         description: Successfully unfollowed the user
- *       400:
- *         description: Invalid user ID
- *       401:
- *         description: Unauthorized
- */
-router.delete("/:userId", protect, FollowController.unfollowUser);
+// Get followers of a user
+router.get(
+  "/followers/:userId",
+  param("userId", "Invalid user ID").isMongoId(),
+  handleValidationErrors,
+  catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+    await FollowController.getFollowers(req, res, next);
+  })
+);
 
-/**
- * @swagger
- * /api/follow/followers/{userId}:
- *   get:
- *     summary: Get followers of a user
- *     tags: [Followers]
- *     parameters:
- *       - in: path
- *         name: userId
- *         schema:
- *           type: string
- *         required: true
- *         description: User ID whose followers you want to retrieve
- *     responses:
- *       200:
- *         description: List of followers returned
- *       404:
- *         description: User not found or no followers
- */
-router.get("/followers/:userId", FollowController.getFollowers);
-
-/**
- * @swagger
- * /api/follow/following/{userId}:
- *   get:
- *     summary: Get list of users a user is following
- *     tags: [Followers]
- *     parameters:
- *       - in: path
- *         name: userId
- *         schema:
- *           type: string
- *         required: true
- *         description: User ID whose following list you want to retrieve
- *     responses:
- *       200:
- *         description: List of followed users returned
- *       404:
- *         description: User not found or not following anyone
- */
-router.get("/following/:userId", FollowController.getFollowing);
+// Get users a user is following
+router.get(
+  "/following/:userId",
+  param("userId", "Invalid user ID").isMongoId(),
+  handleValidationErrors,
+  catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+    await FollowController.getFollowing(req, res, next);
+  })
+);
 
 export default router;

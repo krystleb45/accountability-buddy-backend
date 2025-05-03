@@ -1,146 +1,99 @@
-import { Router } from "express";
-import express from "express";
+// src/api/routes/goal.ts
+import { Router, Request, Response, NextFunction } from "express";
 import { protect } from "../middleware/authMiddleware";
 import checkSubscription from "../middleware/checkSubscription";
 import * as goalController from "../controllers/GoalController";
-const router: Router = express.Router();
+
+const router = Router();
 
 /**
- * @swagger
- * tags:
- *   name: Goals
- *   description: Endpoints for managing user goals
+ * POST /api/goals/create
  */
+router.post(
+  "/create",
+  protect,
+  checkSubscription("paid"),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      await goalController.createGoal(req, res, next);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 /**
- * @swagger
- * /api/goals/create:
- *   post:
- *     summary: Create a new goal
- *     tags: [Goals]
- *     security:
- *       - bearerAuth: []
- *     description: Create a goal for a logged-in user with an active paid subscription.
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - title
- *               - target
- *             properties:
- *               title:
- *                 type: string
- *               target:
- *                 type: number
- *               category:
- *                 type: string
- *     responses:
- *       201:
- *         description: Goal created successfully
- *       401:
- *         description: Unauthorized or inactive subscription
+ * PUT /api/goals/:goalId/progress
  */
-router.post("/create", protect, checkSubscription("paid"), goalController.createGoal);
+router.put(
+  "/:goalId/progress",
+  protect,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      await goalController.updateGoalProgress(req, res, next);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 /**
- * @swagger
- * /api/goals/{goalId}/progress:
- *   put:
- *     summary: Update goal progress
- *     tags: [Goals]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: goalId
- *         required: true
- *         schema:
- *           type: string
- *         description: The ID of the goal
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               progress:
- *                 type: number
- *     responses:
- *       200:
- *         description: Goal progress updated
- *       404:
- *         description: Goal not found
+ * PUT /api/goals/:goalId/complete
  */
-router.put("/:goalId/progress", protect, goalController.updateGoalProgress);
+router.put(
+  "/:goalId/complete",
+  protect,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      await goalController.completeGoal(req, res, next);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 /**
- * @swagger
- * /api/goals/{goalId}/complete:
- *   put:
- *     summary: Mark a goal as complete
- *     tags: [Goals]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: goalId
- *         required: true
- *         schema:
- *           type: string
- *         description: The ID of the goal
- *     responses:
- *       200:
- *         description: Goal marked as complete
- *       404:
- *         description: Goal not found
+ * GET /api/goals/public
  */
-router.put("/:goalId/complete", protect, goalController.completeGoal);
+router.get(
+  "/public",
+  async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      await goalController.getPublicGoals(_req, res, next);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 /**
- * @swagger
- * /api/goals/public:
- *   get:
- *     summary: Get all public goals
- *     tags: [Goals]
- *     description: Retrieve goals marked as public by users.
- *     responses:
- *       200:
- *         description: List of public goals
+ * GET /api/goals/my-goals
  */
-router.get("/public", goalController.getPublicGoals);
+router.get(
+  "/my-goals",
+  protect,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      await goalController.getUserGoals(req, res, next);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 /**
- * @swagger
- * /api/goals/my-goals:
- *   get:
- *     summary: Get user-specific goals
- *     tags: [Goals]
- *     security:
- *       - bearerAuth: []
- *     description: Get all goals created by the logged-in user.
- *     responses:
- *       200:
- *         description: List of user goals
+ * GET /api/goals/streak-dates
  */
-router.get("/my-goals", protect, goalController.getUserGoals);
-
-/**
- * @swagger
- * /api/goals/streak-dates:
- *   get:
- *     summary: Get goal completion streak dates
- *     tags: [Goals]
- *     security:
- *       - bearerAuth: []
- *     description: Get all dates where the user completed goals (used for streak visualizations).
- *     responses:
- *       200:
- *         description: Streak dates returned
- */
-router.get("/streak-dates", protect, goalController.getStreakDates);
+router.get(
+  "/streak-dates",
+  protect,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      await goalController.getStreakDates(req, res, next);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 export default router;

@@ -1,35 +1,56 @@
+// src/api/routes/userpointsRoute.ts
 import { Router } from "express";
 import { check } from "express-validator";
 import { protect } from "../middleware/authMiddleware";
-import { roleBasedAccessControl } from "../middleware/roleBasedAccessControl";
 import handleValidationErrors from "../middleware/handleValidationErrors";
-import * as userPointsCtrl from "../controllers/UserPointsController";
+import * as PointController from "../controllers/pointController";
 
 const router = Router();
 
+/**
+ * GET /api/users/points
+ * (fetch current user’s points)
+ */
 router.get(
-  "/:userId/points",
+  "/points",
   protect,
-  check("userId", "Invalid user ID").isMongoId(),
-  handleValidationErrors,
-  userPointsCtrl.getUserPoints,      // ← Express will now supply (req, res, next)
+  PointController.getUserPoints
 );
 
+/**
+ * POST /api/users/points/add
+ * (add points to current user)
+ */
 router.post(
-  "/:userId/points",
+  "/points/add",
   protect,
-  check("userId", "Invalid user ID").isMongoId(),
+  [ check("points", "Points must be a positive number").isInt({ gt: 0 }) ],
   handleValidationErrors,
-  userPointsCtrl.updateUserPoints,   // ← no manual call — Express calls it
+  PointController.addPoints
 );
 
-router.delete(
-  "/:userId/points",
+/**
+ * POST /api/users/points/subtract
+ * (subtract points from current user)
+ */
+router.post(
+  "/points/subtract",
   protect,
-  roleBasedAccessControl(["admin"]),
-  check("userId", "Invalid user ID").isMongoId(),
+  [ check("points", "Points must be a positive number").isInt({ gt: 0 }) ],
   handleValidationErrors,
-  userPointsCtrl.resetUserPoints,    // ← next is passed automatically
+  PointController.subtractPoints
+);
+
+/**
+ * POST /api/users/points/redeem
+ * (redeem user’s points for a reward)
+ */
+router.post(
+  "/points/redeem",
+  protect,
+  [ check("rewardId", "Reward ID is required").notEmpty() ],
+  handleValidationErrors,
+  PointController.redeemPoints
 );
 
 export default router;

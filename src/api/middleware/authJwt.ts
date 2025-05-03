@@ -1,47 +1,69 @@
 // src/api/middleware/authJwt.ts
-import { Request, Response, NextFunction } from "express";
-import jwt from "jsonwebtoken";
-import { User, IUser } from "../models/User";  // ← named import, matching your export
 
-/**
- * Verifies JWT and populates req.user with the full IUser (minus password).
- */
-export async function authenticateJwt(
-  req: Request,
-  _res: Response,
-  next: NextFunction
-): Promise<void> {
+import { RequestHandler } from "express";
+import jwt, { JwtPayload } from "jsonwebtoken";
+import { User } from "../models/User";
+import { logger } from "../../utils/winstonLogger";
+import { AuthenticatedRequest } from "../../types/AuthenticatedRequest";
+
+interface TokenPayload extends JwtPayload {
+  userId?: string;
+  role: string;
+  permissions?: string[];
+}
+
+export const protect: RequestHandler = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
-    return next();
+    logger.warn("❌ No token provided.");
+    res.status(401).json({ success: false, message: "Unauthorized: No token provided." });
+    return;
   }
 
   const token = authHeader.slice(7);
   const secret = process.env.ACCESS_TOKEN_SECRET;
   if (!secret) {
-    console.error("[authJwt] Missing ACCESS_TOKEN_SECRET");
-    return next();
+    logger.error("Missing ACCESS_TOKEN_SECRET in environment");
+    res.status(500).json({ success: false, message: "Server error: Token secret missing" });
+    return;
   }
 
+  let decoded: TokenPayload;
   try {
-    // 1. Verify and decode token
-    const payload = jwt.verify(token, secret) as { id: string };
-
-    // 2. Load the user document from MongoDB
-    const userDoc = await User.findById(payload.id)
-      .select("-password")   // remove password field
-      .exec();
-
-    if (userDoc) {
-      // 3. Attach the full IUser to req.user
-      //    (IUser extends Document, so userDoc matches IUser)
-      req.user = userDoc as IUser;
-    } else {
-      console.warn(`[authJwt] No user found with id ${payload.id}`);
-    }
+    decoded = jwt.verify(token, secret) as TokenPayload;
   } catch (err) {
-    console.warn("[authJwt] JWT verification failed:", err);
+    logger.error(`❌ Invalid token: ${(err as Error).message}`);
+    res.status(401).json({ success: false, message: "Unauthorized: Invalid token." });
+    return;
   }
 
-  return next();
-}
+  const userId = decoded.userId;
+  if (!userId) {
+    logger.warn("❌ Token payload missing userId");
+    res.status(401).json({ success: false, message: "Unauthorized: Invalid token payload." });
+    return;
+  }
+
+  const userDoc = await User.findById(userId)
+    .select("-password")
+    .lean();
+
+  if (!userDoc) {
+    logger.warn(`❌ User not found. ID: ${userId}`);
+    res.status(401).json({ success: false, message: "Unauthorized: User not found." });
+    return;
+  }
+
+  (req as AuthenticatedRequest).user = {
+    id:              userDoc._id.toString(),
+    username:        userDoc.username,
+    email:           userDoc.email,
+    role:            userDoc.role,
+    isAdmin:         userDoc.role === "admin",
+    permissions:     userDoc.permissions ?? [],
+    // …any other fields you need…
+  };
+
+  logger.info(`✅ Authenticated user ${userDoc.email}`);
+  next();  // move on to your controller
+};

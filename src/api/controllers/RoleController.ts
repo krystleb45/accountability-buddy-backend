@@ -1,8 +1,13 @@
+// src/api/controllers/RoleController.ts
 import type { Request, Response, NextFunction } from "express";
 import RoleService from "../services/RoleService";
 import sendResponse from "../utils/sendResponse";
 
-export const seedRoles = async (_req: Request, res: Response, next: NextFunction) => {
+export const seedRoles = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     const seeded = await RoleService.seedRoles();
     sendResponse(res, 201, true, "Roles seeded", { seeded });
@@ -11,7 +16,11 @@ export const seedRoles = async (_req: Request, res: Response, next: NextFunction
   }
 };
 
-export const getAllRoles = async (_req: Request, res: Response, next: NextFunction) => {
+export const getAllRoles = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     const roles = await RoleService.listRoles();
     sendResponse(res, 200, true, "Roles fetched", { roles });
@@ -24,7 +33,7 @@ export const updateRole = async (
   req: Request<{ id: string }, {}, { permissions: string[] }>,
   res: Response,
   next: NextFunction
-) => {
+): Promise<void> => {
   try {
     const updated = await RoleService.updateRole(req.params.id, req.body.permissions);
     sendResponse(res, 200, true, "Role updated", { role: updated });
@@ -33,7 +42,11 @@ export const updateRole = async (
   }
 };
 
-export const deleteRole = async (req: Request<{ id: string }>, res: Response, next: NextFunction) => {
+export const deleteRole = async (
+  req: Request<{ id: string }>,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     await RoleService.deleteRole(req.params.id);
     sendResponse(res, 200, true, "Role deleted");

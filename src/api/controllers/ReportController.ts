@@ -12,17 +12,19 @@ import { createError } from "../middleware/errorHandler";
  */
 export const createReport = catchAsync(
   async (
-    req: Request<{}, {}, { reportedId: string; reportType: "post" | "comment" | "user"; reason: string }>,
+    req: Request<{}, {}, {
+      reportedId: string;
+      reportType: "post" | "comment" | "user";
+      reason: string;
+    }>,
     res: Response,
     _next: NextFunction
   ) => {
     const userId = req.user!.id;
     const { reportedId, reportType, reason } = req.body;
-
     if (!reportedId || !reportType || !reason) {
       throw createError("reportedId, reportType and reason are required", 400);
     }
-
     const report = await ReportService.createReport(userId, reportedId, reportType, reason);
     sendResponse(res, 201, true, "Report created successfully", { report });
   }
@@ -40,46 +42,35 @@ export const getAllReports = catchAsync(async (_req: Request, res: Response) => 
 
 /**
  * @desc    Get a report by ID
- * @route   GET /api/reports/:reportId
+ * @route   GET /api/reports/:id
  * @access  Private/Admin
  */
-export const getReportById = catchAsync(async (req: Request<{ reportId: string }>, res: Response) => {
-  const { reportId } = req.params;
-  const report = await ReportService.getReportById(reportId);
+export const getReportById = catchAsync(async (req: Request<{ id: string }>, res: Response) => {
+  const { id } = req.params;
+  const report = await ReportService.getReportById(id);
   sendResponse(res, 200, true, "Report fetched successfully", { report });
 });
 
 /**
  * @desc    Resolve a report
- * @route   PUT /api/reports/:reportId/resolve
+ * @route   POST /api/reports/:id/resolve
  * @access  Private/Admin
  */
-export const resolveReport = catchAsync(
-  async (
-    req: Request<{ reportId: string }, {}, { resolvedBy: string }>,
-    res: Response,
-    _next: NextFunction
-  ) => {
-    const { reportId } = req.params;
-    const { resolvedBy } = req.body;
-
-    if (!resolvedBy) {
-      throw createError("resolvedBy is required", 400);
-    }
-
-    const report = await ReportService.resolveReport(reportId, resolvedBy);
-    sendResponse(res, 200, true, "Report resolved successfully", { report });
-  }
-);
+export const resolveReport = catchAsync(async (req: Request<{ id: string }>, res: Response) => {
+  const { id } = req.params;
+  const resolverId = req.user!.id;
+  const report = await ReportService.resolveReport(id, resolverId);
+  sendResponse(res, 200, true, "Report resolved successfully", { report });
+});
 
 /**
  * @desc    Delete a report
- * @route   DELETE /api/reports/:reportId
+ * @route   DELETE /api/reports/:id
  * @access  Private/Admin
  */
-export const deleteReport = catchAsync(async (req: Request<{ reportId: string }>, res: Response) => {
-  const { reportId } = req.params;
-  const report = await ReportService.deleteReport(reportId);
+export const deleteReport = catchAsync(async (req: Request<{ id: string }>, res: Response) => {
+  const { id } = req.params;
+  const report = await ReportService.deleteReport(id);
   sendResponse(res, 200, true, "Report deleted successfully", { report });
 });
 

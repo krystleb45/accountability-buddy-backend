@@ -1,14 +1,15 @@
 // src/api/routes/adminAnalytics.ts
-import { Router, RequestHandler } from "express";
+import { Router } from "express";
 import { check, validationResult } from "express-validator";
 import rateLimit from "express-rate-limit";
+
 import { protect } from "../middleware/authMiddleware";
 import { roleBasedAccessControl } from "../middleware/roleBasedAccessControl";
+import catchAsync from "../utils/catchAsync";
 import * as AnalyticsController from "../controllers/AnalyticsController";
 
 const router = Router();
-const isAdmin: RequestHandler = roleBasedAccessControl(["admin"]);
-
+const isAdmin = roleBasedAccessControl(["admin"]);
 const rateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
@@ -20,9 +21,10 @@ router.get(
   "/",
   protect,
   isAdmin,
-  // cast to RequestHandler so TS is happy
-  // cast to RequestHandler so TS is happy
-  AnalyticsController.getDashboardAnalytics as unknown as RequestHandler
+  catchAsync(async (req, res, next) => {
+    // await ensures Promise<void> signature
+    await AnalyticsController.getDashboardAnalytics(req, res, next);
+  })
 );
 
 // User analytics
@@ -30,7 +32,9 @@ router.get(
   "/users",
   protect,
   isAdmin,
-  AnalyticsController.getUserAnalytics as RequestHandler
+  catchAsync(async (req, res, next) => {
+    await AnalyticsController.getUserAnalytics(req, res, next);
+  })
 );
 
 // Goal analytics
@@ -38,7 +42,9 @@ router.get(
   "/goals",
   protect,
   isAdmin,
-  AnalyticsController.getGlobalAnalytics as RequestHandler
+  catchAsync(async (req, res, next) => {
+    await AnalyticsController.getGlobalAnalytics(req, res, next);
+  })
 );
 
 // Post analytics (same controller as goals)
@@ -46,7 +52,9 @@ router.get(
   "/posts",
   protect,
   isAdmin,
-  AnalyticsController.getGlobalAnalytics as RequestHandler
+  catchAsync(async (req, res, next) => {
+    await AnalyticsController.getGlobalAnalytics(req, res, next);
+  })
 );
 
 // Financial analytics
@@ -54,7 +62,9 @@ router.get(
   "/financial",
   protect,
   isAdmin,
-  AnalyticsController.getFinancialAnalytics as unknown as RequestHandler
+  catchAsync(async (req, res, next) => {
+    await AnalyticsController.getFinancialAnalytics(req, res, next);
+  })
 );
 
 // Custom analytics
@@ -70,11 +80,13 @@ router.post(
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       res.status(400).json({ success: false, errors: errors.array() });
-      return;          // swallow and return void
+      return;
     }
-    next();            // likewise returns void
+    next();
   },
-  AnalyticsController.getCustomAnalytics as RequestHandler
+  catchAsync(async (req, res, next) => {
+    await AnalyticsController.getCustomAnalytics(req, res, next);
+  })
 );
 
 export default router;
