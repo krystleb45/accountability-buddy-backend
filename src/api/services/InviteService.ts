@@ -6,7 +6,7 @@ import NotificationService from "./NotificationService";
 import { logger } from "../../utils/winstonLogger";
 import { createError } from "../middleware/errorHandler";
 
-class InviteService {
+export default class InviteService {
   /**
    * Send a group invitation
    */
@@ -54,8 +54,9 @@ class InviteService {
       createdAt: new Date(),
     });
 
-    // Send an in-app notification
+    // Send an in-app notification (senderId, receiverId, message)
     await NotificationService.sendInAppNotification(
+      senderId,
       recipientId,
       `${senderId} has invited you to join the group "${group.name}".`
     );
@@ -102,10 +103,12 @@ class InviteService {
 
     // Notify both parties
     await NotificationService.sendInAppNotification(
+      userId,
       invitation.sender.toString(),
       `${userId} accepted your invitation to join "${group.name}".`
     );
     await NotificationService.sendInAppNotification(
+      invitation.sender.toString(),
       userId,
       `You have joined the group "${group.name}".`
     );
@@ -140,6 +143,7 @@ class InviteService {
 
     // Notify the sender
     await NotificationService.sendInAppNotification(
+      userId,
       invitation.sender.toString(),
       `${userId} has rejected your invitation to join group "${invitation.groupId}".`
     );
@@ -173,12 +177,11 @@ class InviteService {
 
     // Notify the recipient
     await NotificationService.sendInAppNotification(
+      senderId,
       invitation.recipient.toString(),
-      `Your invitation to join group "${invitation.groupId}" has been canceled by ${senderId}.`
+      `Your invitation to join group "${invitation.groupId}" has been canceled.`
     );
 
     logger.info(`Invitation ${invitationId} canceled by ${senderId}`);
   }
 }
-
-export default InviteService;

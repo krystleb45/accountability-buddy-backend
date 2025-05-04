@@ -7,9 +7,9 @@ import NotificationService from "../services/NotificationService";
 
 interface SendPayload {
   receiverId: string;
-  message: string;
-  type?: string;
-  link?: string;
+  message:    string;
+  type?:      string;
+  link?:      string;
 }
 
 interface ReadPayload {
@@ -26,13 +26,14 @@ export const sendNotification = catchAsync(
       return;
     }
 
-    await NotificationService.sendInApp({
+    // CALL THE PUBLIC METHOD, NOT THE PRIVATE ONE:
+    await NotificationService.sendInAppNotification(
       senderId,
       receiverId,
-      message: message.trim(),
+      message.trim(),
       type,
-      link,
-    });
+      link
+    );
 
     logger.info(`Notification sent from ${senderId} to ${receiverId}`);
     sendResponse(res, 201, true, "Notification sent successfully");
@@ -45,8 +46,8 @@ export const getNotifications = catchAsync(
     res: Response
   ) => {
     const userId = req.user!.id;
-    const page = Math.max(1, parseInt(req.query.page || "1", 10));
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || "10", 10)));
+    const page   = Math.max(1, parseInt(req.query.page  || "1", 10));
+    const limit  = Math.min(100, Math.max(1, parseInt(req.query.limit || "10", 10)));
 
     const { notifications, total } = await NotificationService.listForUser(userId, { page, limit });
 

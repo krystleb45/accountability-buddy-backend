@@ -1,4 +1,5 @@
 // src/api/controllers/authController.ts
+
 import type { RequestHandler } from "express";
 import { User } from "../models/User";
 import catchAsync from "../utils/catchAsync";
@@ -18,36 +19,35 @@ export const register: RequestHandler = catchAsync(async (req, res, next) => {
   };
 
   if (!email || !password || !username) {
-    return next(createError("All fields are required", 400));
+    return next(createError("Email, username, and password are all required", 400));
   }
 
-  // check duplicates by email or username
+  const normalizedEmail = email.toLowerCase().trim();
+  const trimmedUsername = username.trim();
+
+  // check for existing user
   const existing = await User.findOne({
-    $or: [
-      { email: email.toLowerCase().trim() },
-      { username: username.trim() },
-    ],
+    $or: [{ email: normalizedEmail }, { username: trimmedUsername }],
   });
   if (existing) {
-    return next(
-      createError("User with that email or username already exists", 400)
-    );
+    return next(createError("A user with that email or username already exists", 400));
   }
 
-  // hash + save
-  const hashed = await AuthService.hashPassword(password);
+  // hash & save
+  const hashedPassword = await AuthService.hashPassword(password);
   const user = new User({
-    email:    email.toLowerCase().trim(),
-    username: username.trim(),
-    password: hashed,
+    email: normalizedEmail,
+    username: trimmedUsername,
+    password: hashedPassword,
   });
   await user.save();
 
   // issue tokens
-  const accessToken  = await AuthService.generateToken({
+  const accessToken = await AuthService.generateToken({
     _id: user._id.toString(),
     role: user.role,
   });
+  // reuse AuthService.refreshToken to generate a refresh token
   const refreshToken = await AuthService.refreshToken(accessToken);
 
   sendResponse(
@@ -63,47 +63,44 @@ export const register: RequestHandler = catchAsync(async (req, res, next) => {
 // ─── POST /api/auth/login ────────────────────────────────────────────────────
 //
 export const login: RequestHandler = catchAsync(async (req, res, next) => {
-  const { email, password } = req.body as {
-    email?: string;
-    password?: string;
-  };
+  const { email, password } = req.body as { email?: string; password?: string };
 
   if (!email || !password) {
     return next(createError("Email and password are required", 400));
   }
 
-  // find by email
-  const user = await User.findOne({ email: email.toLowerCase().trim() })
-    .select("+password");
+  const normalizedEmail = email.toLowerCase().trim();
+  console.warn("→ [login] received payload:", { email: normalizedEmail, password });
+
+  // 1) Lookup user
+  const user = await User.findOne({ email: normalizedEmail }).select("+password");
+  console.warn("→ [login] user lookup result:", user);
+
   if (!user) {
-    return next(createError("Invalid credentials", 400));
+    return next(createError("Invalid credentials", 401));
   }
 
-  const match = await AuthService.comparePassword(password, user.password);
-  if (!match) {
-    return next(createError("Invalid credentials", 400));
+  // 2) Compare passwords
+  console.warn("→ [login] stored hash:", user.password);
+  const isMatch = await AuthService.comparePassword(password, user.password);
+  console.warn("→ [login] bcrypt.compare result:", isMatch);
+
+  if (!isMatch) {
+    return next(createError("Invalid credentials", 401));
   }
 
-  const accessToken  = await AuthService.generateToken({
-    _id:  user._id.toString(),
-    role: user.role,
-  });
+  // 3) Issue tokens
+  const accessToken = await AuthService.generateToken({ _id: user._id.toString(), role: user.role });
   const refreshToken = await AuthService.refreshToken(accessToken);
 
-  sendResponse(
-    res,
-    200,
-    true,
-    "Login successful",
-    {
-      id:           user._id.toString(),
-      username:     user.username,
-      email:        user.email,
-      role:         user.role,
-      accessToken,
-      refreshToken,
-    }
-  );
+  sendResponse(res, 200, true, "Login successful", {
+    id:           user._id.toString(),
+    username:     user.username,
+    email:        user.email,
+    role:         user.role,
+    accessToken,
+    refreshToken,
+  });
 });
 
 //
@@ -116,9 +113,10 @@ export const refreshToken: RequestHandler = catchAsync(async (req, res, next) =>
   }
 
   try {
-    const newToken = await AuthService.refreshToken(oldToken);
-    sendResponse(res, 200, true, "Tokens refreshed successfully", {
-      accessToken: newToken,
+    // this returns a new access token
+    const newAccessToken = await AuthService.refreshToken(oldToken);
+    sendResponse(res, 200, true, "Token refreshed successfully", {
+      accessToken: newAccessToken,
     });
   } catch (err) {
     logger.error(`Refresh token error: ${(err as Error).message}`);
@@ -130,20 +128,22 @@ export const refreshToken: RequestHandler = catchAsync(async (req, res, next) =>
 // ─── POST /api/auth/logout ─────────────────────────────────────────────────
 //
 export const logout: RequestHandler = (_req, res) => {
-  sendResponse(res, 200, true, "Logged out successfully");
+  // optionally revoke tokens here
+  sendResponse(res, 200, true, "Logged out successfully", {});
 };
 
 //
 // ─── GET /api/auth/me ───────────────────────────────────────────────────────
 //
 export const getCurrentUser: RequestHandler = catchAsync(async (req, res, next) => {
-  // your auth middleware attaches user to req.user
   const userId = (req as any).user?.id as string | undefined;
   if (!userId) {
     return next(createError("Not authenticated", 401));
   }
 
-  const user = await User.findById(userId).select("-password");
+  const user = await User.findById(userId)
+    .select("-password")
+    .lean();
   if (!user) {
     return next(createError("User not found", 404));
   }

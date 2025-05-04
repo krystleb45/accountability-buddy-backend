@@ -23,8 +23,8 @@ export interface ChatPreferences {
 }
 
 // Define subscription status enums
-type SubscriptionStatus = "trial" | "active" | "expired";
-type SubscriptionTier = "basic" | "premium" | "pro";
+export type SubscriptionStatus = "trial" | "active" | "expired";
+export type SubscriptionTier = "basic" | "premium" | "pro";
 
 export interface IUser extends Document {
   _id: Types.ObjectId;
@@ -49,7 +49,6 @@ export interface IUser extends Document {
   twoFactorSecret?: string;
   firstName?: string;
   lastName?: string;
-  // Use the imported ISubscription for subscriptions
   subscriptions?: (Types.ObjectId | ISubscription)[];
   stripeCustomerId?: string;
   subscription_status: SubscriptionStatus;
@@ -59,11 +58,9 @@ export interface IUser extends Document {
   trial_start_date?: Date;
   next_billing_date?: Date;
 
-  // Chat & Interests
   interests?: string[];
   chatPreferences?: ChatPreferences;
 
-  // Gamification
   completedGoals?: number;
   streak?: number;
   streakCount: number;
@@ -73,10 +70,8 @@ export interface IUser extends Document {
   pinnedGoals: Types.ObjectId[];
   featuredAchievements: Types.ObjectId[];
 
-  // Settings (added)
   settings?: UserSettings;
 
-  // Misc
   activeStatus: "online" | "offline";
   createdAt: Date;
   updatedAt: Date;
@@ -177,21 +172,28 @@ const UserSchema: Schema<IUser> = new Schema(
 UserSchema.index({ interests: 1 });
 UserSchema.index({ activeStatus: 1 });
 
-// Password hashing
-UserSchema.pre<IUser>("save", async function (next) {
-  if (!this.isModified("password")) return next();
-  try {
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-    this.streak = Math.max(this.streak ?? 0, 0);
-    next();
-  } catch (error) {
-    next(error as CallbackError);
+// Password hashing with explicit return type on hook
+UserSchema.pre<IUser>(
+  "save",
+  async function (this: IUser, next: (err?: CallbackError) => void): Promise<void> {
+    if (!this.isModified("password") || this.password.startsWith("$2")) {
+      return next();
+    }
+    try {
+      const rounds = parseInt(process.env.SALT_ROUNDS ?? "10", 10);
+      this.password = await bcrypt.hash(this.password, rounds);
+      this.streak = Math.max(this.streak ?? 0, 0);
+      next();
+    } catch (err) {
+      next(err as CallbackError);
+    }
   }
-});
+);
 
 // Methods
-UserSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
+UserSchema.methods.comparePassword = async function (
+  candidatePassword: string
+): Promise<boolean> {
   return bcrypt.compare(candidatePassword, this.password);
 };
 
@@ -202,7 +204,9 @@ UserSchema.methods.generateResetToken = function (): string {
   return resetToken;
 };
 
-UserSchema.methods.updatePoints = async function (pointsToAdd: number): Promise<void> {
+UserSchema.methods.updatePoints = async function (
+  pointsToAdd: number
+): Promise<void> {
   this.points += pointsToAdd;
   await this.save();
 };
@@ -218,7 +222,9 @@ UserSchema.methods.updateStreak = async function (): Promise<void> {
   await this.save();
 };
 
-UserSchema.methods.awardBadge = async function (badgeId: Types.ObjectId): Promise<void> {
+UserSchema.methods.awardBadge = async function (
+  badgeId: Types.ObjectId
+): Promise<void> {
   if (!this.badges.includes(badgeId)) {
     this.badges.push(badgeId);
     await this.save();

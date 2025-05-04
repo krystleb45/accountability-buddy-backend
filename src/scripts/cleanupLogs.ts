@@ -1,22 +1,26 @@
 // scripts/cleanupLogs.ts
+
 import mongoose from "mongoose";
 import AuditLog from "../api/models/AuditLog";
 import dotenv from "dotenv";
 import { logger } from "../utils/winstonLogger";
 import { loadEnvironment } from "../utils/loadEnv";
+
 loadEnvironment();
-
-
 dotenv.config();
 
-const cleanupLogs = async (): Promise<void> => {
-  if (!process.env.MONGO_URI) {
+/**
+ * Deletes audit logs older than 90 days.
+ */
+async function main(): Promise<void> {
+  const mongoUri = process.env.MONGO_URI;
+  if (!mongoUri) {
     logger.error("MONGO_URI is not defined in environment variables.");
     process.exit(1);
   }
 
   try {
-    await mongoose.connect(process.env.MONGO_URI);
+    await mongoose.connect(mongoUri);
     logger.info("Connected to MongoDB");
 
     const olderThanDate = new Date();
@@ -30,6 +34,6 @@ const cleanupLogs = async (): Promise<void> => {
     await mongoose.disconnect();
     logger.info("Disconnected from MongoDB");
   }
-};
+}
 
-void cleanupLogs();
+void main();

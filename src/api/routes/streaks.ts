@@ -1,6 +1,6 @@
 // src/api/routes/streaks.ts
 import { Router } from "express";
-import { protect } from "../middleware/authMiddleware";
+import { protect } from "../middleware/authJwt";
 import rateLimit from "express-rate-limit";
 import { check } from "express-validator";
 import handleValidationErrors from "../middleware/handleValidationErrors";

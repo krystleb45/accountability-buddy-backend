@@ -39,11 +39,11 @@
       "@test/*": ["src/test/*"]
     },
 
-    // ─── Type roots & only these ambient types ────────────
+    // ─── Type roots & only these ambient types ────────────────────────────────
     "typeRoots": [
-      "../shared/types",      // if you have shared type definitions here
-      "./src/types",          // your local augmentation folder
-      "./node_modules/@types" // default @types
+      "../shared/types",     // your shared ambient definitions
+      "src/types",           // your local augmentations (incl. global.d.ts)
+      "node_modules/@types"  // default @types
     ],
     "types": [
       "node",
@@ -57,7 +57,7 @@
   // ─── Files to include & exclude ────────────────────────────────────────────
   "include": [
     "src/**/*.ts",
-    "src/types/**/*.d.ts",
+    "src/types/**/*.d.ts",   // pick up global.d.ts
     "src/test/**/*.ts",
     "jest.setup.ts",
     "jest.config.js"

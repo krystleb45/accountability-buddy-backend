@@ -19,7 +19,8 @@ class EventService {
           ? { name: err.name, message: err.message, stack: err.stack }
           : { value: err };
       void LoggingService.logError("Error creating event", err as Error, details);
-      throw createError("Failed to create event", 500, true, details);
+      // Only pass message and status to createError
+      throw createError("Failed to create event", 500);
     }
   }
 

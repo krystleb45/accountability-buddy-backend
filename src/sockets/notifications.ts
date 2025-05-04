@@ -1,82 +1,116 @@
-import type { Server, Socket } from "socket.io";
-import type { NotificationDocument } from "../api/models/Notification";
+import type { Server as HttpServer } from "http";
+import type { Socket } from "socket.io";
+import { Server } from "socket.io";
+import chatSocket from "./chat"; // Chat event handlers
+import type { INotification } from "../api/models/Notification";
 import Notification from "../api/models/Notification";
+import AuthService from "../api/services/AuthService"; // for verifyToken
 import { logger } from "../utils/winstonLogger";
 
-/**
- * @desc    Handles socket events related to notifications.
- * @param   _io - The socket.io server instance.
- * @param   socket - The socket object representing the client's connection.
- */
-const notificationSocket = (_io: Server, socket: Socket): void => {
-  const userId = socket.data.user?.id as string;
-  if (!userId) {
-    logger.error("Socket connection attempted without a valid user ID.");
-    socket.emit("error", { msg: "User ID is missing or invalid." });
-    return;
-  }
+interface DecodedToken {
+  user: {
+    id: string;
+    username: string;
+  };
+}
 
-  logger.info(`User connected for notifications: ${userId}`);
+const notificationSocket = (server: HttpServer): Server => {
+  const io = new Server(server, {
+    cors: {
+      origin: process.env.ALLOWED_ORIGINS || "*",
+      methods: ["GET", "POST"],
+      credentials: true,
+    },
+  });
 
-  socket.on("fetchNotifications", async () => {
+  // Authenticate each incoming socket
+  io.use(async (socket: Socket, next) => {
     try {
-      const notifications: NotificationDocument[] = await Notification.find({ userId })
-        .sort({ date: -1 })
-        .limit(50);
+      // grab either query token or Authorization header
+      const raw =
+        socket.handshake.query.token ||
+        socket.handshake.headers["authorization"];
+      if (!raw) {
+        logger.warn("Socket auth failed: no token");
+        return next(new Error("Authentication error: No token provided."));
+      }
 
-      socket.emit("notifications", notifications);
-    } catch (error) {
-      logger.error(`Error fetching notifications for user ${userId}: ${(error as Error).message}`);
-      socket.emit("error", { msg: "Failed to fetch notifications." });
+      const token = Array.isArray(raw) ? raw[0] : raw;
+      // ─── HERE: await the Promise<JwtPayload> ─────────────────
+      const payload = await AuthService.verifyToken(token);
+      // now assert it really has { user: { id, username } }
+      const decoded = payload as unknown as DecodedToken;
+
+      socket.data.user = decoded.user;
+      next();
+    } catch (err) {
+      logger.error(`Socket auth error: ${(err as Error).message}`);
+      next(new Error("Authentication error: Invalid token."));
     }
   });
 
-  socket.on("markAsRead", async (notificationId: string) => {
-    try {
-      if (!notificationId) {
-        socket.emit("error", { msg: "Notification ID is required." });
-        return; // Explicitly return to avoid falling through
-      }
-  
-      const notification = await Notification.findById(notificationId);
-  
-      if (!notification || notification.user.toString() !== userId) {
-        socket.emit("error", { msg: "Notification not found or unauthorized access." });
-        return; // Explicitly return to avoid falling through
-      }
-  
-      notification.read = true;
-      await notification.save();
-  
-      socket.emit("notificationUpdated", notification);
-      logger.info(`Notification ${notificationId} marked as read by user ${userId}`);
-      return; // Explicitly return after successful execution
-    } catch (error) {
-      logger.error(`Error marking notification as read for user ${userId}: ${(error as Error).message}`);
-      socket.emit("error", { msg: "Failed to mark notification as read." });
-      return; // Explicitly return to satisfy all paths
-    }
-  });
-  
+  io.on("connection", (socket: Socket) => {
+    const userId = socket.data.user?.id as string;
+    logger.info(`User connected for notifications: ${userId}`);
 
-  socket.on("newNotification", (notification: NotificationDocument) => {
-    try {
-      if (notification.user.toString() === userId) {
-        socket.emit("newNotification", notification);
-        logger.info(`New notification sent to user ${userId}`);
-      } else {
-        logger.warn(`Unauthorized notification attempt for user ${userId}`);
-        socket.emit("error", { msg: "Unauthorized notification received." });
+    // Attach chat handlers too
+    chatSocket(io, socket);
+
+    // Fetch all notifications
+    socket.on("fetchNotifications", async () => {
+      try {
+        const items: INotification[] = await Notification.find({ user: userId })
+          .sort({ createdAt: -1 })
+          .lean()
+          .exec();
+        socket.emit("notifications", items);
+      } catch (err) {
+        logger.error(`Fetch notifications error: ${(err as Error).message}`);
+        socket.emit("error", "Failed to fetch notifications.");
       }
-    } catch (error) {
-      logger.error(`Error sending new notification to user ${userId}: ${(error as Error).message}`);
-      socket.emit("error", { msg: "Failed to send new notification." });
-    }
+    });
+
+    // Mark one as read
+    socket.on("markAsRead", async (notificationId: string) => {
+      try {
+        if (!notificationId) {
+          socket.emit("error", "Notification ID is required.");
+          return;
+        }
+        const note = await Notification.findById(notificationId);
+        if (!note || note.user.toString() !== userId) {
+          socket.emit("error", "Not found or unauthorized.");
+          return;
+        }
+        note.read = true;
+        await note.save();
+        socket.emit("notificationUpdated", note);
+      } catch (err) {
+        logger.error(`Mark read error: ${(err as Error).message}`);
+        socket.emit("error", "Failed to mark notification as read.");
+      }
+    });
+
+    // Broadcast new notification
+    socket.on("newNotification", (payload: INotification) => {
+      try {
+        if (payload.user.toString() === userId) {
+          socket.emit("newNotification", payload);
+        } else {
+          socket.emit("error", "Unauthorized notification.");
+        }
+      } catch (err) {
+        logger.error(`New notification error: ${(err as Error).message}`);
+        socket.emit("error", "Failed to send new notification.");
+      }
+    });
+
+    socket.on("disconnect", () => {
+      logger.info(`User disconnected from notifications: ${userId}`);
+    });
   });
 
-  socket.on("disconnect", () => {
-    logger.info(`User disconnected from notifications: ${userId}`);
-  });
+  return io;
 };
 
 export default notificationSocket;

@@ -1,5 +1,5 @@
 // src/api/services/FriendService.ts
-import mongoose from "mongoose";
+import mongoose, { Types } from "mongoose";
 import Follow from "../models/Follow";
 import FriendRequest, { IFriendRequest } from "../models/FriendRequest";
 import { User, IUser } from "../models/User";
@@ -12,7 +12,6 @@ type FriendDoc = IUser;
 
 const FriendService = {
   // ─── FOLLOWS ─────────────────────────────────────────
-
   async follow(userId: string, targetId: string): Promise<void> {
     if (!mongoose.isValidObjectId(targetId)) throw createError("Invalid target user ID", 400);
     if (userId === targetId) throw createError("Cannot follow yourself", 400);
@@ -21,11 +20,11 @@ const FriendService = {
     if (exists) return;
 
     await Follow.create({ user: userId, targetUser: targetId });
-    await Notification.create({
-      user: targetId,
+    await Notification.createNotification({
+      user: new Types.ObjectId(targetId),
+      sender: new Types.ObjectId(userId),
       message: `User ${userId} started following you.`,
-      type: "info",
-      read: false,
+      type: "message",
       link: `/users/${userId}`,
     });
   },
@@ -47,7 +46,7 @@ const FriendService = {
     return docs.map(d => ({
       id: d.user._id.toString(),
       name: d.user.username,
-      avatarUrl: d.user.profilePicture,      // <-- use profilePicture
+      avatarUrl: d.user.profilePicture,
     }));
   },
 
@@ -63,12 +62,11 @@ const FriendService = {
     return docs.map(d => ({
       id: d.targetUser._id.toString(),
       name: d.targetUser.username,
-      avatarUrl: d.targetUser.profilePicture, // <-- use profilePicture
+      avatarUrl: d.targetUser.profilePicture,
     }));
   },
 
   // ─── FRIEND REQUESTS ─────────────────────────────────
-
   async sendRequest(senderId: string, recipientId: string): Promise<void> {
     if (!mongoose.isValidObjectId(recipientId)) throw createError("Invalid recipient ID", 400);
     if (senderId === recipientId) throw createError("Cannot friend yourself", 400);
@@ -82,11 +80,11 @@ const FriendService = {
     if (exists) throw createError("Request already exists", 400);
 
     await FriendRequest.create({ sender: senderId, recipient: recipientId, status: "pending" });
-    await Notification.create({
-      user: recipientId,
+    await Notification.createNotification({
+      user: new Types.ObjectId(recipientId),
+      sender: new Types.ObjectId(senderId),
       message: `User ${senderId} sent you a friend request.`,
-      type: "info",
-      read: false,
+      type: "friend_request",
       link: "/friends/requests",
     });
   },
@@ -112,22 +110,20 @@ const FriendService = {
       messages: [],
     });
 
-    await Notification.create([
-      {
-        user: other,
-        message: `${userId} accepted your friend request.`,
-        type: "success",
-        read: false,
-        link: "/friends",
-      },
-      {
-        user: userId,
-        message: `You are now friends with ${other}.`,
-        type: "success",
-        read: false,
-        link: "/friends",
-      },
-    ]);
+    await Notification.createNotification({
+      user: new Types.ObjectId(other),
+      sender: new Types.ObjectId(userId),
+      message: `${userId} accepted your friend request.`,
+      type: "friend_request",
+      link: "/friends",
+    });
+    await Notification.createNotification({
+      user: new Types.ObjectId(userId),
+      sender: new Types.ObjectId(userId),
+      message: `You are now friends with ${other}.`,
+      type: "friend_request",
+      link: "/friends",
+    });
   },
 
   async rejectRequest(requestId: string, userId: string): Promise<void> {
@@ -140,11 +136,11 @@ const FriendService = {
     reqDoc.status = "rejected";
     await reqDoc.save();
 
-    await Notification.create({
-      user: reqDoc.sender.toString(),
+    await Notification.createNotification({
+      user: new Types.ObjectId(reqDoc.sender.toString()),
+      sender: new Types.ObjectId(userId),
       message: `${userId} rejected your friend request.`,
-      type: "alert",
-      read: false,
+      type: "friend_request",
       link: "/friends",
     });
   },
@@ -168,11 +164,11 @@ const FriendService = {
     await user.save();
     await friend.save();
 
-    await Notification.create({
-      user: friendId,
+    await Notification.createNotification({
+      user: new Types.ObjectId(friendId),
+      sender: new Types.ObjectId(userId),
       message: `${userId} removed you as a friend.`,
-      type: "alert",
-      read: false,
+      type: "message",
       link: "/friends",
     });
   },
@@ -185,7 +181,6 @@ const FriendService = {
 
     if (!user) throw createError("User not found", 404);
 
-    // Cast from ObjectId[] to IUser[] since we've populated
     return (user.friends as unknown as FriendDoc[]);
   },
 
@@ -197,7 +192,6 @@ const FriendService = {
   },
 
   async aiRecommendations(_userId: string): Promise<IUser[]> {
-    // stub: replace with your ML logic
     return User.find({ interests: { $in: ["Fitness", "Music"] } })
       .select("username email profilePicture")
       .limit(5);

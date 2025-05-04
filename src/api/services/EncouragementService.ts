@@ -85,18 +85,26 @@ const sendEmail = async (
   }
 };
 
-/** Send an in-app notification */
-const sendInApp = async (userId: string, message: string): Promise<void> => {
+/**
+ * Send a pure in‑app notification.
+ * We’ll use a placeholder sender ID of "system".
+ */
+const sendInApp = async (receiverId: string, message: string): Promise<void> => {
   try {
-    await NotificationService.sendInAppNotification(userId, message);
-    void LoggingService.logInfo(`In-app encouragement sent to user ${userId}`, {
+    await NotificationService.sendInAppNotification(
+      "system",        // senderId
+      receiverId,      // receiverId
+      message,         // message
+      "success"        // type (optional; you can choose "info"|"success"|...)
+    );
+    void LoggingService.logInfo(`In-app encouragement sent to user ${receiverId}`, {
       message,
     });
   } catch (err) {
     void LoggingService.logError(
-      `Failed to send in-app encouragement to ${userId}`,
+      `Failed to send in-app encouragement to ${receiverId}`,
       err instanceof Error ? err : new Error("Unknown error"),
-      { userId }
+      { receiverId }
     );
     throw err;
   }
@@ -113,8 +121,10 @@ const EncouragementService = {
     type: "milestone" | "goalCompletion"
   ): Promise<void> {
     try {
-      const user = await User.findById(userId);
-      const goal = await Goal.findById(goalId);
+      const [user, goal] = await Promise.all([
+        User.findById(userId),
+        Goal.findById(goalId),
+      ]);
       if (!user || !goal) throw new Error("User or Goal not found");
 
       const message = getRandomMessage(type);
@@ -173,8 +183,8 @@ const EncouragementService = {
       const activeUsers = await User.find({ isActive: true }).select("_id");
       await Promise.all(
         activeUsers.map((u) =>
-          // we swallow errors per‐user since they're already logged
-          EncouragementService.sendMotivationalBoost(u._id.toString()).catch(() => {})
+          // swallow per-user errors
+          this.sendMotivationalBoost(u._id.toString()).catch(() => {})
         )
       );
       void LoggingService.logInfo("sendPeriodicEncouragement: all active users alerted");

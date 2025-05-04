@@ -1,7 +1,7 @@
 // src/api/routes/goal.ts
 import { Router, Request, Response, NextFunction } from "express";
 import { protect } from "../middleware/authMiddleware";
-import checkSubscription from "../middleware/checkSubscription";
+//import checkSubscription from "../middleware/checkSubscription";
 import * as goalController from "../controllers/GoalController";
 
 const router = Router();
@@ -12,7 +12,7 @@ const router = Router();
 router.post(
   "/create",
   protect,
-  checkSubscription("paid"),
+  //checkSubscription("paid"),
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       await goalController.createGoal(req, res, next);

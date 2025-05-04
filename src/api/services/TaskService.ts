@@ -1,3 +1,4 @@
+// src/api/services/TaskService.ts
 import type { ITask } from "../models/Task";
 import Task from "../models/Task";
 import NotificationService from "./NotificationService";
@@ -19,19 +20,17 @@ const TaskService = {
       });
       const savedTask = await task.save();
 
-      // Log (awaited because we want to be sure it succeeds or surface its error)
       await LoggingService.logInfo(
         `Task created for user: ${userId}, Task ID: ${savedTask._id}`
       );
 
-      // Notify (we don't need to block on this if it fails)
       void NotificationService.sendInAppNotification(
         userId, // sender
         userId, // receiver
-        `New task created: ${taskData.title}`
+        `New task created: ${savedTask.title}`
       );
 
-      return savedTask;
+      return savedTask.toObject();
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
       await LoggingService.logError("Error creating task", new Error(msg), {
@@ -50,7 +49,11 @@ const TaskService = {
     filters: Record<string, unknown> = {},
   ): Promise<ITask[]> => {
     try {
-      const tasks = await Task.find({ user: userId, ...filters });
+      const tasks = await Task
+        .find({ user: userId, ...filters })
+        .lean<ITask[]>()  // ← here
+        .exec();
+
       await LoggingService.logInfo(`Fetched tasks for user: ${userId}`);
       return tasks;
     } catch (error: unknown) {
@@ -76,11 +79,15 @@ const TaskService = {
         { _id: taskId, user: userId },
         updates,
         { new: true, runValidators: true }
-      );
+      )
+        .lean<ITask>()
+        .exec();
+
       if (!task) {
         await LoggingService.logWarn("Task not found", { taskId, userId });
         throw new Error("Task not found");
       }
+
       await LoggingService.logInfo(`Task updated: ${taskId}`);
       return task;
     } catch (error: unknown) {
@@ -105,13 +112,15 @@ const TaskService = {
         { _id: taskId, user: userId },
         { status: "completed", completedAt: new Date() },
         { new: true }
-      );
+      )
+        .lean<ITask>()
+        .exec();
+
       if (!task) {
         await LoggingService.logWarn("Task not found for completion", { taskId, userId });
         throw new Error("Task not found");
       }
 
-      // Notify & log
       void NotificationService.sendInAppNotification(
         userId,
         userId,
@@ -141,7 +150,10 @@ const TaskService = {
     userId: string,
   ): Promise<{ success: boolean; message: string }> => {
     try {
-      const task = await Task.findOneAndDelete({ _id: taskId, user: userId });
+      const task = await Task.findOneAndDelete({ _id: taskId, user: userId })
+        .lean<ITask>()
+        .exec();
+
       if (!task) {
         await LoggingService.logWarn("Task not found for deletion", { taskId, userId });
         throw new Error("Task not found");
@@ -184,7 +196,10 @@ const TaskService = {
         { _id: taskId, user: userId },
         { progress },
         { new: true }
-      );
+      )
+        .lean<ITask>()
+        .exec();
+
       if (!task) {
         await LoggingService.logWarn("Task not found for progress tracking", {
           taskId,

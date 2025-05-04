@@ -39,7 +39,15 @@ const validateProgressUpdate = [
   check("progress", "Progress must be a number between 0 and 100")
     .isInt({ min: 0, max: 100 }),
 ];
-
+router.get(
+  "/",
+  limiter,
+  protect,
+  catchAsync(async (_req: Request, res: Response) => {
+    const events = await Event.find().sort({ createdAt: -1 });
+    res.status(200).json({ success: true, events });
+  })
+);
 // ── POST /api/events/:eventId/join ──────────────────────────────────────────
 router.post(
   "/:eventId/join",

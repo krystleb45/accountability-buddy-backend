@@ -1,22 +1,21 @@
+// src/sockets/index.ts
 import type { Server as HttpServer } from "http";
-import type { Socket } from "socket.io";
-import { Server } from "socket.io";
-import chatSocket from "./chat"; // Chat event handlers
-import Notification from "../api/models/Notification"; // Notification model for real-time notifications
-import AuthService from "../api/services/AuthService"; // Import AuthService for JWT verification
+// `Server` is used at runtime, so it must be a normal import:
+import { Server, Socket } from "socket.io";
+import chatSocket from "./chat";
+import Notification from "../api/models/Notification";
+import AuthService from "../api/services/AuthService";
 import { logger } from "../utils/winstonLogger";
 
 interface DecodedToken {
-  user: {
-    id: string;
-    username: string;
-  };
+  userId: string;
+  role: string;
 }
 
 const socketServer = (server: HttpServer): Server => {
   const io = new Server(server, {
     cors: {
-      origin: process.env.ALLOWED_ORIGINS || "*",
+      origin: process.env.ALLOWED_ORIGINS?.split(",") || "*",
       methods: ["GET", "POST"],
       credentials: true,
     },
@@ -25,22 +24,30 @@ const socketServer = (server: HttpServer): Server => {
   /**
    * @desc    Middleware to authenticate WebSocket connections using JWT.
    */
-  io.use((socket: Socket, next) => {
+  io.use(async (socket: Socket, next) => {
     try {
-      const token =
+      // Support token via query or Authorization header
+      const rawToken =
         (socket.handshake.query.token as string) ||
         (socket.handshake.headers["authorization"] as string);
 
-      if (!token) {
+      if (!rawToken) {
         logger.warn("Socket connection attempted without a token.");
         return next(new Error("Authentication error: No token provided."));
       }
+      // If header format is "Bearer <token>", strip the "Bearer " prefix
+      const token = rawToken.startsWith("Bearer ")
+        ? rawToken.slice(7)
+        : rawToken;
 
-      // Verify the JWT token using AuthService
-      const decoded = AuthService.verifySocketToken(token) as DecodedToken;
+      // VERIFY the JWT
+      const decoded = (await AuthService.verifyToken(token)) as DecodedToken;
+      if (!decoded.userId) {
+        throw new Error("Invalid token payload");
+      }
 
       // Attach user data to the socket instance
-      socket.data.user = decoded.user;
+      socket.data.user = { id: decoded.userId, role: decoded.role };
       next();
     } catch (error) {
       logger.error(`Socket authentication failed: ${(error as Error).message}`);
@@ -52,7 +59,7 @@ const socketServer = (server: HttpServer): Server => {
    * @desc    Handles new socket connections.
    */
   io.on("connection", (socket: Socket) => {
-    const userId = socket.data.user.id;
+    const { id: userId } = socket.data.user as { id: string; role: string };
     logger.info(`User connected: ${userId}`);
 
     // Attach chat-specific event handlers
@@ -63,12 +70,10 @@ const socketServer = (server: HttpServer): Server => {
      */
     socket.on("fetchNotifications", async () => {
       try {
-        const notifications = await Notification.find({ userId }).sort({ date: -1 });
+        const notifications = await Notification.find({ user: userId }).sort({ createdAt: -1 });
         socket.emit("notifications", notifications);
-      } catch (error) {
-        logger.error(
-          `Error fetching notifications for user ${userId}: ${(error as Error).message}`,
-        );
+      } catch (err) {
+        logger.error(`Error fetching notifications for user ${userId}: ${(err as Error).message}`);
         socket.emit("error", "Unable to fetch notifications.");
       }
     });
@@ -77,7 +82,7 @@ const socketServer = (server: HttpServer): Server => {
      * @desc    Handles new notifications.
      * @param   notification - The notification data to emit.
      */
-    socket.on("newNotification", (notification: { userId: string }) => {
+    socket.on("newNotification", (notification: { userId: string; message: string }) => {
       if (notification && notification.userId) {
         io.to(notification.userId).emit("newNotification", notification);
       } else {
@@ -89,8 +94,8 @@ const socketServer = (server: HttpServer): Server => {
     /**
      * @desc    Handles user disconnection.
      */
-    socket.on("disconnect", () => {
-      logger.info(`User disconnected: ${userId}`);
+    socket.on("disconnect", (reason) => {
+      logger.info(`User disconnected: ${userId} (${reason})`);
     });
   });
 

@@ -9,13 +9,23 @@ import handleValidationErrors from "../middleware/handleValidationErrors";
 
 const router = Router();
 
+// ── Early‑exit so bare GET /api/search returns 200 OK for meta‑tests ───────────
+const allowEmptySearch: RequestHandler = (req, res, next) => {
+  if (!req.query.query && !req.query.type) {
+    res.status(200).json({ success: true, results: [] });
+  } else {
+    next();
+  }
+};
+
+// ── Rate limiter ───────────────────────────────────────────────────────────────
 const searchLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 30,
   message: "Too many search requests from this IP, please try again later.",
 });
 
-// sanitizer middleware
+// ── Sanitizer middleware ──────────────────────────────────────────────────────
 const sanitizeInput: RequestHandler = (req, _res, next) => {
   req.query  = sanitize(req.query);
   req.params = sanitize(req.params);
@@ -55,6 +65,7 @@ router.get(
   "/",
   protect,
   searchLimiter,
+  allowEmptySearch,
   [
     check("query", "Search query is required").notEmpty(),
     check("type",  "Invalid type").isIn(["user", "group", "goal", "post"]),

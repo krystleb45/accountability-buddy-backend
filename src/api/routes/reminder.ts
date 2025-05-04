@@ -1,4 +1,4 @@
-// src/routes/reminders.ts
+// src/api/routes/reminder.ts
 import type { Router, Request, Response, NextFunction } from "express";
 import express from "express";
 import rateLimit from "express-rate-limit";

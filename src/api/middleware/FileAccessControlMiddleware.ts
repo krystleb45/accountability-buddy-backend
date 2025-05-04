@@ -1,57 +1,53 @@
-import { Request, Response, NextFunction } from "express";
-import FileUpload from "../models/FileUpload";  // Import the model, not the interface
-import { User } from "../models/User";  // Import the User model
-import sendResponse from "../utils/sendResponse";  // Utility for sending responses
+// src/api/middleware/FileAccessControlMiddleware.ts
+import type { Request, Response, NextFunction } from "express";
 import { Types } from "mongoose";
+import FileUpload from "../models/FileUpload";
+import { User } from "../models/User";
+import sendResponse from "../utils/sendResponse";
 
 /**
- * Middleware to ensure that users can only access files they are allowed to access
- * @desc Ensure user can only access files they uploaded or are permitted to access
+ * Ensure only the owner (or an admin) can access a given file.
  */
-const fileAccessControlMiddleware = async (
+export default async function fileAccessControl(
   req: Request,
   res: Response,
   next: NextFunction
-): Promise<void> => {
-  try {
-    const fileId = req.params.fileId;  // The fileId from the request URL
-    const userId = req.user?.id;  // The authenticated user's ID
+): Promise<void> {
+  const fileId = req.params.fileId;
+  const userId = req.user?.id;
 
-    if (!userId) {
-      sendResponse(res, 401, false, "Unauthorized");
-      return;
-    }
-
-    // Check if the file exists in the database
-    const file = await FileUpload.findById(fileId);
-    if (!file) {
-      sendResponse(res, 404, false, "File not found");
-      return;
-    }
-
-    // Check if the file is uploaded by the user or shared with them
-    if (file.userId.toString() !== userId.toString()) {
-      // Add role-based checks if needed, e.g., user roles
-      const user = await User.findById(userId);
-
-      if (!user) {
-        sendResponse(res, 404, false, "User not found");
-        return;
-      }
-
-      if (user.role !== "admin" && !file.sharedWith.includes(new Types.ObjectId(userId))) {
-        sendResponse(res, 403, false, "You do not have permission to access this file");
-        return;
-      }
-      
-    }
-
-    // If the checks pass, proceed to the next middleware or route handler
-    next();
-  } catch (error) {
-    console.error("Error in file access control middleware:", error);
-    sendResponse(res, 500, false, "Internal server error");
+  if (!userId) {
+    sendResponse(res, 401, false, "Unauthorized");
+    return;
   }
-};
 
-export default fileAccessControlMiddleware;
+  // Must be a valid ObjectId
+  if (!Types.ObjectId.isValid(fileId)) {
+    sendResponse(res, 400, false, "Invalid file ID");
+    return;
+  }
+
+  const file = await FileUpload.findById(fileId).lean();
+  if (!file) {
+    sendResponse(res, 404, false, "File not found");
+    return;
+  }
+
+  // If you're the uploader, you're good
+  if (new Types.ObjectId(userId).equals(file.user)) {
+    return next();
+  }
+
+  // Otherwise check if you're an admin
+  const user = await User.findById(userId).select("role");
+  if (!user) {
+    sendResponse(res, 404, false, "User not found");
+    return;
+  }
+  if (user.role === "admin") {
+    return next();
+  }
+
+  // All other cases: forbidden
+  sendResponse(res, 403, false, "You do not have permission to access this file");
+}

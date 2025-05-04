@@ -1,31 +1,53 @@
+// src/jobs/dailyReminderJob.ts
 import cron from "node-cron";
-import { sendDailyStreakReminder } from "../api/routes/notificationTriggers"; // Import the notification function
-import { User } from "../api/models/User"; // Import User model to fetch users
-import { logger } from "../utils/winstonLogger"; // Import the logger to log the process
+import mongoose from "mongoose";
+import { User } from "../api/models/User";
+import NotificationTriggerService from "../api/services/NotificationTriggerService";
+import { logger } from "../utils/winstonLogger";
+import { loadEnvironment } from "../utils/loadEnv";
+import dotenv from "dotenv";
 
-// Define the cron job for sending daily streak reminders
+loadEnvironment();
+dotenv.config();
+
+// Make sure we have a MONGO_URI to connect to
+const uri = process.env.MONGO_URI;
+if (!uri) {
+  logger.error("MONGO_URI must be defined to run dailyReminderJob");
+  process.exit(1);
+}
+
+// Connect mongoose once at startup
+mongoose.connect(uri).then(() => {
+  logger.info("✅ mongoose connected for dailyReminderJob");
+}).catch((err) => {
+  logger.error("❌ mongoose connection error in dailyReminderJob:", err);
+  process.exit(1);
+});
+
+// This cron expression runs every day at 09:00 server time
 const dailyReminderJob = cron.schedule("0 9 * * *", async () => {
-  // This cron job runs every day at 9 AM
-
   try {
-    // Get users who are active and have a streak to remind
-    const users = await User.find({ activeStatus: "online", streak: { $gt: 0 } });
+    // find all users who are active and have a positive streak
+    const users = await User.find({ activeStatus: "online", streak: { $gt: 0 } }).lean();
 
-    if (users.length > 0) {
-      // Loop through each user and send the reminder
-      for (const user of users) {
-        await sendDailyStreakReminder(user._id.toString()); // Pass userId directly as a string
-        logger.info(`Streak reminder sent to user: ${user.username}`);
-      }
-    } else {
-      logger.info("No users with streaks found for the daily reminder.");
+    if (users.length === 0) {
+      logger.info("No users to send daily streak reminders to.");
+      return;
     }
-  } catch (error) {
-    logger.error("Error in daily reminder job:", error);
+
+    for (const u of users) {
+      const userId = u._id.toString();
+      // call your service (you’ll need to implement this)
+      await NotificationTriggerService.dailyStreakReminder(userId);
+      logger.info(`✅ Streak reminder sent to ${u.username} (${userId})`);
+    }
+  } catch (err) {
+    logger.error("❌ Error in dailyReminderJob:", err);
   }
 });
 
-// Start the cron job
+// start the cron task
 dailyReminderJob.start();
 
 export default dailyReminderJob;

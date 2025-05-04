@@ -2,6 +2,7 @@
 import type { IUser } from "../models/User";
 import { User } from "../models/User";
 import Report from "../models/Report";
+import type { Document } from "mongoose";
 
 export interface DashboardTotals {
   totalUsers: number;
@@ -9,35 +10,39 @@ export interface DashboardTotals {
   reports: number;
 }
 
+export type UserDoc = IUser & Document;
+
 export default class AdminService {
   /** Fetch all users (minus their passwords) */
-  static async fetchAllUsers(): Promise<IUser[]> {
-    return User.find().select("-password");
+  static async fetchAllUsers(): Promise<UserDoc[]> {
+    return User.find().select("-password").exec();
   }
 
   /** Change a user's role */
   static async changeUserRole(
     userId: string,
     role: string
-  ): Promise<IUser | null> {
+  ): Promise<UserDoc | null> {
     return User.findByIdAndUpdate(
       userId,
       { role },
       { new: true, runValidators: true }
-    ).select("-password");
+    )
+      .select("-password")
+      .exec();
   }
 
   /** Delete a user account */
-  static async removeUser(userId: string): Promise<IUser | null> {
-    return User.findByIdAndDelete(userId);
+  static async removeUser(userId: string): Promise<UserDoc | null> {
+    return User.findByIdAndDelete(userId).exec();
   }
 
   /** Get the 3 dashboard totals: total users, active users, report count */
   static async dashboardTotals(): Promise<DashboardTotals> {
     const [totalUsers, activeUsers, reports] = await Promise.all([
-      User.countDocuments(),
-      User.countDocuments({ active: true }),
-      Report.countDocuments(),
+      User.countDocuments().exec(),
+      User.countDocuments({ active: true }).exec(),
+      Report.countDocuments().exec(),
     ]);
     return { totalUsers, activeUsers, reports };
   }

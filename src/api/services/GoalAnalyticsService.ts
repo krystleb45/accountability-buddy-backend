@@ -37,7 +37,9 @@ class GoalAnalyticsService {
       { goal: goalId },
       updates,
       { new: true, runValidators: true }
-    ).exec();
+    )
+      .lean<IGoalAnalytics>()
+      .exec();
   }
 
   /** Delete analytics for one goal */
@@ -45,7 +47,9 @@ class GoalAnalyticsService {
     if (!mongoose.Types.ObjectId.isValid(goalId)) {
       throw createError("Invalid goal ID", 400);
     }
-    return GoalAnalytics.findOneAndDelete({ goal: goalId }).exec();
+    return GoalAnalytics.findOneAndDelete({ goal: goalId })
+      .lean<IGoalAnalytics>()
+      .exec();
   }
 
   /**
