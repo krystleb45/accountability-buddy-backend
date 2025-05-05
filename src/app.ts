@@ -25,6 +25,7 @@ import { protect } from "./api/middleware/authJwt";
 import healthRoutes           from "./api/routes/healthRoutes";
 import authRoutes             from "./api/routes/auth";
 
+
 // protected
 import userRoutes             from "./api/routes/user";
 import supportRoutes          from "./api/routes/support";
@@ -121,6 +122,7 @@ app.use(morgan("dev", { stream: { write: msg => logger.info(msg.trim()) } }));
 // ─ Public routes ────────────────────────────────────────────────
 app.use("/api/health", healthRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/auths",   authRoutes);
 
 // ─ Protected routes (attach JWT→req.user) ───────────────────────
 app.use("/api", protect);
