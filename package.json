@@ -26,7 +26,8 @@
     "cleanup:test": "cross-env NODE_ENV=test ts-node src/scripts/cleanupRoles.ts",
     "reset:dev": "npm run seed:all",
     "reset:test": "npm run cleanup:all && npm run seed:test",
-    "reset:prod": "npm run cleanup:all && npm run seed:prod"
+    "reset:prod": "npm run cleanup:all && npm run seed:prod",
+    "email-worker": "ts-node src/queues/emailWorker.ts"
   },
   "keywords": [
     "accountability",
@@ -47,6 +48,7 @@
     "aws-sdk": "^2.1692.0",
     "bcryptjs": "^2.4.3",
     "bull": "^4.16.3",
+    "bullmq": "^5.53.0",
     "compression": "^1.7.5",
     "connect-redis": "^6.0.0",
     "cookie-parser": "^1.4.7",
@@ -64,7 +66,7 @@
     "i18next": "^23.15.1",
     "i18next-express-middleware": "^2.0.0",
     "i18next-fs-backend": "^2.3.2",
-    "ioredis": "^5.6.0",
+    "ioredis": "^5.6.1",
     "joi": "^17.13.3",
     "jsonwebtoken": "^9.0.2",
     "mongo-sanitize": "^1.1.0",

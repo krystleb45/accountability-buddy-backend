@@ -18,14 +18,14 @@ const logger = winston.createLogger({
       filename: `${logDir}/error-%DATE%.log`,
       datePattern: "YYYY-MM-DD",
       level: "error",
-      maxFiles: "14d", // Retain error logs for 14 days
-      zippedArchive: true, // Compress old log files
+      maxFiles: "14d",       // Retain error logs for 14 days
+      zippedArchive: true,   // Compress old log files
     }),
     // Rotating file transport for combined logs
     new DailyRotateFile({
       filename: `${logDir}/combined-%DATE%.log`,
       datePattern: "YYYY-MM-DD",
-      maxFiles: "30d", // Retain combined logs for 30 days
+      maxFiles: "30d",       // Retain combined logs for 30 days
       zippedArchive: true,
     }),
   ],
@@ -40,7 +40,7 @@ if (process.env.NODE_ENV !== "production") {
         winston.format.colorize(), // Colorize console output
         winston.format.simple(),
       ),
-    }),
+    })
   );
 }
 
@@ -49,14 +49,27 @@ logger.exceptions.handle(
   new DailyRotateFile({
     filename: `${logDir}/exceptions-%DATE%.log`,
     datePattern: "YYYY-MM-DD",
-    maxFiles: "7d", // Retain exception logs for 7 days
+    maxFiles: "7d",  // Retain exception logs for 7 days
     zippedArchive: true,
-  }),
+  })
 );
 
+// Also catch any uncaught exceptions at the process level
+process.on("uncaughtException", (err) => {
+  logger.error("❌ Uncaught Exception:", err);
+  // note: not exiting so that Winston's exceptions.handle can rotate & write
+});
+
 // Handle unhandled promise rejections
-process.on("unhandledRejection", (reason: unknown) => {
-  logger.error("Unhandled Rejection:", reason);
+process.on("unhandledRejection", (reason) => {
+  logger.error("❌ Unhandled Rejection:", reason);
+});
+
+// Catch Node.js warnings (including deprecation notices)
+process.on("warning", (warning) => {
+  logger.warn(`⚠️ Warning: ${warning.name} – ${warning.message}`, {
+    stack: warning.stack,
+  });
 });
 
 export default logger;

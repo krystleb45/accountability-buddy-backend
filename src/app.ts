@@ -59,6 +59,7 @@ import progressRoutes         from "./api/routes/progress";
 import searchRoutes           from "./api/routes/search";
 import rateLimitRoutes        from "./api/routes/rateLimit";
 import gamificationRoutes     from "./api/routes/gamification";
+import dashboardRoutes from "./api/routes/dashboard";
 
 // the ones you were missing
 import eventRoutes            from "./api/routes/event";
@@ -159,6 +160,7 @@ app.use("/api/progress", progressRoutes);
 app.use("/api/search", searchRoutes);
 app.use("/api/rate-limit", rateLimitRoutes);
 app.use("/api/gamification", gamificationRoutes);
+app.use("/api/dashboard", protect, dashboardRoutes);
 
 // newly added mounts:
 app.use("/api/events", eventRoutes);
