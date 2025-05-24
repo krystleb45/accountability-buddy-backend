@@ -1,7 +1,7 @@
 // src/api/routes/progress.ts
 import { Router } from "express";
 import { check } from "express-validator";
-import { protect } from "../middleware/authMiddleware";
+import { protect } from "../middleware/authJwt";            // ← fix this import
 import handleValidationErrors from "../middleware/handleValidationErrors";
 import {
   getProgressDashboard,
@@ -12,63 +12,24 @@ import {
 
 const router = Router();
 
-/**
- * @swagger
- * /api/progress/dashboard:
- *   get:
- *     summary: Get user progress dashboard
- *     tags: [Progress]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Dashboard fetched successfully
- */
-router.get("/dashboard", protect, getProgressDashboard);
+// apply protect to *all* progress routes
+router.use(protect);
 
 /**
- * @swagger
- * /api/progress:
- *   get:
- *     summary: Get user progress
- *     tags: [Progress]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Progress fetched successfully
+ * GET  /api/progress/dashboard
  */
-router.get("/", protect, getProgress);
+router.get("/dashboard", getProgressDashboard);
 
 /**
- * @swagger
- * /api/progress/update:
- *   put:
- *     summary: Update user progress
- *     tags: [Progress]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [goalId, progress]
- *             properties:
- *               goalId:
- *                 type: string
- *               progress:
- *                 type: number
- *     responses:
- *       200:
- *         description: Progress updated successfully
- *       400:
- *         description: Validation error
+ * GET  /api/progress
+ */
+router.get("/", getProgress);
+
+/**
+ * PUT  /api/progress/update
  */
 router.put(
   "/update",
-  protect,
   [
     check("goalId", "Goal ID is required").notEmpty(),
     check("progress", "Progress must be a number").isNumeric(),
@@ -78,17 +39,8 @@ router.put(
 );
 
 /**
- * @swagger
- * /api/progress/reset:
- *   delete:
- *     summary: Reset user progress
- *     tags: [Progress]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Progress reset successfully
+ * DELETE /api/progress/reset
  */
-router.delete("/reset", protect, resetProgress);
+router.delete("/reset", resetProgress);
 
 export default router;

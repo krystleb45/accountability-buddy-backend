@@ -47,7 +47,6 @@ export const register: RequestHandler = catchAsync(async (req, res, next) => {
     _id: user._id.toString(),
     role: user.role,
   });
-  // reuse AuthService.refreshToken to generate a refresh token
   const refreshToken = await AuthService.refreshToken(accessToken);
 
   sendResponse(
@@ -70,36 +69,38 @@ export const login: RequestHandler = catchAsync(async (req, res, next) => {
   }
 
   const normalizedEmail = email.toLowerCase().trim();
-  console.warn("→ [login] received payload:", { email: normalizedEmail, password });
+  logger.info("→ [login] received payload:", { email: normalizedEmail });
 
   // 1) Lookup user
-  const user = await User.findOne({ email: normalizedEmail }).select("+password");
-  console.warn("→ [login] user lookup result:", user);
-
+  const user = await User.findOne({ email: normalizedEmail }).select(
+    "+password"
+  );
   if (!user) {
     return next(createError("Invalid credentials", 401));
   }
 
   // 2) Compare passwords
-  console.warn("→ [login] stored hash:", user.password);
-  const isMatch = await AuthService.comparePassword(password, user.password);
-  console.warn("→ [login] bcrypt.compare result:", isMatch);
-
+  const isMatch = await AuthService.comparePassword(
+    password,
+    user.password!
+  );
   if (!isMatch) {
     return next(createError("Invalid credentials", 401));
   }
 
   // 3) Issue tokens
-  const accessToken = await AuthService.generateToken({ _id: user._id.toString(), role: user.role });
-  const refreshToken = await AuthService.refreshToken(accessToken);
+  const accessToken = await AuthService.generateToken({
+    _id: user._id.toString(),
+    role: user.role,
+  });
 
-  sendResponse(res, 200, true, "Login successful", {
-    id:           user._id.toString(),
-    username:     user.username,
-    email:        user.email,
-    role:         user.role,
+  // 4) Send flat payload that NextAuth expects
+  res.status(200).json({
+    id: user._id.toString(),
+    name: user.username,
+    email: user.email,
+    role: user.role,
     accessToken,
-    refreshToken,
   });
 });
 
@@ -133,7 +134,7 @@ export const logout: RequestHandler = (_req, res) => {
 };
 
 //
-// ─── GET /api/auth/me ───────────────────────────────────────────────────────
+// ─── GET /api/auth/me ────────────────────────────────────────────────────────
 //
 export const getCurrentUser: RequestHandler = catchAsync(async (req, res, next) => {
   const userId = (req as any).user?.id as string | undefined;

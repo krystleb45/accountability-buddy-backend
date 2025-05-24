@@ -17,8 +17,22 @@ export const getUserStreak = catchAsync(async (req: Request, res: Response): Pro
     return;
   }
 
-  const streak = await StreakService.getUserStreak(userId);
-  sendResponse(res, 200, true, "User streak fetched successfully", { streak });
+  try {
+    const streak = await StreakService.getUserStreak(userId);
+    sendResponse(res, 200, true, "User streak fetched successfully", { streak });
+  } catch (err: any) {
+    if (err.message === "Streak not found for this user.") {
+      const emptyStreak = {
+        currentStreak: 0,
+        longestStreak: 0,
+        goalProgress: 0,
+        completionDates: [] as string[],
+      };
+      sendResponse(res, 200, true, "No streak yet, returning empty", { streak: emptyStreak });
+    } else {
+      throw err;
+    }
+  }
 });
 
 /**

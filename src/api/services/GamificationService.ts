@@ -1,7 +1,7 @@
 // src/api/services/GamificationService.ts
 
 import mongoose from "mongoose";
-import Gamification from "../models/Gamification";
+import GamificationModel, { type IGamification } from "../models/Gamification";
 
 // What we want in our final payload
 export interface LeaderboardEntry {
@@ -24,6 +24,14 @@ export interface LeaderboardResult {
   };
 }
 
+export interface UserProgress {
+  level: number;
+  points: number;
+}
+
+/**
+ * Business‐logic for gamification: leaderboard, per‐user progress, points, etc.
+ */
 const GamificationService = {
   /**
    * Fetch a paginated leaderboard with populated user info.
@@ -35,22 +43,17 @@ const GamificationService = {
     const skip = (page - 1) * limit;
 
     const [rawDocs, totalUsers] = await Promise.all([
-      Gamification.find()
+      GamificationModel.find()
         .sort({ level: -1, points: -1 })
         .skip(skip)
         .limit(limit)
         .populate("userId", "username profilePicture")
-        .lean(), // <— lean gives us plain JS objects
-      Gamification.countDocuments(),
+        .lean(),
+      GamificationModel.countDocuments(),
     ]);
 
-    // Now explicitly reshape
     const entries: LeaderboardEntry[] = rawDocs.map((doc) => {
-      // Cast to unknown so TS stops complaining
-      const d = doc as unknown as {
-        _id: any;
-        level: number;
-        points: number;
+      const d = doc as unknown as IGamification & {
         userId: { _id: any; username: string; profilePicture?: string };
       };
 
@@ -77,6 +80,29 @@ const GamificationService = {
   },
 
   /**
+   * Get or initialize a user's own gamification progress.
+   */
+  async getUserProgress(userId: string): Promise<UserProgress> {
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      throw new Error("Invalid user ID");
+    }
+
+    // 1) Fetch the document (no .lean())
+    let profile = await GamificationModel.findOne({ userId });
+
+    // 2) If missing, create it
+    if (!profile) {
+      profile = await GamificationModel.create({ userId, level: 1, points: 0 });
+    }
+
+    // 3) Now `profile` is always a Document<IGamification>
+    return {
+      level: profile.level,
+      points: profile.points,
+    };
+  },
+
+  /**
    * Add points to a user's gamification profile (create if missing).
    */
   async addPoints(userId: string, amount: number): Promise<void> {
@@ -84,9 +110,9 @@ const GamificationService = {
       throw new Error("Invalid user ID");
     }
 
-    let profile = await Gamification.findOne({ userId });
+    let profile = await GamificationModel.findOne({ userId });
     if (!profile) {
-      profile = await Gamification.create({ userId, level: 1, points: 0 });
+      profile = await GamificationModel.create({ userId, level: 1, points: 0 });
     }
 
     await profile.addPoints(amount);
