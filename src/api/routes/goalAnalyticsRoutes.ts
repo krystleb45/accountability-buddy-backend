@@ -1,7 +1,7 @@
-// src/api/routes/goalAnalytics.ts
+// src/api/routes/goalAnalyticsRoutes.ts
 import { Router } from "express";
 import { check, query } from "express-validator";
-import { protect } from "../middleware/authMiddleware";
+import { protect } from "../middleware/authJwt";
 import handleValidationErrors from "../middleware/handleValidationErrors";
 import {
   getUserGoalAnalytics,
@@ -11,20 +11,10 @@ import {
 
 const router = Router();
 
-/**
- * GET /api/analytics/goals
- * Get overall analytics for user goals
- */
-router.get(
-  "/goals",
-  protect,
-  getUserGoalAnalytics
-);
+/** overall for the user */
+router.get("/goals", protect, getUserGoalAnalytics);
 
-/**
- * GET /api/analytics/goals/:goalId
- * Get analytics for a specific goal by ID
- */
+/** per‐goal, all time */
 router.get(
   "/goals/:goalId",
   protect,
@@ -33,17 +23,13 @@ router.get(
   getGoalAnalyticsById
 );
 
-/**
- * GET /api/analytics/goals/date-range
- * Get goal analytics filtered by date range
- */
+/** per‐goal, date range */
 router.get(
-  "/goals/date-range",
+  "/goals/:goalId/date-range",
   protect,
-  [
-    query("startDate", "Invalid start date").notEmpty().isISO8601(),
-    query("endDate",   "Invalid end date").notEmpty().isISO8601(),
-  ],
+  check("goalId", "Goal ID is invalid").isMongoId(),
+  query("startDate", "Invalid or missing startDate").notEmpty().isISO8601(),
+  query("endDate", "Invalid or missing endDate").notEmpty().isISO8601(),
   handleValidationErrors,
   getGoalAnalyticsByDateRange
 );

@@ -57,20 +57,20 @@ class GoalAnalyticsService {
    * Returns all matching analytics entries whose `recordedAt` falls between startDate and endDate.
    */
   static async getByDateRange(
-    goalId: string,
+    userId: string,
     startDate: string,
     endDate: string
   ): Promise<IGoalAnalytics[]> {
-    if (!mongoose.Types.ObjectId.isValid(goalId)) {
-      throw createError("Invalid goal ID", 400);
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      throw createError("Invalid user ID", 400);
     }
     const start = new Date(startDate);
-    const end = new Date(endDate);
+    const end   = new Date(endDate);
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
       throw createError("Invalid date format", 400);
     }
     return GoalAnalytics.find({
-      goal: goalId,
+      user: userId,
       recordedAt: { $gte: start, $lte: end },
     }).exec();
   }

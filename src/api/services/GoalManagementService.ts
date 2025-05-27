@@ -1,15 +1,15 @@
-// src/api/services/GoalManagementService.ts
 import mongoose from "mongoose";
 import Goal, { IGoal } from "../models/Goal";
 import { User } from "../models/User";
-import { CustomError } from "./errorHandler";
+import { CustomError } from "../middleware/errorHandler";
 import { logger } from "../../utils/winstonLogger";
 
 type NewGoalData = {
   title: string;
   description?: string;
+  deadline: Date;
+  category: string;
   target?: number;
-  category?: string;
 };
 
 class GoalManagementService {
@@ -31,7 +31,9 @@ class GoalManagementService {
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       throw new CustomError("Invalid user ID", 400);
     }
-    const goals = await Goal.find({ user: userId }).sort({ createdAt: -1 }).exec();
+    const goals = await Goal.find({ user: userId })
+      .sort({ createdAt: -1 })
+      .exec();
     logger.info(`Fetched ${goals.length} goals for user ${userId}`);
     return goals;
   }
@@ -66,7 +68,10 @@ class GoalManagementService {
     userId: string,
     progress: number
   ): Promise<IGoal> {
-    if (!mongoose.Types.ObjectId.isValid(goalId) || !mongoose.Types.ObjectId.isValid(userId)) {
+    if (
+      !mongoose.Types.ObjectId.isValid(goalId) ||
+      !mongoose.Types.ObjectId.isValid(userId)
+    ) {
       throw new CustomError("Invalid goal or user ID", 400);
     }
     const goal = await Goal.findById(goalId);
@@ -92,8 +97,14 @@ class GoalManagementService {
   /**
    * Mark a goal fully complete.
    */
-  static async completeGoal(goalId: string, userId: string): Promise<IGoal> {
-    if (!mongoose.Types.ObjectId.isValid(goalId) || !mongoose.Types.ObjectId.isValid(userId)) {
+  static async completeGoal(
+    goalId: string,
+    userId: string
+  ): Promise<IGoal> {
+    if (
+      !mongoose.Types.ObjectId.isValid(goalId) ||
+      !mongoose.Types.ObjectId.isValid(userId)
+    ) {
       throw new CustomError("Invalid goal or user ID", 400);
     }
     const goal = await Goal.findById(goalId);
@@ -110,6 +121,22 @@ class GoalManagementService {
     await goal.save();
     logger.info(`User ${userId} completed goal ${goalId}`);
     return goal;
+  }
+
+  /**
+   * Fetch a specific user's goal by ID.
+   */
+  static async getUserGoalById(
+    userId: string,
+    goalId: string
+  ): Promise<IGoal | null> {
+    if (
+      !mongoose.Types.ObjectId.isValid(userId) ||
+      !mongoose.Types.ObjectId.isValid(goalId)
+    ) {
+      throw new CustomError("Invalid ID", 400);
+    }
+    return Goal.findOne({ _id: goalId, user: userId }).exec();
   }
 
   /**
@@ -130,7 +157,9 @@ class GoalManagementService {
     const goal = new Goal({
       user: userId,
       title: data.title,
-      description: data.category ?? data.description,
+      description: data.description ?? "",
+      category: data.category,
+      dueDate: data.deadline,
       target: data.target,
       progress: 0,
       status: "not-started",
@@ -139,13 +168,66 @@ class GoalManagementService {
       priority: "medium",
       isPinned: false,
       points: 0,
-      dueDate: undefined,
       completedAt: undefined,
     });
 
     await goal.save();
     logger.info(`Goal created for user ${userId}: ${goal._id}`);
     return goal;
+  }
+
+  /**
+   * Update a goal's details (title, description, dueDate, category).
+   */
+  static async updateGoal(
+    goalId: string,
+    userId: string,
+    updates: {
+      title?: string;
+      description?: string;
+      dueDate?: Date;
+      category?: string;
+    }
+  ): Promise<IGoal | null> {
+    if (
+      !mongoose.Types.ObjectId.isValid(goalId) ||
+      !mongoose.Types.ObjectId.isValid(userId)
+    ) {
+      throw new CustomError("Invalid goal or user ID", 400);
+    }
+    const goal = await Goal.findOneAndUpdate(
+      { _id: goalId, user: userId },
+      { $set: updates },
+      { new: true }
+    ).exec();
+    if (!goal) {
+      return null;
+    }
+    logger.info(`Goal ${goalId} updated for user ${userId}`);
+    return goal;
+  }
+
+  /**
+   * Permanently delete a goal.
+   */
+  static async deleteGoal(
+    goalId: string,
+    userId: string
+  ): Promise<boolean> {
+    if (
+      !mongoose.Types.ObjectId.isValid(goalId) ||
+      !mongoose.Types.ObjectId.isValid(userId)
+    ) {
+      throw new CustomError("Invalid goal or user ID", 400);
+    }
+    const result = await Goal.deleteOne({ _id: goalId, user: userId }).exec();
+    const success = result.deletedCount === 1;
+    if (success) {
+      logger.info(`Goal ${goalId} deleted for user ${userId}`);
+    } else {
+      logger.warn(`Failed to delete goal ${goalId} for user ${userId}`);
+    }
+    return success;
   }
 }
 

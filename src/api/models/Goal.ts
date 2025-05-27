@@ -23,9 +23,13 @@ export interface IGoal extends Document {
   user: Types.ObjectId;
   title: string;
   description?: string;
+
+  // ← NEW!
+  category: string;
+  dueDate: Date;
+
   status: "not-started" | "in-progress" | "completed" | "archived";
   progress: number;
-  dueDate?: Date;
   completedAt?: Date;
   milestones: Types.DocumentArray<IMilestone>;
   tags: string[];
@@ -59,8 +63,8 @@ export interface IGoalModel extends Model<IGoal> {
 // --- Sub‐schemas ---
 const MilestoneSchema = new Schema<IMilestone>(
   {
-    title:     { type: String, required: true, trim: true, maxlength: 100 },
-    deadline:  {
+    title: { type: String, required: true, trim: true, maxlength: 100 },
+    deadline: {
       type: Date,
       required: true,
       validate: {
@@ -75,7 +79,7 @@ const MilestoneSchema = new Schema<IMilestone>(
 
 const ReminderSchema = new Schema<IReminder>(
   {
-    message:  { type: String, required: true, trim: true, maxlength: 255 },
+    message: { type: String, required: true, trim: true, maxlength: 255 },
     remindAt: {
       type: Date,
       required: true,
@@ -84,7 +88,7 @@ const ReminderSchema = new Schema<IReminder>(
         message: "Remind time must be in the future",
       },
     },
-    status:   { type: String, enum: ["pending", "sent"], default: "pending" },
+    status: { type: String, enum: ["pending", "sent"], default: "pending" },
   },
   { _id: false }
 );
@@ -95,20 +99,25 @@ const GoalSchema = new Schema<IGoal, IGoalModel>(
     user:        { type: Schema.Types.ObjectId, ref: "User", required: true },
     title:       { type: String, required: true, trim: true, maxlength: 255 },
     description: { type: String, trim: true, maxlength: 1000 },
-    status:      {
+
+    // ← NEW!
+    category: { type: String, trim: true, maxlength: 100, required: true },
+    dueDate:  { type: Date, required: true },
+
+    status:   {
       type: String,
-      enum: ["not-started","in-progress","completed","archived"],
+      enum: ["not-started", "in-progress", "completed", "archived"],
       default: "not-started",
     },
     progress:    { type: Number, default: 0, min: 0, max: 100 },
-    dueDate:     { type: Date },
     completedAt: { type: Date },
-    milestones:  { type: [MilestoneSchema], default: [] },
-    tags:        { type: [String], default: [] },
-    priority:    { type: String, enum: ["high","medium","low"], default: "medium" },
-    reminders:   { type: [ReminderSchema], default: [] },
-    isPinned:    { type: Boolean, default: false },
-    points:      { type: Number, default: 0 },
+
+    milestones: { type: [MilestoneSchema], default: [] },
+    tags:       { type: [String], default: [] },
+    priority:   { type: String, enum: ["high", "medium", "low"], default: "medium" },
+    reminders:  { type: [ReminderSchema], default: [] },
+    isPinned:   { type: Boolean, default: false },
+    points:     { type: Number, default: 0 },
   },
   {
     timestamps: true,
@@ -118,10 +127,7 @@ const GoalSchema = new Schema<IGoal, IGoalModel>(
 );
 
 // --- Indexes ---
-// Compound for the most common filter combination:
 GoalSchema.index({ user: 1, status: 1, priority: 1 });
-
-// Standalone indexes:
 GoalSchema.index({ title: 1 });
 GoalSchema.index({ dueDate: 1 });
 GoalSchema.index({ completedAt: 1 });
@@ -140,10 +146,9 @@ GoalSchema.virtual("reminderCount").get(function (this: IGoal): number {
 
 // --- Middleware ---
 GoalSchema.pre<IGoal>("save", function (next) {
-  // sanitize inputs
   this.title = sanitize(this.title);
   if (this.description) this.description = sanitize(this.description);
-  // mark completedAt when status flips to completed
+  // when status goes to completed, stamp completedAt
   if (this.isModified("status") && this.status === "completed") {
     this.completedAt = new Date();
   }
@@ -160,7 +165,6 @@ GoalSchema.methods.addReminder = async function (
   await this.save();
   return this;
 };
-
 GoalSchema.methods.markMilestoneComplete = async function (
   this: IGoal,
   index: number
@@ -182,7 +186,6 @@ GoalSchema.statics.findByUser = function (
     .sort({ createdAt: -1 })
     .exec();
 };
-
 GoalSchema.statics.archiveCompleted = async function (): Promise<{ nDeleted?: number }> {
   const res = await this.deleteMany({ status: "completed" }).exec();
   return { nDeleted: res.deletedCount };

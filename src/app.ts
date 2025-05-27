@@ -165,7 +165,7 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/feedback", feedbackRoutes);
 app.use("/api/file-uploads", fileUploadRoutes);
-app.use("/api/goalssAnalyticsRoutes", goalAnalyticsRoutes);
+app.use("/api/analytics", goalAnalyticsRoutes);
 app.use("/api/history", historyRoutes);
 app.use("/api/leaderboard", leaderboardRoutes);
 app.use("/api/milestone", milestoneRoutes);
@@ -192,17 +192,11 @@ app.use("/api/webhooks", webhooksRoutes);
 const metaTest: RequestHandler = (req, res, next) => {
   if (/^\/api\/.+\.test$/.test(req.path)) {
     res.sendStatus(200);
-  } else {
-    next();
+    return;         // <-- early exit, returns void
   }
+  next();          // <-- returns void
 };
 app.use(metaTest);
-
-// ─── Smoke-test fallback for any unmatched GET /api/* ────────
-const smokeTest: RequestHandler = (_req, res) => {
-  res.sendStatus(200);
-};
-app.get("/api/*", smokeTest);
 
 // ─ 404 catch-all ───────────────────────────────────────────────
 app.use(notFoundMiddleware);
