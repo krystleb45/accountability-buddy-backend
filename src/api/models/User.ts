@@ -31,13 +31,15 @@ export interface IUser extends Document {
   username: string;
   email: string;
   password: string;
+  bio?: string;
+  profileImage?: string;
+  coverImage?: string;
   role: "user" | "admin" | "moderator" | "military";
   isVerified: boolean;
   isAdmin: boolean;
   permissions: string[];
   isLocked?: boolean;
   active: boolean;
-  profilePicture?: string;
   friends: Types.ObjectId[];
   friendRequests: Types.ObjectId[];
   followers: Types.ObjectId[];
@@ -89,6 +91,9 @@ const UserSchema: Schema<IUser> = new Schema(
     username: { type: String, required: true, unique: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true, minlength: 8, select: false },
+    bio: { type: String, default: "" },
+    profileImage: { type: String, default: "" },
+    coverImage: { type: String, default: "" },
     firstName: { type: String },
     lastName: { type: String },
     role: { type: String, enum: ["user", "admin", "moderator", "military"], default: "user" },
@@ -97,7 +102,6 @@ const UserSchema: Schema<IUser> = new Schema(
     permissions: { type: [String], default: [] },
     isLocked: { type: Boolean, default: false },
     active: { type: Boolean, default: true },
-    profilePicture: { type: String },
 
     // Relationships
     friends: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
@@ -172,7 +176,7 @@ const UserSchema: Schema<IUser> = new Schema(
 UserSchema.index({ interests: 1 });
 UserSchema.index({ activeStatus: 1 });
 
-// Password hashing with explicit return type on hook
+// Password hashing
 UserSchema.pre<IUser>(
   "save",
   async function (this: IUser, next: (err?: CallbackError) => void): Promise<void> {
@@ -199,7 +203,10 @@ UserSchema.methods.comparePassword = async function (
 
 UserSchema.methods.generateResetToken = function (): string {
   const resetToken = crypto.randomBytes(20).toString("hex");
-  this.resetPasswordToken = crypto.createHash("sha256").update(resetToken).digest("hex");
+  this.resetPasswordToken = crypto
+    .createHash("sha256")
+    .update(resetToken)
+    .digest("hex");
   this.resetPasswordExpires = new Date(Date.now() + 10 * 60 * 1000);
   return resetToken;
 };

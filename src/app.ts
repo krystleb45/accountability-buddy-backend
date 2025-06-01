@@ -5,7 +5,8 @@ dotenvFlow.config();
 import { validateEnv } from "./utils/validateEnv";
 validateEnv();
 
-import express, { RequestHandler } from "express";
+import express from "express";
+import path from "path";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
@@ -20,12 +21,12 @@ import { logger } from "./utils/winstonLogger";
 // JWT guard
 import { protect } from "./api/middleware/authJwt";
 
-// ——— Route handlers —————————————————————————————————————————————
-// public
+// ─── Public route imports ─────────────────────────────────────
 import healthRoutes from "./api/routes/healthRoutes";
 import authRoutes from "./api/routes/auth";
+import faqRoutes from "./api/routes/faq";
 
-// protected
+// ─── Protected route imports ──────────────────────────────────
 import userRoutes from "./api/routes/user";
 import supportRoutes from "./api/routes/support";
 import reminderRoutes from "./api/routes/reminder";
@@ -60,7 +61,6 @@ import rateLimitRoutes from "./api/routes/rateLimit";
 import gamificationRoutes from "./api/routes/gamification";
 import dashboardRoutes from "./api/routes/dashboard";
 
-// the ones you were missing
 import eventRoutes from "./api/routes/event";
 import feedbackRoutes from "./api/routes/feedback";
 import fileUploadRoutes from "./api/routes/fileUpload";
@@ -87,46 +87,53 @@ import userPointsRoutes from "./api/routes/userpointsRoute";
 import xpHistoryRoutes from "./api/routes/xpHistory";
 import webhooksRoutes from "./api/routes/webhooks";
 
-// 404 & error handling
 import notFoundMiddleware from "./api/middleware/notFoundMiddleware";
 import { errorHandler } from "./api/middleware/errorHandler";
 import setupSwagger from "./config/swaggerConfig";
 
 const app = express();
 
-// Stripe webhook (raw body)
-app.post(
-  "/webhooks/stripe",
-  bodyParser.raw({ type: "application/json" }),
-  (_req, _res, next) => next()
-);
+// ─── Serve uploads folder ─────────────────────────────────────
+app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
-// allow GET for tests
-app.get("/webhooks/stripe", (_req, res, next) => {
-  res.sendStatus(200);
-  next();
-});
-
-// Core middleware
+// ─── Core middleware ──────────────────────────────────────────
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(compression());
 app.use(helmet());
-app.use(cors({ origin: process.env.ALLOWED_ORIGINS?.split(","), credentials: true }));
+app.use(
+  cors({
+    origin: process.env.ALLOWED_ORIGINS?.split(","),
+    credentials: true,
+  })
+);
 app.use(mongoSanitize());
 app.use(xssClean());
 app.use(hpp());
-app.use(rateLimit({ windowMs: 15 * 60_000, max: 100 }));
-app.use(morgan("dev", { stream: { write: msg => logger.info(msg.trim()) } }));
+app.use(
+  rateLimit({
+    windowMs: 15 * 60_000,
+    max: 100,
+  })
+);
+app.use(
+  morgan("dev", {
+    stream: {
+      write: (msg) => logger.info(msg.trim()),
+    },
+  })
+);
 
-// ─ Public routes ────────────────────────────────────────────────
+// ─── Public routes ────────────────────────────────────────────
 app.use("/api/health", healthRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/auths", authRoutes);
+app.use("/api/faqs", faqRoutes);
 
-// ─ Protected routes (attach JWT→req.user) ───────────────────────
+// ─── Protect everything below ─────────────────────────────────
 app.use("/api", protect);
 
+// ─── Protected routes ────────────────────────────────────────
 app.use("/api/users", userRoutes);
 app.use("/api/support", supportRoutes);
 app.use("/api/reminders", reminderRoutes);
@@ -160,8 +167,6 @@ app.use("/api/search", searchRoutes);
 app.use("/api/rate-limit", rateLimitRoutes);
 app.use("/api/gamification", gamificationRoutes);
 app.use("/api/dashboard", dashboardRoutes);
-
-// newly added mounts:
 app.use("/api/events", eventRoutes);
 app.use("/api/feedback", feedbackRoutes);
 app.use("/api/file-uploads", fileUploadRoutes);
@@ -189,19 +194,16 @@ app.use("/api/xp-history", xpHistoryRoutes);
 app.use("/api/webhooks", webhooksRoutes);
 
 // ─── Meta-test catch-all for *.test ───────────────────────────
-const metaTest: RequestHandler = (req, res, next) => {
+app.use((req, res, next) => {
   if (/^\/api\/.+\.test$/.test(req.path)) {
     res.sendStatus(200);
-    return;         // <-- early exit, returns void
+    return;
   }
-  next();          // <-- returns void
-};
-app.use(metaTest);
+  next();
+});
 
-// ─ 404 catch-all ───────────────────────────────────────────────
+// ─── 404 & error handlers ─────────────────────────────────────
 app.use(notFoundMiddleware);
-
-// ─ Global error handler & Swagger ──────────────────────────────
 app.use(errorHandler);
 setupSwagger(app);
 

@@ -110,7 +110,7 @@
     "@types/cors": "^2.8.17",
     "@types/csurf": "^1.11.5",
     "@types/date-fns": "^2.6.3",
-    "@types/express": "^5.0.1",
+    "@types/express": "^5.0.2",
     "@types/express-session": "^1.18.1",
     "@types/glob": "^8.1.0",
     "@types/hpp": "^0.2.6",

@@ -1,39 +1,55 @@
 // src/api/routes/profile.ts
-import { Router } from "express";
-import { check } from "express-validator";
-import { protect } from "../middleware/authMiddleware";
+import { Router }    from "express";
+import { check }     from "express-validator";
+import multer        from "multer";
+import { protect }   from "../middleware/authMiddleware";
 import handleValidationErrors from "../middleware/handleValidationErrors";
-import { getProfile, updateProfile } from "../controllers/ProfileController";
+import {
+  getProfile,
+  updateProfile,
+  uploadProfileImage,
+  uploadCoverImage,
+} from "../controllers/ProfileController";
 
 const router = Router();
 
-/**
- * @route   GET /api/profile
- * @desc    Get the current user's profile
- * @access  Private
- */
-router.get("/", protect, getProfile);
+// multer configs:
+//  - avatars into uploads/avatars
+//  - covers  into uploads/covers
+const avatarUpload = multer({ dest: "uploads/avatars" });
+const coverUpload  = multer({ dest: "uploads/covers" });
 
-/**
- * @route   PUT /api/profile/update
- * @desc    Update the current user's profile
- * @access  Private
- */
+router.get("/", protect, getProfile);
 router.put(
-  "/update",
+  "/",
   protect,
   [
-    check("username")
-      .optional()
-      .isString()
-      .withMessage("Username must be a string."),
-    check("email")
-      .optional()
-      .isEmail()
-      .withMessage("Email must be a valid email address."),
+    check("username").optional().isString(),
+    check("email")   .optional().isEmail(),
+    check("bio")     .optional().isString(),
+    check("interests").optional().isArray(),
     handleValidationErrors,
   ],
   updateProfile
+);
+
+// alias
+router.put("/update", protect, updateProfile);
+
+// AVATAR → writes into uploads/avatars/<randomFilename>
+router.put(
+  "/image",
+  protect,
+  avatarUpload.single("profileImage"),
+  uploadProfileImage
+);
+
+// COVER → writes into uploads/covers/<randomFilename>
+router.put(
+  "/cover",
+  protect,
+  coverUpload.single("coverImage"),
+  uploadCoverImage
 );
 
 export default router;
