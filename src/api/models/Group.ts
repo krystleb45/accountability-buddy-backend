@@ -1,4 +1,4 @@
-// src/api/models/Group.ts
+// src/api/models/Group.ts - Updated with new fields
 
 import type { Document, Model, Types } from "mongoose";
 import mongoose, { Schema } from "mongoose";
@@ -13,10 +13,16 @@ export interface IUnreadMessage {
 export interface IGroup extends Document {
   name: string;
   description?: string;
+  category: string; // Added
   members: Types.ObjectId[];
   createdBy: Types.ObjectId;
   visibility: "public" | "private";
+  isPublic: boolean; // Added (derived from visibility)
+  inviteOnly: boolean; // Added
   isActive: boolean;
+  lastActivity: Date; // Added
+  avatar?: string; // Added
+  tags: string[]; // Added
   unreadMessages: Types.DocumentArray<IUnreadMessage>;
   typingUsers: Types.ObjectId[];
   isPinned: boolean;
@@ -53,10 +59,21 @@ const GroupSchema = new Schema<IGroup, IGroupModel>(
   {
     name: { type: String, required: true, trim: true, maxlength: 100 },
     description: { type: String, trim: true, maxlength: 500 },
+    category: {
+      type: String,
+      required: true,
+      enum: ["fitness", "study", "career", "lifestyle", "creative", "tech"],
+      default: "general"
+    },
     members: [{ type: Schema.Types.ObjectId, ref: "User" }],
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
     visibility: { type: String, enum: ["public", "private"], default: "public" },
+    isPublic: { type: Boolean, default: true }, // Added
+    inviteOnly: { type: Boolean, default: false }, // Added
     isActive: { type: Boolean, default: true },
+    lastActivity: { type: Date, default: Date.now }, // Added
+    avatar: { type: String, default: null }, // Added
+    tags: { type: [String], default: [], maxlength: 5 }, // Added
     unreadMessages: { type: [UnreadSchema], default: [] },
     typingUsers: [{ type: Schema.Types.ObjectId, ref: "User" }],
     isPinned: { type: Boolean, default: false },
@@ -72,6 +89,10 @@ const GroupSchema = new Schema<IGroup, IGroupModel>(
 GroupSchema.index({ name: 1, isActive: 1 });
 GroupSchema.index({ members: 1 });
 GroupSchema.index({ visibility: 1 });
+GroupSchema.index({ category: 1 }); // Added
+GroupSchema.index({ isPublic: 1 }); // Added
+GroupSchema.index({ lastActivity: -1 }); // Added
+GroupSchema.index({ tags: 1 }); // Added
 GroupSchema.index({ "unreadMessages.userId": 1 });
 
 // --- Virtuals ---
@@ -88,6 +109,15 @@ GroupSchema.pre<IGroup>("save", function (next: (err?: Error) => void): void {
   if (!this.members.some((m) => m.equals(this.createdBy))) {
     this.members.push(this.createdBy);
   }
+
+  // Sync isPublic with visibility
+  this.isPublic = this.visibility === "public";
+
+  // Update lastActivity on save
+  if (this.isModified("members") || this.isNew) {
+    this.lastActivity = new Date();
+  }
+
   next();
 });
 
@@ -98,6 +128,7 @@ GroupSchema.methods.addMember = async function (
 ): Promise<IGroup> {
   if (!this.members.some((m) => m.equals(userId))) {
     this.members.push(userId);
+    this.lastActivity = new Date();
     await this.save();
   }
   return this;
@@ -108,6 +139,7 @@ GroupSchema.methods.removeMember = async function (
   userId: Types.ObjectId
 ): Promise<IGroup> {
   this.members = this.members.filter((m) => !m.equals(userId));
+  this.lastActivity = new Date();
   await this.save();
   return this;
 };
@@ -141,7 +173,7 @@ GroupSchema.methods.clearUnread = async function (
 // --- Static Methods ---
 GroupSchema.statics.findPublicGroups = function (this: IGroupModel): Promise<IGroup[]> {
   return this.find({ visibility: "public", isActive: true })
-    .sort({ createdAt: -1 })
+    .sort({ lastActivity: -1 }) // Changed to sort by lastActivity
     .exec();
 };
 

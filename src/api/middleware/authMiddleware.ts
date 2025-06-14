@@ -10,12 +10,13 @@ import { logger } from "../../utils/winstonLogger";
 
 interface TokenPayload {
   userId: string;
-  role: "user" | "admin" | "moderator" | "military";
+  role:   "user" | "admin" | "moderator" | "military";
   permissions?: string[];
 }
 
 /**
  * Protects routes by verifying a Bearer JWT and attaching `req.user`.
+ * ONLY looks at the Authorization header—no more cookie fallback.
  */
 export const protect: RequestHandler = catchAsync(async (req, _res, next) => {
   const authHeader = req.headers.authorization;
@@ -38,17 +39,9 @@ export const protect: RequestHandler = catchAsync(async (req, _res, next) => {
     return next(createError("Unauthorized: Invalid token", 401));
   }
 
-  const userId = decoded.userId;
-  if (!userId) {
-    logger.warn("❌ Token payload missing userId");
-    return next(createError("Unauthorized: Invalid token payload", 401));
-  }
-
-  const userDoc = await User.findById(userId)
-    .select("-password")
-    .lean();
+  const userDoc = await User.findById(decoded.userId).select("-password").lean();
   if (!userDoc) {
-    logger.warn(`❌ User not found. ID: ${userId}`);
+    logger.warn(`❌ User not found. ID: ${decoded.userId}`);
     return next(createError("Unauthorized: User not found", 401));
   }
 
@@ -74,15 +67,17 @@ export const protect: RequestHandler = catchAsync(async (req, _res, next) => {
   next();
 });
 
-/**
- * Restricts access to certain roles.
- */
-export const restrictTo = (...roles: ("admin" | "moderator" | "military")[]): RequestHandler => {
+// ─── 2) RESTRICT-TO ― only allow specific roles
+export const restrictTo = (
+  ...roles: ("admin" | "moderator" | "military")[]
+): RequestHandler => {
   return (req, _res, next) => {
     const authReq = req as AuthenticatedRequest;
     if (!authReq.user || !roles.includes(authReq.user.role as any)) {
       logger.warn(
-        `❌ Access denied for ${authReq.user?.email}. Requires one of: ${roles.join(", ")}`
+        `❌ Access denied for ${authReq.user?.email}. Requires one of: ${roles.join(
+          ", "
+        )}`
       );
       return next(createError("Forbidden: You don't have the required role", 403));
     }
@@ -90,9 +85,7 @@ export const restrictTo = (...roles: ("admin" | "moderator" | "military")[]): Re
   };
 };
 
-/**
- * Only allows users with the "military" role.
- */
+// ─── 3) MILITARY-AUTH ― only allow “military” role
 export const militaryAuth: RequestHandler = catchAsync(async (req, _res, next) => {
   const authReq = req as AuthenticatedRequest;
   if (!authReq.user) {
