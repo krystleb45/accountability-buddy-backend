@@ -191,11 +191,365 @@ const FriendService = {
       .populate<IFriendRequest & { sender: IUser }>("sender", "username email profilePicture");
   },
 
-  async aiRecommendations(_userId: string): Promise<IUser[]> {
-    return User.find({ interests: { $in: ["Fitness", "Music"] } })
-      .select("username email profilePicture")
-      .limit(5);
-  },
-};
+  // ADD THE aiRecommendations METHOD HERE, INSIDE THE OBJECT
+  async aiRecommendations(userId: string): Promise<any[]> {
+    console.log("🤖 Getting AI recommendations for user:", userId);
+
+    try {
+      // Step 1: Get current user data
+      const currentUser = await User.findById(userId)
+        .select("username email profilePicture friends goals interests location preferences")
+        .lean() as any;
+
+      if (!currentUser) {
+        throw createError("User not found", 404);
+      }
+
+      // Get current user's friend IDs as strings for exclusion
+      const currentFriendIds = (currentUser.friends || []).map((id: any) => id.toString());
+
+      // Step 2: Get all pending/sent friend requests to exclude them
+      const pendingRequests = await FriendRequest.find({
+        $or: [
+          { sender: userId },
+          { recipient: userId }
+        ],
+        status: { $in: ["pending", "accepted"] }
+      }).select("sender recipient").lean();
+
+      const excludedUserIds = new Set([
+        userId, // Exclude self
+        ...currentFriendIds, // Exclude current friends
+        ...pendingRequests.map(req => req.sender.toString()),
+        ...pendingRequests.map(req => req.recipient.toString())
+      ]);
+
+      // Replace the pipeline section in your aiRecommendations method
+
+      // Step 3: Build recommendation pipeline with proper typing
+      const pipeline: any[] = [
+        // Match potential friends (exclude self, current friends, and pending requests)
+        {
+          $match: {
+            _id: { $nin: Array.from(excludedUserIds).map(id => new Types.ObjectId(id)) },
+            // Only include active users (check both fields for compatibility)
+            $or: [
+              { isActive: { $ne: false } },
+              { active: { $ne: false } }
+            ]
+          }
+        },
+
+        // Add computed similarity score
+        {
+          $addFields: {
+            similarityScore: {
+              $add: [
+                // Interest similarity (40% weight)
+                {
+                  $multiply: [
+                    {
+                      $cond: {
+                        if: {
+                          $and: [
+                            { $isArray: "$interests" },
+                            { $gt: [{ $size: { $ifNull: ["$interests", []] } }, 0] }
+                          ]
+                        },
+                        then: {
+                          $cond: {
+                            if: { $gt: [{ $size: { $literal: currentUser.interests || [] } }, 0] },
+                            then: {
+                              $divide: [
+                                { $size: { $setIntersection: ["$interests", { $literal: currentUser.interests || [] }] } },
+                                {
+                                  $max: [
+                                    { $size: { $setUnion: ["$interests", { $literal: currentUser.interests || [] }] } },
+                                    1
+                                  ]
+                                }
+                              ]
+                            },
+                            else: 0
+                          }
+                        },
+                        else: 0
+                      }
+                    },
+                    40
+                  ]
+                },
+
+                // Goal category similarity (30% weight)
+                {
+                  $multiply: [
+                    {
+                      $cond: {
+                        if: {
+                          $and: [
+                            { $isArray: "$goals" },
+                            { $gt: [{ $size: { $ifNull: ["$goals", []] } }, 0] }
+                          ]
+                        },
+                        then: {
+                          $cond: {
+                            if: { $gt: [{ $size: { $literal: currentUser.goals || [] } }, 0] },
+                            then: {
+                              $let: {
+                                vars: {
+                                  userGoalCategories: { $literal: (currentUser.goals || []).map((g: any) => g.category) },
+                                  candidateGoalCategories: {
+                                    $map: {
+                                      input: "$goals",
+                                      as: "goal",
+                                      in: "$$goal.category"
+                                    }
+                                  }
+                                },
+                                in: {
+                                  $divide: [
+                                    { $size: { $setIntersection: ["$$userGoalCategories", "$$candidateGoalCategories"] } },
+                                    {
+                                      $max: [
+                                        { $size: { $setUnion: ["$$userGoalCategories", "$$candidateGoalCategories"] } },
+                                        1
+                                      ]
+                                    }
+                                  ]
+                                }
+                              }
+                            },
+                            else: 0
+                          }
+                        },
+                        else: 0
+                      }
+                    },
+                    30
+                  ]
+                },
+
+                // Location proximity (20% weight)
+                {
+                  $multiply: [
+                    {
+                      $cond: {
+                        if: {
+                          $and: [
+                            { $ne: ["$location.city", null] },
+                            { $ne: [{ $literal: currentUser.location?.city }, null] },
+                            { $eq: ["$location.city", { $literal: currentUser.location?.city }] }
+                          ]
+                        },
+                        then: 1,
+                        else: {
+                          $cond: {
+                            if: {
+                              $and: [
+                                { $ne: ["$location.country", null] },
+                                { $ne: [{ $literal: currentUser.location?.country }, null] },
+                                { $eq: ["$location.country", { $literal: currentUser.location?.country }] }
+                              ]
+                            },
+                            then: 0.5,
+                            else: 0
+                          }
+                        }
+                      }
+                    },
+                    20
+                  ]
+                },
+
+                // Mutual friends boost (10% weight)
+                {
+                  $multiply: [
+                    {
+                      $cond: {
+                        if: { $isArray: "$friends" },
+                        then: {
+                          $min: [
+                            {
+                              $divide: [
+                                { $size: { $setIntersection: ["$friends", { $literal: currentFriendIds.map((id: string | number | mongoose.mongo.BSON.ObjectId | Uint8Array<ArrayBufferLike> | mongoose.mongo.BSON.ObjectIdLike | undefined) => new Types.ObjectId(id)) }] } },
+                                10 // Cap at 10 mutual friends for scoring
+                              ]
+                            },
+                            1
+                          ]
+                        },
+                        else: 0
+                      }
+                    },
+                    10
+                  ]
+                }
+              ]
+            },
+
+            // Calculate mutual friends count for display
+            mutualFriendsCount: {
+              $cond: {
+                if: { $isArray: "$friends" },
+                then: { $size: { $setIntersection: ["$friends", { $literal: currentFriendIds.map((id: string | number | mongoose.mongo.BSON.ObjectId | Uint8Array<ArrayBufferLike> | mongoose.mongo.BSON.ObjectIdLike | undefined) => new Types.ObjectId(id)) }] } },
+                else: 0
+              }
+            }
+          }
+        },
+
+        // Only include users with some similarity (lowered for more results)
+        {
+          $match: {
+            similarityScore: { $gte: 0 }
+          }
+        },
+
+        // Sort by similarity score (highest first)
+        {
+          $sort: { similarityScore: -1 as const }
+        },
+
+        // Limit results
+        {
+          $limit: 20
+        },
+
+        // Project final fields
+        {
+          $project: {
+            id: { $toString: "$_id" },
+            _id: { $toString: "$_id" },
+            name: { $ifNull: ["$username", "$email"] },
+            email: 1,
+            username: 1,
+            profilePicture: { $ifNull: [{ $ifNull: ["$profilePicture", "$profileImage"] }, "/default-avatar.png"] },
+            interests: { $ifNull: ["$interests", []] },
+            mutualFriends: "$mutualFriendsCount",
+            similarityScore: { $round: ["$similarityScore", 1] },
+            bio: { $ifNull: ["$bio", ""] },
+            // Categorize based on strongest similarity factor
+            category: {
+              $switch: {
+                branches: [
+                  {
+                    case: {
+                      $gt: [
+                        { $size: { $ifNull: [{ $setIntersection: ["$interests", ["Fitness", "Running", "Yoga", "Swimming", "Cycling"]] }, []] } },
+                        0
+                      ]
+                    },
+                    then: "fitness"
+                  },
+                  {
+                    case: {
+                      $gt: [
+                        { $size: { $ifNull: [{ $setIntersection: ["$interests", ["Programming", "Study", "Learning", "Reading", "Education"]] }, []] } },
+                        0
+                      ]
+                    },
+                    then: "study"
+                  },
+                  {
+                    case: {
+                      $gt: [
+                        { $size: { $ifNull: [{ $setIntersection: ["$interests", ["Business", "Career", "Leadership", "Networking"]] }, []] } },
+                        0
+                      ]
+                    },
+                    then: "career"
+                  }
+                ],
+                default: "general"
+              }
+            }
+          }
+        }
+      ];
+
+      // Execute the aggregation
+      const recommendations = await User.aggregate(pipeline);
+
+      console.log(`✅ Found ${recommendations.length} friend recommendations for user ${userId}`);
+
+      // If we have fewer than 5 recommendations, fill with random active users
+      if (recommendations.length < 5) {
+        console.log("🔄 Adding random users to reach minimum recommendations");
+
+        const additionalUsers = await User.find({
+          _id: {
+            $nin: [
+              ...Array.from(excludedUserIds).map(id => new Types.ObjectId(id)),
+              ...recommendations.map(r => new Types.ObjectId(r._id))
+            ]
+          },
+          $or: [
+            { isActive: { $ne: false } },
+            { active: { $ne: false } }
+          ]
+        })
+          .select("username email profilePicture profileImage interests bio")
+          .limit(5 - recommendations.length)
+          .lean() as any[];
+
+        // Format additional users to match recommendation structure
+        const formattedAdditional = additionalUsers.map(user => ({
+          id: user._id.toString(),
+          _id: user._id.toString(),
+          name: user.username || user.email,
+          email: user.email,
+          username: user.username,
+          profilePicture: user.profilePicture || user.profileImage || "/default-avatar.png",
+          interests: user.interests || [],
+          mutualFriends: 0,
+          similarityScore: 1,
+          bio: user.bio || `Hello! I'm ${user.username || "a new user"} looking to connect with others.`,
+          category: "general"
+        }));
+
+        recommendations.push(...formattedAdditional);
+      }
+
+      return recommendations;
+
+    } catch (error) {
+      console.error("❌ Error in aiRecommendations:", error);
+
+      // Fallback to basic recommendations in case of error
+      console.log("🔄 Falling back to basic recommendations");
+
+      try {
+        const fallbackUsers = await User.find({
+          _id: { $ne: userId },
+          $or: [
+            { isActive: { $ne: false } },
+            { active: { $ne: false } }
+          ]
+        })
+          .select("username email profilePicture profileImage interests bio")
+          .limit(6)
+          .lean() as any[];
+
+        return fallbackUsers.map(user => ({
+          id: user._id.toString(),
+          _id: user._id.toString(),
+          name: user.username || user.email,
+          email: user.email,
+          username: user.username,
+          profilePicture: user.profilePicture || user.profileImage || "/default-avatar.png",
+          interests: user.interests || [],
+          mutualFriends: 0,
+          similarityScore: 1,
+          bio: user.bio || `Hello! I'm ${user.username || "a new user"} looking to connect with others.`,
+          category: "general"
+        }));
+      } catch (fallbackError) {
+        console.error("❌ Error in fallback recommendations:", fallbackError);
+        return [];
+      }
+    }
+  } // <- Make sure this method ends with a comma, not semicolon
+
+}; // <- This closes the FriendService object
 
 export default FriendService;

@@ -1,3 +1,5 @@
+//src/scripts/seedRoles.ts
+
 import mongoose from "mongoose";
 import Role from "../api/models/Role";
 import dotenv from "dotenv";

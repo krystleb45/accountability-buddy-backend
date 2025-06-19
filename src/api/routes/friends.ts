@@ -1,6 +1,6 @@
 // src/api/routes/friends.ts
 import { Router } from "express";
-import { check, param } from "express-validator";
+import { check, param, query } from "express-validator";
 import { protect } from "../middleware/authMiddleware";
 import handleValidationErrors from "../middleware/handleValidationErrors";
 import friendshipController from "../controllers/FriendshipController";
@@ -81,6 +81,20 @@ router.get(
 );
 
 /**
+ * GET /api/friends/online
+ * Get user's online friends
+ */
+router.get(
+  "/online",
+  protect,
+  [
+    query("limit").optional().isInt({ min: 1, max: 50 }),
+  ],
+  handleValidationErrors,
+  friendshipController.getOnlineFriends
+);
+
+/**
  * GET /api/friends/requests
  * Get all pending friend requests
  */
@@ -88,6 +102,16 @@ router.get(
   "/requests",
   protect,
   friendshipController.getPendingFriendRequests
+);
+
+/**
+ * GET /api/friends/recommendations
+ * Get AI-recommended friends for the user
+ */
+router.get(
+  "/recommendations",
+  protect,
+  friendshipController.getAIRecommendedFriends
 );
 
 /**

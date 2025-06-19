@@ -89,7 +89,37 @@ export default {
     const me = _req.user!.id;
     try {
       const recs = await FriendService.aiRecommendations(me);
+      console.log("🎯 Controller: Sending recommendations response:", recs);
+      console.log("🎯 Controller: Recommendations count:", recs?.length || 0);
+
+      // Make sure this matches what your frontend expects
       sendResponse(res, 200, true, "Recommendations", { recommendedFriends: recs });
+    } catch (err) {
+      return next(err);
+    }
+  }),
+
+  // Added getOnlineFriends as part of the default export object
+  getOnlineFriends: catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+    const userId = req.user!.id;
+    const limit = parseInt(req.query.limit as string) || 5;
+
+    try {
+      // Use FriendService (not FriendshipService) to match your existing pattern
+      const friends = await FriendService.listFriends(userId);
+
+      // Mock online status for now - replace with real logic
+      const onlineFriends = friends
+        .slice(0, limit)
+        .map(friend => ({
+          ...friend,
+          isOnline: Math.random() > 0.3 // 70% chance of being "online"
+        }));
+
+      sendResponse(res, 200, true, "Online friends fetched successfully", {
+        friends: onlineFriends,
+        count: onlineFriends.length
+      });
     } catch (err) {
       return next(err);
     }

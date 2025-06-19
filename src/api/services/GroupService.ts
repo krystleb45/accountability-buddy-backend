@@ -84,45 +84,98 @@ class GroupService {
   /**
    * Create a new group (simplified signature)
    */
+  // Updated GroupService.createGroup method - replace the existing one
+
+  /**
+ * Create a new group with proper parameter handling
+ */
+  // In your GroupService.ts, update the createGroup method to ensure creator is properly added:
+
   async createGroup(
     name: string,
     description: string,
     category: string,
-    creatorId: string
+    creatorId: string,
+    privacy?: string,
+    tags?: string[]
   ): Promise<FormattedGroup> {
-    const group = await Group.create({
-      name,
-      description,
-      category,
-      isPublic: true, // Default to public
-      inviteOnly: false, // Default to not invite-only
-      tags: [], // Default empty tags
-      createdBy: new mongoose.Types.ObjectId(creatorId),
-      members: [new mongoose.Types.ObjectId(creatorId)],
-      lastActivity: new Date(),
-      unreadMessages: [],
-    });
+    console.log("=== GroupService.createGroup DEBUG ===");
+    console.log("Parameters received:");
+    console.log("- name:", name);
+    console.log("- description:", description);
+    console.log("- category:", category);
+    console.log("- creatorId:", creatorId);
+    console.log("- privacy:", privacy);
+    console.log("- tags:", tags);
 
-    await group.populate("createdBy", "name");
+    if (!name || !description || !category || !creatorId) {
+      const error = "Missing required fields: name, description, category, or creatorId";
+      console.error(error);
+      throw new Error(error);
+    }
 
-    logger.info(`Group ${group._id} created by ${creatorId}`);
+    try {
+      const isPublic = privacy === "public" || privacy === "Public Group" || !privacy;
 
-    return {
-      id: group._id.toString(),
-      name: group.name,
-      description: group.description ?? "",
-      category: group.category,
-      memberCount: 1,
-      isPublic: group.isPublic,
-      isJoined: true,
-      lastActivity: group.lastActivity.toISOString(),
-      avatar: group.avatar || null,
-      tags: group.tags || [],
-      createdBy: (group.createdBy as any).name,
-      createdAt: group.createdAt.toISOString()
-    };
+      console.log("Creating group with isPublic:", isPublic);
+
+      const creatorObjectId = new mongoose.Types.ObjectId(creatorId);
+
+      const groupData = {
+        name: name.trim(),
+        description: description.trim(),
+        category,
+        isPublic,
+        visibility: isPublic ? "public" : "private", // Ensure visibility matches isPublic
+        inviteOnly: !isPublic,
+        tags: tags || [],
+        createdBy: creatorObjectId,
+        members: [creatorObjectId], // IMPORTANT: Creator is automatically a member
+        lastActivity: new Date(),
+        unreadMessages: [],
+      };
+
+      console.log("Group data being saved:", groupData);
+
+      const group = await Group.create(groupData);
+
+      console.log("Group created successfully in database:", {
+        id: group._id.toString(),
+        name: group.name,
+        category: group.category,
+        isPublic: group.isPublic,
+        createdBy: group.createdBy.toString(),
+        members: group.members.length
+      });
+
+      await group.populate("createdBy", "name");
+
+      logger.info(`Group ${group._id} created by ${creatorId}`);
+
+      const result = {
+        id: group._id.toString(),
+        name: group.name,
+        description: group.description ?? "",
+        category: group.category,
+        memberCount: group.members.length, // Use actual members length
+        isPublic: group.isPublic,
+        isJoined: true, // Creator is always joined
+        lastActivity: group.lastActivity.toISOString(),
+        avatar: group.avatar || null,
+        tags: group.tags || [],
+        createdBy: (group.createdBy as any)?.name || "Unknown",
+        createdAt: group.createdAt.toISOString()
+      };
+
+      console.log("Returning formatted group:", result);
+      return result;
+
+    } catch (error) {
+      console.error("Error creating group in database:", error);
+      logger.error(`Failed to create group: ${error}`);
+      throw error;
+    }
   }
-
   /**
    * Get specific group details
    */

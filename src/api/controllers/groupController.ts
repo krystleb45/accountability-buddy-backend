@@ -1,4 +1,4 @@
-// src/api/controllers/groupController.ts - SIMPLIFIED with middleware
+// src/api/controllers/groupController.ts - COMPLETE FIXED VERSION
 import { Request, Response, NextFunction } from "express";
 import catchAsync from "../utils/catchAsync";
 import sendResponse from "../utils/sendResponse";
@@ -21,24 +21,56 @@ export const getGroups = catchAsync(async (req: Request, res: Response, _next: N
 });
 
 /**
- * POST /api/groups - Create new group
+ * POST /api/groups - Create new group (FIXED VERSION)
  */
 export const createGroup = catchAsync(async (req: Request, res: Response, _next: NextFunction) => {
-  const { name, description, category } = req.body;
+  console.log("=== GROUP CONTROLLER DEBUG ===");
+  console.log("Full request body:", JSON.stringify(req.body, null, 2));
+  console.log("User from middleware:", req.user);
+
+  // Extract all fields from the form
+  const {
+    name,
+    description,
+    category,
+    privacy,      // Could be 'Public Group' or 'Private Group'
+    tags,         // Array of tags
+    isPublic      // Alternative boolean field
+  } = req.body;
+
   const creatorId = req.user!.id;
+
+  console.log("Extracted fields:");
+  console.log("- name:", name);
+  console.log("- description:", description);
+  console.log("- category:", category);
+  console.log("- privacy:", privacy);
+  console.log("- isPublic:", isPublic);
+  console.log("- tags:", tags);
+  console.log("- creatorId:", creatorId);
+
+  // Validate required fields
+  if (!name || !description || !category) {
+    console.error("Missing required fields");
+    sendResponse(res, 400, false, "Name, description, and category are required");
+    return; // Fixed: explicit return
+  }
 
   const group = await GroupService.createGroup(
     name,
     description,
     category,
-    creatorId
+    creatorId,
+    privacy || (isPublic ? "public" : "private"),
+    tags
   );
 
+  console.log("Controller: Group created successfully:", group);
   sendResponse(res, 201, true, "Group created successfully", group);
 });
 
 /**
- * GET /api/groups/my-groups - Get user's joined groups
+ * GET /api/groups/my-groups - Get user's joined groups (ADDED MISSING FUNCTION)
  */
 export const getMyGroups = catchAsync(async (req: Request, res: Response, _next: NextFunction) => {
   const userId = req.user!.id;
@@ -180,11 +212,11 @@ export const sendGroupMessage = catchAsync(async (req: Request, res: Response, _
   sendResponse(res, 201, true, "Message sent successfully", message);
 });
 
-// Export object for default import
+// Fixed export object
 export default {
   getGroups,
   createGroup,
-  getMyGroups,
+  getMyGroups,        // Now properly defined above
   getGroupDetails,
   joinGroup,
   leaveGroup,

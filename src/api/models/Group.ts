@@ -62,8 +62,15 @@ const GroupSchema = new Schema<IGroup, IGroupModel>(
     category: {
       type: String,
       required: true,
-      enum: ["fitness", "study", "career", "lifestyle", "creative", "tech"],
-      default: "general"
+      enum: [
+        "Fitness & Health",
+        "Learning & Education",
+        "Career & Business",
+        "Lifestyle & Hobbies",
+        "Creative & Arts",
+        "Technology"
+      ],
+      default: "Learning & Education"
     },
     members: [{ type: Schema.Types.ObjectId, ref: "User" }],
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },

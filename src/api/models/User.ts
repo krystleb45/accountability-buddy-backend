@@ -26,6 +26,12 @@ export interface ChatPreferences {
 export type SubscriptionStatus = "trial" | "active" | "expired";
 export type SubscriptionTier = "basic" | "premium" | "pro";
 
+// Update your User model interface and schema
+
+// Add these to your IUser interface (around line 20-30)
+// Update your User model interface and schema
+
+// Add these to your IUser interface (around line 20-30)
 export interface IUser extends Document {
   _id: Types.ObjectId;
   username: string;
@@ -33,6 +39,7 @@ export interface IUser extends Document {
   password: string;
   bio?: string;
   profileImage?: string;
+  profilePicture?: string; // Add alias for compatibility
   coverImage?: string;
   role: "user" | "admin" | "moderator" | "military";
   isVerified: boolean;
@@ -40,6 +47,7 @@ export interface IUser extends Document {
   permissions: string[];
   isLocked?: boolean;
   active: boolean;
+  isActive?: boolean; // Add alias for active status
   friends: Types.ObjectId[];
   friendRequests: Types.ObjectId[];
   followers: Types.ObjectId[];
@@ -62,6 +70,39 @@ export interface IUser extends Document {
 
   interests?: string[];
   chatPreferences?: ChatPreferences;
+
+  // NEW FIELDS FOR RECOMMENDATIONS
+  goals?: Array<{
+    _id?: Types.ObjectId;
+    title: string;
+    category: "fitness" | "study" | "career" | "personal" | "health" | "finance" | "hobby" | "travel";
+    description?: string;
+    targetDate?: Date;
+    status?: "active" | "completed" | "paused";
+    priority?: "low" | "medium" | "high";
+    createdAt?: Date;
+    updatedAt?: Date;
+  }>;
+
+  location?: {
+    country?: string;
+    state?: string;
+    city?: string;
+    timezone?: string;
+    coordinates?: {
+      latitude?: number;
+      longitude?: number;
+    };
+  };
+
+  preferences?: {
+    language?: string;
+    theme?: "light" | "dark" | "auto";
+    publicProfile?: boolean;
+    showLocation?: boolean;
+    showGoals?: boolean;
+    showInterests?: boolean;
+  };
 
   completedGoals?: number;
   streak?: number;
@@ -86,6 +127,8 @@ export interface IUser extends Document {
   awardBadge(badgeId: Types.ObjectId): Promise<void>;
 }
 
+// Add these fields to your UserSchema (around line 90-120)
+
 const UserSchema: Schema<IUser> = new Schema(
   {
     username: { type: String, required: true, unique: true },
@@ -93,6 +136,7 @@ const UserSchema: Schema<IUser> = new Schema(
     password: { type: String, required: true, minlength: 8, select: false },
     bio: { type: String, default: "" },
     profileImage: { type: String, default: "" },
+    //profilePicture: { type: String, default: "" }, // Add for compatibility
     coverImage: { type: String, default: "" },
     firstName: { type: String },
     lastName: { type: String },
@@ -102,6 +146,7 @@ const UserSchema: Schema<IUser> = new Schema(
     permissions: { type: [String], default: [] },
     isLocked: { type: Boolean, default: false },
     active: { type: Boolean, default: true },
+    //isActive: { type: Boolean, default: true }, // Add alias
 
     // Relationships
     friends: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
@@ -113,6 +158,54 @@ const UserSchema: Schema<IUser> = new Schema(
     badges: [{ type: mongoose.Schema.Types.ObjectId, ref: "Badge" }],
     pinnedGoals: [{ type: mongoose.Schema.Types.ObjectId, ref: "Goal" }],
     featuredAchievements: [{ type: mongoose.Schema.Types.ObjectId, ref: "Achievement" }],
+
+    // NEW RECOMMENDATION FIELDS
+    goals: [{
+      title: { type: String, required: true },
+      category: {
+        type: String,
+        enum: ["fitness", "study", "career", "personal", "health", "finance", "hobby", "travel"],
+        required: true
+      },
+      description: { type: String },
+      targetDate: { type: Date },
+      status: {
+        type: String,
+        enum: ["active", "completed", "paused"],
+        default: "active"
+      },
+      priority: {
+        type: String,
+        enum: ["low", "medium", "high"],
+        default: "medium"
+      },
+      createdAt: { type: Date, default: Date.now },
+      updatedAt: { type: Date, default: Date.now }
+    }],
+
+    location: {
+      country: { type: String },
+      state: { type: String },
+      city: { type: String },
+      timezone: { type: String },
+      coordinates: {
+        latitude: { type: Number },
+        longitude: { type: Number }
+      }
+    },
+
+    preferences: {
+      language: { type: String, default: "en" },
+      theme: {
+        type: String,
+        enum: ["light", "dark", "auto"],
+        default: "light"
+      },
+      publicProfile: { type: Boolean, default: true },
+      showLocation: { type: Boolean, default: false },
+      showGoals: { type: Boolean, default: true },
+      showInterests: { type: Boolean, default: true }
+    },
 
     // Stripe / Subscriptions
     subscriptions: [{ type: mongoose.Schema.Types.ObjectId, ref: "Subscription" }],
@@ -172,10 +265,48 @@ const UserSchema: Schema<IUser> = new Schema(
   { timestamps: true }
 );
 
-// Indexes
+// Add new indexes for recommendation performance
 UserSchema.index({ interests: 1 });
 UserSchema.index({ activeStatus: 1 });
+UserSchema.index({ "goals.category": 1 }); // NEW
+UserSchema.index({ "location.city": 1 }); // NEW
+UserSchema.index({ "location.country": 1 }); // NEW
+UserSchema.index({ active: 1, isActive: 1 }); // NEW
 
+// Add these virtual fields and middleware after your schema definition
+
+// Virtual field to sync profilePicture with profileImage
+UserSchema.virtual("profilePicture").get(function() {
+  return this.profileImage || "/default-avatar.png";
+});
+
+UserSchema.virtual("profilePicture").set(function(value: string) {
+  this.profileImage = value;
+});
+
+// Virtual field to sync isActive with active
+UserSchema.virtual("isActive").get(function() {
+  return this.active;
+});
+
+UserSchema.virtual("isActive").set(function(value: boolean) {
+  this.active = value;
+});
+
+// Pre-save middleware to update goals updatedAt
+UserSchema.pre("save", function(next) {
+  if (this.isModified("goals")) {
+    this.goals?.forEach(goal => {
+      if (!goal.createdAt) goal.createdAt = new Date();
+      goal.updatedAt = new Date();
+    });
+  }
+  next();
+});
+
+// Make sure virtuals are included in JSON output
+UserSchema.set("toJSON", { virtuals: true });
+UserSchema.set("toObject", { virtuals: true });
 // Password hashing
 UserSchema.pre<IUser>(
   "save",

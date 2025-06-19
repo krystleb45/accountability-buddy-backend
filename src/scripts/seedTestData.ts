@@ -1,4 +1,4 @@
-// src/api/scripts/seedTestData.ts
+// src/scripts/seedTestData.ts
 import { Role } from "../api/models/Role";
 import { User } from "../api/models/User";
 import bcrypt from "bcryptjs";

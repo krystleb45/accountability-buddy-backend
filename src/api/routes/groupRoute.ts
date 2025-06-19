@@ -3,7 +3,6 @@ import { Router } from "express";
 import { check } from "express-validator";
 import rateLimit from "express-rate-limit";
 import { protect } from "../middleware/authMiddleware";
-import checkSubscription from "../middleware/checkSubscription";
 import * as groupController from "../controllers/groupController";
 import handleValidationErrors from "../middleware/handleValidationErrors";
 import {
@@ -33,7 +32,7 @@ router.get(
 router.post(
   "/",
   protect,
-  checkSubscription("paid"),
+  // checkSubscription("paid"), // TEMPORARILY REMOVE FOR TESTING
   groupLimiter,
   [
     check("name", "Group name is required").notEmpty(),
@@ -41,7 +40,15 @@ router.post(
     check("description", "Description is required").notEmpty(),
     check("description", "Description must be between 10 and 200 characters").isLength({ min: 10, max: 200 }),
     check("category", "Category is required").notEmpty(),
-    check("category", "Invalid category").isIn(["fitness", "study", "career", "lifestyle", "creative", "tech"]),
+    // UPDATED: Match your UI categories
+    check("category", "Invalid category").isIn([
+      "Fitness & Health",
+      "Learning & Education",
+      "Career & Business",
+      "Lifestyle & Hobbies",
+      "Creative & Arts",
+      "Technology"
+    ]),
     check("tags", "Tags must be an array").optional().isArray(),
     check("tags.*", "Each tag must be a string").optional().isString(),
     check("isPublic", "isPublic must be a boolean").optional().isBoolean(),

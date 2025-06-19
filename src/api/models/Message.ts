@@ -17,7 +17,7 @@ const ReactionSchema = new Schema<IReaction>(
   {
     userId:   { type: Schema.Types.ObjectId, ref: "User", required: true },
     emoji:    { type: String, required: true },
-    reactedAt:{ type: Date, default: () => new Date() },
+    reactedAt:{ type: Date, default: (): Date => new Date() },
   },
   { _id: false }
 );
@@ -80,7 +80,7 @@ const MessageSchema = new Schema<IMessage, IMessageModel>(
     reactions:   { type: [ReactionSchema], default: [] },
     attachments: { type: [AttachmentSchema], default: [] },
     replyTo:     { type: Schema.Types.ObjectId, ref: "Message" },
-    timestamp:   { type: Date, default: () => new Date() },
+    timestamp:   { type: Date, default: (): Date => new Date() },
   },
   {
     timestamps: true,
@@ -121,7 +121,7 @@ MessageSchema.methods.removeReaction = async function (
   this: IMessage,
   userId: Types.ObjectId
 ): Promise<IMessage> {
-  this.reactions = this.reactions.filter(r => !r.userId.equals(userId)) as any;
+  this.reactions = this.reactions.filter((r): boolean => !r.userId.equals(userId)) as any;
   await this.save();
   return this;
 };
