@@ -273,3 +273,61 @@ export const searchMessages = catchAsync(async (req: Request, res: Response) => 
 
   sendResponse(res, 200, true, "Messages searched successfully", messages);
 });
+
+/**
+ * GET /api/messages
+ * Get messages based on query parameters:
+ * - No params: return conversation threads
+ * - recipientId: return messages with specific user
+ * - groupId: return messages in specific group
+ */
+export const getMessages = catchAsync(async (req: Request, res: Response): Promise<void> => {
+  const userId = req.user!.id;
+  const { recipientId, groupId, limit = 20, page = 1 } = req.query;
+
+  // Case 1: Get messages with a specific user (recipientId provided)
+  if (recipientId) {
+    const { messages, pagination } = await MessageService.getMessagesWithUser(
+      userId,
+      recipientId as string,
+      parseInt(page as string, 10),
+      parseInt(limit as string, 10)
+    );
+
+    sendResponse(res, 200, true, "Messages fetched successfully", {
+      messages,
+      pagination,
+    });
+    return;
+  }
+
+  // Case 2: Get messages in a specific group (groupId provided)
+  if (groupId) {
+    const result = await MessageService.getMessagesInThread(
+      groupId as string,
+      userId,
+      {
+        limit: parseInt(limit as string, 10),
+        page: parseInt(page as string, 10),
+      }
+    );
+
+    sendResponse(res, 200, true, "Group messages fetched successfully", {
+      messages: result.messages,
+      hasMore: result.hasMore,
+      total: result.total,
+    });
+    return;
+  }
+
+  // Case 3: No specific recipient or group - return conversation threads
+  const threads = await MessageService.getMessageThreads(userId, {
+    limit: parseInt(limit as string, 10),
+    page: parseInt(page as string, 10),
+  });
+
+  sendResponse(res, 200, true, "Conversation threads fetched successfully", {
+    threads,
+    message: "Select a conversation to view messages",
+  });
+});

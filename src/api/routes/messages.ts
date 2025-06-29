@@ -7,7 +7,27 @@ import catchAsync from "../utils/catchAsync";
 import * as MessageController from "../controllers/MessageController";
 
 const router = Router();
-
+/**
+ * GET /api/messages
+ * Get messages based on query parameters:
+ * - No params: return conversation threads
+ * - recipientId: return messages with specific user
+ * - groupId: return messages in specific group
+ */
+router.get(
+  "/",
+  protect,
+  [
+    query("recipientId").optional().isMongoId().withMessage("Invalid recipient ID"),
+    query("groupId").optional().isMongoId().withMessage("Invalid group ID"),
+    query("limit").optional().isInt({ min: 1, max: 100 }),
+    query("page").optional().isInt({ min: 1 }),
+  ],
+  handleValidationErrors,
+  catchAsync(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    await MessageController.getMessages(req, res, next);
+  })
+);
 /**
  * GET /api/messages/threads
  * Get all conversation threads for the authenticated user
