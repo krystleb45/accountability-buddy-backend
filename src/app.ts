@@ -1,4 +1,4 @@
-// src/app.ts
+// src/app.ts - FIXED: Move webhooks before protection
 import dotenvFlow from "dotenv-flow";
 dotenvFlow.config();
 
@@ -25,6 +25,7 @@ import { protect } from "./api/middleware/authJwt";
 import healthRoutes from "./api/routes/healthRoutes";
 import authRoutes from "./api/routes/auth";
 import faqRoutes from "./api/routes/faq";
+import webhooksRoutes from "./api/routes/webhooks"; // MOVED UP
 
 // ─── Protected route imports ──────────────────────────────────
 import userRoutes from "./api/routes/user";
@@ -85,7 +86,6 @@ import taskRoutes from "./api/routes/task";
 import trackerRoutes from "./api/routes/tracker";
 import userPointsRoutes from "./api/routes/userpointsRoute";
 import xpHistoryRoutes from "./api/routes/xpHistory";
-import webhooksRoutes from "./api/routes/webhooks";
 
 import notFoundMiddleware from "./api/middleware/notFoundMiddleware";
 import { errorHandler } from "./api/middleware/errorHandler";
@@ -129,6 +129,9 @@ app.use("/api/health", healthRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/auths", authRoutes);
 app.use("/api/faqs", faqRoutes);
+
+// ⚠️ CRITICAL: Webhooks MUST be before protect middleware
+app.use("/api/webhooks", webhooksRoutes);
 
 // ─── Protect everything below ─────────────────────────────────
 app.use("/api", protect);
@@ -178,6 +181,7 @@ app.use("/api/military-support", militarySupportRoutes);
 app.use("/api/newsletters", newsletterRoutes);
 app.use("/api/notification-triggers", notificationTriggersRoutes);
 app.use("/api/partner", partnerRoutes);
+app.use("/api/goals", goalRoutes);
 app.use("/api/polls", pollRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/redemptions", redemptionsRoutes);
@@ -191,7 +195,7 @@ app.use("/api/tasks", taskRoutes);
 app.use("/api/tracker", trackerRoutes);
 app.use("/api/user-points", userPointsRoutes);
 app.use("/api/xp-history", xpHistoryRoutes);
-app.use("/api/webhooks", webhooksRoutes);
+// REMOVED: webhooks route (now above)
 
 // ─── Meta-test catch-all for *.test ───────────────────────────
 app.use((req, res, next) => {

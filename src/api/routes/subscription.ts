@@ -8,62 +8,93 @@ import * as subscriptionController from "../controllers/subscriptionController";
 
 const router: Router = express.Router();
 
-// 5 requests per 15 minutes
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
+// Rate limiters
+const createLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
   max: 5,
   message: { success: false, message: "Too many requests, please try again later." },
 });
 
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,
+  message: { success: false, message: "Too many requests, please try again later." },
+});
+
 /**
- * POST /api/subscription/create
- * Create a paid subscription checkout session
+ * GET /api/subscription/plans
+ * Get available subscription plans (public route)
+ */
+router.get(
+  "/plans",
+  subscriptionController.getPlans
+);
+
+/**
+ * POST /api/subscription/create-session
+ * Create a checkout session for subscription
  */
 router.post(
-  "/create",
+  "/create-session",
   protect,
-  limiter,
+  createLimiter,
   [
-    check("priceId", "priceId is required").notEmpty(),
-    check("successUrl", "successUrl must be a valid URL").isURL(),
-    check("cancelUrl", "cancelUrl must be a valid URL").isURL(),
+    check("planId", "planId is required").notEmpty(),
+    check("planId", "Invalid plan ID").isIn(["free-trial", "basic", "pro", "elite"]),
+    check("billingCycle", "billingCycle must be monthly or yearly").optional().isIn(["monthly", "yearly"]),
+    check("successUrl", "successUrl must be a valid URL").optional().isURL(),
+    check("cancelUrl", "cancelUrl must be a valid URL").optional().isURL(),
   ],
   handleValidationErrors,
   subscriptionController.createCheckoutSession
 );
 
 /**
- * GET /api/subscription/current
- * Get the current user's subscription details
+ * GET /api/subscription/status
+ * Get the current user's subscription status
  */
 router.get(
-  "/current",
+  "/status",
   protect,
-  subscriptionController.getCurrentSubscription
+  subscriptionController.getSubscriptionStatus
 );
 
 /**
- * POST /api/subscription/upgrade
- * Upgrade from trial to paid
+ * GET /api/subscription/limits
+ * Get the current user's feature limits based on their plan
+ */
+router.get(
+  "/limits",
+  protect,
+  subscriptionController.getUserLimits
+);
+
+/**
+ * POST /api/subscription/change-plan
+ * Change subscription plan
  */
 router.post(
-  "/upgrade",
+  "/change-plan",
   protect,
-  limiter,
-  [check("newPriceId", "newPriceId is required").notEmpty()],
+  generalLimiter,
+  [
+    check("newPlanId", "newPlanId is required").notEmpty(),
+    check("newPlanId", "Invalid plan ID").isIn(["basic", "pro", "elite"]),
+    check("billingCycle", "billingCycle must be monthly or yearly").optional().isIn(["monthly", "yearly"]),
+  ],
   handleValidationErrors,
-  subscriptionController.upgradePlan
+  subscriptionController.changeSubscriptionPlan
 );
 
 /**
- * DELETE /api/subscription/cancel
+ * POST /api/subscription/cancel
  * Cancel the current subscription
  */
-router.delete(
+router.post(
   "/cancel",
   protect,
-  limiter,
-  subscriptionController.cancelSubscription
+  generalLimiter,
+  subscriptionController.cancelUserSubscription
 );
 
 /**
@@ -73,7 +104,59 @@ router.delete(
 router.post(
   "/webhook",
   express.raw({ type: "application/json" }),
-  subscriptionController.handleWebhook
+  subscriptionController.handleStripeWebhook
+);
+
+// LEGACY ROUTES - Keep for backward compatibility
+/**
+ * POST /api/subscription/create
+ * Legacy route - redirect to create-session
+ */
+router.post(
+  "/create",
+  protect,
+  createLimiter,
+  [
+    check("priceId", "priceId is required").notEmpty(),
+    check("successUrl", "successUrl must be a valid URL").isURL(),
+    check("cancelUrl", "cancelUrl must be a valid URL").isURL(),
+  ],
+  handleValidationErrors,
+  subscriptionController.createCheckoutSession // This will handle the legacy format
+);
+
+/**
+ * GET /api/subscription/current
+ * Legacy route - redirect to status
+ */
+router.get(
+  "/current",
+  protect,
+  subscriptionController.getCurrentSubscription // Keep existing controller or alias to getSubscriptionStatus
+);
+
+/**
+ * POST /api/subscription/upgrade
+ * Legacy route - redirect to change-plan
+ */
+router.post(
+  "/upgrade",
+  protect,
+  generalLimiter,
+  [check("newPriceId", "newPriceId is required").notEmpty()],
+  handleValidationErrors,
+  subscriptionController.upgradePlan // Keep existing controller or alias to changeSubscriptionPlan
+);
+
+/**
+ * DELETE /api/subscription/cancel
+ * Legacy route - redirect to POST cancel
+ */
+router.delete(
+  "/cancel",
+  protect,
+  generalLimiter,
+  subscriptionController.cancelSubscription // Keep existing controller or alias to cancelUserSubscription
 );
 
 export default router;

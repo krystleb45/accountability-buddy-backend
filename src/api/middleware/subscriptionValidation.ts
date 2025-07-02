@@ -1,4 +1,4 @@
-// src/api/middleware/subscriptionValidation.ts - Fixed for your User model structure
+// src/api/middleware/subscriptionValidation.ts - Fixed goal count validation
 
 import { Request, Response, NextFunction } from "express";
 import { User } from "../models/User";
@@ -64,9 +64,6 @@ export const validateSubscription = async (
     }
 
     // If everything is valid, proceed to next middleware
-    // Note: We don't modify authReq.user since subscriptionTier doesn't exist on that type
-    // The subscription data is available from the user object when needed
-
     logger.info(`✅ Subscription validation passed for user ${userId} (${user.subscriptionTier})`);
     next();
   } catch (error) {
@@ -144,7 +141,7 @@ export const validateFeatureAccess = (requiredFeature: string) => {
 
 /**
  * Middleware to check if user can create more goals
- * Specific validation for goal limits
+ * FIXED: Now uses the correct service to count goals from Goal collection
  */
 export const validateGoalLimit = async (
   req: Request,
@@ -172,9 +169,12 @@ export const validateGoalLimit = async (
       return;
     }
 
+    logger.info(`🔍 Goal limit validation for user ${user.email} (${user.subscriptionTier})`);
+
     // Check subscription status first
     const validStatuses = ["active", "trial", "trialing"];
     if (!validStatuses.includes(user.subscription_status)) {
+      logger.info(`❌ Invalid subscription status: ${user.subscription_status}`);
       res.status(403).json({
         success: false,
         message: "Active subscription required to create goals",
@@ -183,14 +183,29 @@ export const validateGoalLimit = async (
       return;
     }
 
-    // Check if user can create more goals
-    if (!user.canCreateGoal()) {
-      const maxGoals = user.getGoalLimit();
-      const currentGoals = user.goals?.filter(g => g.status === "active").length || 0;
+    // Get the goal limit for this user's tier
+    const maxGoals = user.getGoalLimit();
+    logger.info(`  Goal limit for ${user.subscriptionTier}: ${maxGoals}`);
 
+    // If unlimited goals (maxGoals = -1), allow creation
+    if (maxGoals === -1) {
+      logger.info(`✅ Unlimited goals allowed for ${user.subscriptionTier}`);
+      next();
+      return;
+    }
+
+    // FIXED: Use the proper service to get actual goal count from Goal collection
+    const GoalManagementService = (await import("../services/GoalManagementService")).default;
+    const currentGoals = await GoalManagementService.getActiveGoalCount(userId);
+
+    logger.info(`  Current active goals: ${currentGoals}/${maxGoals}`);
+
+    // Check if user has reached their limit
+    if (currentGoals >= maxGoals) {
+      logger.info(`❌ Goal limit reached: ${currentGoals}/${maxGoals}`);
       res.status(403).json({
         success: false,
-        message: `Goal limit reached. Your ${user.subscriptionTier} plan allows ${maxGoals} active goals.`,
+        message: `Goal limit reached. Your ${user.subscriptionTier} plan allows ${maxGoals} active goals. You currently have ${currentGoals}.`,
         currentGoals,
         maxGoals,
         currentPlan: user.subscriptionTier,
@@ -199,6 +214,7 @@ export const validateGoalLimit = async (
       return;
     }
 
+    logger.info(`✅ Goal creation allowed: ${currentGoals}/${maxGoals}`);
     next();
   } catch (error) {
     logger.error("❌ Error validating goal limit:", error);

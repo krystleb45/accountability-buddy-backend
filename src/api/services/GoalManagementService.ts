@@ -1,3 +1,4 @@
+// src/api/services/GoalManagementService.ts - Updated with subscription support
 import mongoose from "mongoose";
 import Goal, { IGoal } from "../models/Goal";
 import { User } from "../models/User";
@@ -36,6 +37,80 @@ class GoalManagementService {
       .exec();
     logger.info(`Fetched ${goals.length} goals for user ${userId}`);
     return goals;
+  }
+
+  /**
+   * Get count of active goals for subscription limit checking
+   */
+  static async getActiveGoalCount(userId: string): Promise<number> {
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      throw new CustomError("Invalid user ID", 400);
+    }
+
+    const count = await Goal.countDocuments({
+      user: userId,
+      status: { $in: ["not-started", "in-progress"] }
+    });
+
+    logger.info(`User ${userId} has ${count} active goals`);
+    return count;
+  }
+
+  /**
+   * Check if user can create more goals based on their subscription
+   */
+  static async canUserCreateGoal(userId: string): Promise<{
+    canCreate: boolean;
+    reason?: string;
+    currentCount: number;
+    maxAllowed: number;
+  }> {
+    try {
+      const user = await User.findById(userId);
+      if (!user) {
+        return {
+          canCreate: false,
+          reason: "User not found",
+          currentCount: 0,
+          maxAllowed: 0,
+        };
+      }
+
+      // Check subscription status first
+      if (!["active", "trial", "trialing"].includes(user.subscription_status)) {
+        return {
+          canCreate: false,
+          reason: "Active subscription required",
+          currentCount: 0,
+          maxAllowed: 0,
+        };
+      }
+
+      const currentCount = await this.getActiveGoalCount(userId);
+      const maxAllowed = user.getGoalLimit();
+
+      // Unlimited goals (returns -1)
+      if (maxAllowed === -1) {
+        return {
+          canCreate: true,
+          currentCount,
+          maxAllowed: -1,
+        };
+      }
+
+      // Check limit
+      const canCreate = currentCount < maxAllowed;
+
+      return {
+        canCreate,
+        reason: canCreate ? undefined : `Goal limit reached (${currentCount}/${maxAllowed})`,
+        currentCount,
+        maxAllowed,
+      };
+    } catch (error) {
+      logger.error(`❌ Error checking goal creation eligibility for user ${userId}:`, error);
+      throw error;
+    }
   }
 
   /**
@@ -141,6 +216,7 @@ class GoalManagementService {
 
   /**
    * Create a new goal.
+   * Note: Subscription validation should be done in middleware/controller before calling this
    */
   static async createGoal(
     userId: string,
@@ -228,6 +304,58 @@ class GoalManagementService {
       logger.warn(`Failed to delete goal ${goalId} for user ${userId}`);
     }
     return success;
+  }
+
+  /**
+   * Get subscription-aware goal summary for user
+   */
+  static async getGoalSummaryWithLimits(userId: string): Promise<{
+    totalGoals: number;
+    activeGoals: number;
+    completedGoals: number;
+    subscription: {
+      tier: string;
+      canCreateMore: boolean;
+      goalLimit: number;
+      isUnlimited: boolean;
+    };
+  }> {
+    try {
+      const user = await User.findById(userId);
+      if (!user) {
+        throw new CustomError("User not found", 404);
+      }
+
+      const [totalGoals, activeGoals, completedGoals] = await Promise.all([
+        Goal.countDocuments({ user: userId }),
+        Goal.countDocuments({
+          user: userId,
+          status: { $in: ["not-started", "in-progress"] }
+        }),
+        Goal.countDocuments({
+          user: userId,
+          status: "completed"
+        })
+      ]);
+
+      const goalLimit = user.getGoalLimit();
+      const isUnlimited = goalLimit === -1;
+
+      return {
+        totalGoals,
+        activeGoals,
+        completedGoals,
+        subscription: {
+          tier: user.subscriptionTier,
+          canCreateMore: isUnlimited || activeGoals < goalLimit,
+          goalLimit,
+          isUnlimited,
+        }
+      };
+    } catch (error) {
+      logger.error(`❌ Error getting goal summary for user ${userId}:`, error);
+      throw error;
+    }
   }
 }
 

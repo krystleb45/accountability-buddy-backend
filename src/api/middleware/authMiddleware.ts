@@ -1,4 +1,4 @@
-// src/api/middleware/authJwt.ts - CLEAN VERSION
+// src/api/middleware/authJwt.ts - Fixed to handle both _id and userId
 import { RequestHandler } from "express";
 import jwt from "jsonwebtoken";
 import catchAsync from "../utils/catchAsync";
@@ -8,7 +8,8 @@ import { AuthenticatedRequest } from "../../types/AuthenticatedRequest";
 import { logger } from "../../utils/winstonLogger";
 
 interface JwtPayload {
-  userId: string;
+  userId?: string;
+  _id?: string; // Support both formats
   role: string;
   email?: string;
   username?: string;
@@ -46,21 +47,48 @@ export const protect: RequestHandler = catchAsync(async (req, _res, next) => {
   try {
     logger.info(`🔍 Verifying token: ${token.substring(0, 20)}...`);
     decoded = jwt.verify(token, secret) as JwtPayload;
-    logger.info(`✅ Token verified for user: ${decoded.userId}`);
+
+    // Handle both userId and _id formats
+    const userIdFromToken = decoded.userId || decoded._id;
+    logger.info(`✅ Token verified for user: ${userIdFromToken}`);
   } catch (err: any) {
     logger.warn(`❌ Invalid token: ${err.message}`);
     return next(createError("Unauthorized: Invalid token", 401));
   }
 
+  // Get user ID from token (support both formats)
+  const userIdFromToken = decoded.userId || decoded._id;
+
+  if (!userIdFromToken) {
+    logger.warn("❌ No user ID found in token");
+    return next(createError("Unauthorized: Invalid token format", 401));
+  }
+
   // Load user from database
-  const userDoc = await User.findById(decoded.userId)
+  const userDoc = await User.findById(userIdFromToken)
     .select("-password")
     .lean();
 
   if (!userDoc) {
-    logger.warn(`❌ User not found: ${decoded.userId}`);
+    logger.warn(`❌ User not found: ${userIdFromToken}`);
     return next(createError("Unauthorized: User not found", 401));
   }
+
+  // Map subscription status to expected format
+  const mapSubscriptionStatus = (status: string): "active" | "trial" | "expired" => {
+    switch (status) {
+      case "active":
+      case "trialing":
+        return "active";
+      case "trial":
+        return "trial";
+      case "canceled":
+      case "past_due":
+      case "expired":
+      default:
+        return "expired";
+    }
+  };
 
   // Attach user to request object
   (req as AuthenticatedRequest).user = {
@@ -71,7 +99,7 @@ export const protect: RequestHandler = catchAsync(async (req, _res, next) => {
     isAdmin: userDoc.role === "admin",
     permissions: userDoc.permissions ?? [],
     trial_start_date: userDoc.trial_start_date,
-    subscription_status: userDoc.subscription_status,
+    subscription_status: mapSubscriptionStatus(userDoc.subscription_status),
     next_billing_date: userDoc.next_billing_date,
     points: userDoc.points ?? 0,
     rewards: userDoc.rewards ?? [],

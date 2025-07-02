@@ -1,8 +1,8 @@
+// src/api/models/User.ts - Enhanced version with TypeScript fixes
 import type { Document, Types, Model, CallbackError } from "mongoose";
 import mongoose, { Schema } from "mongoose";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import { ISubscription } from "./Subscription"; // import the real subscription interface
 
 export interface UserSettings {
   notifications?: {
@@ -22,16 +22,10 @@ export interface ChatPreferences {
   directMessagesOnly?: boolean;
 }
 
-// Define subscription status enums
-export type SubscriptionStatus = "trial" | "active" | "expired";
-export type SubscriptionTier = "basic" | "premium" | "pro";
+// Enhanced subscription types to match your pricing tiers
+export type SubscriptionStatus = "trial" | "active" | "expired" | "canceled" | "past_due" | "trialing";
+export type SubscriptionTier = "free-trial" | "basic" | "pro" | "elite";
 
-// Update your User model interface and schema
-
-// Add these to your IUser interface (around line 20-30)
-// Update your User model interface and schema
-
-// Add these to your IUser interface (around line 20-30)
 export interface IUser extends Document {
   _id: Types.ObjectId;
   username: string;
@@ -39,7 +33,7 @@ export interface IUser extends Document {
   password: string;
   bio?: string;
   profileImage?: string;
-  profilePicture?: string; // Add alias for compatibility
+  profilePicture?: string;
   coverImage?: string;
   role: "user" | "admin" | "moderator" | "military";
   isVerified: boolean;
@@ -47,7 +41,7 @@ export interface IUser extends Document {
   permissions: string[];
   isLocked?: boolean;
   active: boolean;
-  isActive?: boolean; // Add alias for active status
+  isActive?: boolean;
   friends: Types.ObjectId[];
   friendRequests: Types.ObjectId[];
   followers: Types.ObjectId[];
@@ -59,19 +53,27 @@ export interface IUser extends Document {
   twoFactorSecret?: string;
   firstName?: string;
   lastName?: string;
-  subscriptions?: (Types.ObjectId | ISubscription)[];
+
+  // Enhanced Stripe/Subscription fields
   stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
   subscription_status: SubscriptionStatus;
-  subscriptionTier?: SubscriptionTier;
+  subscriptionTier: SubscriptionTier;
   subscriptionStartDate?: Date;
   subscriptionEndDate?: Date;
   trial_start_date?: Date;
+  trial_end_date?: Date;
   next_billing_date?: Date;
+  billing_cycle?: "monthly" | "yearly";
+  plan_change_at_period_end?: {
+    newPlan: SubscriptionTier;
+    newBillingCycle: "monthly" | "yearly";
+    changeDate: Date;
+  };
 
   interests?: string[];
   chatPreferences?: ChatPreferences;
 
-  // NEW FIELDS FOR RECOMMENDATIONS
   goals?: Array<{
     _id?: Types.ObjectId;
     title: string;
@@ -112,9 +114,7 @@ export interface IUser extends Document {
   achievements?: Types.ObjectId[];
   pinnedGoals: Types.ObjectId[];
   featuredAchievements: Types.ObjectId[];
-
   settings?: UserSettings;
-
   activeStatus: "online" | "offline";
   createdAt: Date;
   updatedAt: Date;
@@ -125,9 +125,15 @@ export interface IUser extends Document {
   updatePoints(pointsToAdd: number): Promise<void>;
   updateStreak(): Promise<void>;
   awardBadge(badgeId: Types.ObjectId): Promise<void>;
-}
 
-// Add these fields to your UserSchema (around line 90-120)
+  // New subscription-related methods
+  canCreateGoal(): boolean;
+  getGoalLimit(): number;
+  hasFeatureAccess(feature: string): boolean;
+  isSubscriptionActive(): boolean;
+  isInTrial(): boolean;
+  getDaysUntilTrialEnd(): number;
+}
 
 const UserSchema: Schema<IUser> = new Schema(
   {
@@ -136,7 +142,6 @@ const UserSchema: Schema<IUser> = new Schema(
     password: { type: String, required: true, minlength: 8, select: false },
     bio: { type: String, default: "" },
     profileImage: { type: String, default: "" },
-    //profilePicture: { type: String, default: "" }, // Add for compatibility
     coverImage: { type: String, default: "" },
     firstName: { type: String },
     lastName: { type: String },
@@ -146,7 +151,6 @@ const UserSchema: Schema<IUser> = new Schema(
     permissions: { type: [String], default: [] },
     isLocked: { type: Boolean, default: false },
     active: { type: Boolean, default: true },
-    //isActive: { type: Boolean, default: true }, // Add alias
 
     // Relationships
     friends: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
@@ -159,7 +163,6 @@ const UserSchema: Schema<IUser> = new Schema(
     pinnedGoals: [{ type: mongoose.Schema.Types.ObjectId, ref: "Goal" }],
     featuredAchievements: [{ type: mongoose.Schema.Types.ObjectId, ref: "Achievement" }],
 
-    // NEW RECOMMENDATION FIELDS
     goals: [{
       title: { type: String, required: true },
       category: {
@@ -207,29 +210,50 @@ const UserSchema: Schema<IUser> = new Schema(
       showInterests: { type: Boolean, default: true }
     },
 
-    // Stripe / Subscriptions
-    subscriptions: [{ type: mongoose.Schema.Types.ObjectId, ref: "Subscription" }],
+    // Enhanced Stripe / Subscriptions
     stripeCustomerId: { type: String },
+    stripeSubscriptionId: { type: String },
     subscription_status: {
       type: String,
-      enum: ["trial", "active", "expired"],
+      enum: ["trial", "active", "expired", "canceled", "past_due", "trialing"],
       default: "trial",
     },
     subscriptionTier: {
       type: String,
-      enum: ["basic", "premium", "pro"],
-      default: "basic",
+      enum: ["free-trial", "basic", "pro", "elite"],
+      default: "free-trial",
     },
-    trial_start_date: { type: Date, default: null },
-    subscriptionStartDate: { type: Date, default: null },
-    subscriptionEndDate: { type: Date, default: null },
-    next_billing_date: { type: Date, default: null },
+    trial_start_date: { type: Date, default: Date.now },
+    trial_end_date: {
+      type: Date,
+      default: () => new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) // 14 days from now
+    },
+    subscriptionStartDate: { type: Date },
+    subscriptionEndDate: { type: Date },
+    next_billing_date: { type: Date },
+    billing_cycle: {
+      type: String,
+      enum: ["monthly", "yearly"],
+      default: "monthly"
+    },
+    plan_change_at_period_end: {
+      newPlan: {
+        type: String,
+        enum: ["free-trial", "basic", "pro", "elite"]
+      },
+      newBillingCycle: {
+        type: String,
+        enum: ["monthly", "yearly"]
+      },
+      changeDate: { type: Date }
+    },
 
     // Gamification & Activity
     completedGoals: { type: Number, default: 0 },
     streak: { type: Number, default: 0 },
     streakCount: { type: Number, default: 0 },
-    lastGoalCompletedAt: { type: Date, default: null },
+    lastGoalCompletedAt: { type: Date },
+    points: { type: Number, default: 0 },
 
     // Communication & Interests
     interests: [{ type: String }],
@@ -265,17 +289,20 @@ const UserSchema: Schema<IUser> = new Schema(
   { timestamps: true }
 );
 
-// Add new indexes for recommendation performance
+// Indexes
 UserSchema.index({ interests: 1 });
 UserSchema.index({ activeStatus: 1 });
-UserSchema.index({ "goals.category": 1 }); // NEW
-UserSchema.index({ "location.city": 1 }); // NEW
-UserSchema.index({ "location.country": 1 }); // NEW
-UserSchema.index({ active: 1, isActive: 1 }); // NEW
+UserSchema.index({ "goals.category": 1 });
+UserSchema.index({ "location.city": 1 });
+UserSchema.index({ "location.country": 1 });
+UserSchema.index({ active: 1 });
+UserSchema.index({ stripeCustomerId: 1 });
+UserSchema.index({ stripeSubscriptionId: 1 });
+UserSchema.index({ subscriptionTier: 1 });
+UserSchema.index({ subscription_status: 1 });
+UserSchema.index({ trial_end_date: 1 });
 
-// Add these virtual fields and middleware after your schema definition
-
-// Virtual field to sync profilePicture with profileImage
+// Virtual fields
 UserSchema.virtual("profilePicture").get(function() {
   return this.profileImage || "/default-avatar.png";
 });
@@ -284,7 +311,6 @@ UserSchema.virtual("profilePicture").set(function(value: string) {
   this.profileImage = value;
 });
 
-// Virtual field to sync isActive with active
 UserSchema.virtual("isActive").get(function() {
   return this.active;
 });
@@ -293,7 +319,7 @@ UserSchema.virtual("isActive").set(function(value: boolean) {
   this.active = value;
 });
 
-// Pre-save middleware to update goals updatedAt
+// Pre-save middleware
 UserSchema.pre("save", function(next) {
   if (this.isModified("goals")) {
     this.goals?.forEach(goal => {
@@ -304,9 +330,9 @@ UserSchema.pre("save", function(next) {
   next();
 });
 
-// Make sure virtuals are included in JSON output
 UserSchema.set("toJSON", { virtuals: true });
 UserSchema.set("toObject", { virtuals: true });
+
 // Password hashing
 UserSchema.pre<IUser>(
   "save",
@@ -317,7 +343,6 @@ UserSchema.pre<IUser>(
     try {
       const rounds = parseInt(process.env.SALT_ROUNDS ?? "10", 10);
       this.password = await bcrypt.hash(this.password, rounds);
-      this.streak = Math.max(this.streak ?? 0, 0);
       next();
     } catch (err) {
       next(err as CallbackError);
@@ -325,7 +350,87 @@ UserSchema.pre<IUser>(
   }
 );
 
-// Methods
+// FIXED: Subscription-related methods with proper TypeScript typing
+// src/api/models/User.ts - FIXED: Align goal status checking with GoalManagementService
+
+// Add this method to replace the existing canCreateGoal method in your User schema:
+
+UserSchema.methods.canCreateGoal = function(): boolean {
+  const goalLimits: Record<SubscriptionTier, number> = {
+    "free-trial": -1, // unlimited
+    "basic": 3,
+    "pro": -1, // unlimited
+    "elite": -1 // unlimited
+  };
+
+  const tier = this.subscriptionTier as SubscriptionTier;
+  const limit = goalLimits[tier] ?? 3; // default to 3 if tier not found
+
+  // Return true for unlimited plans
+  if (limit === -1) return true;
+
+  // FIXED: Use the same status values as GoalManagementService
+  // Note: This method is now mainly for quick checks -
+  // the real validation should use GoalManagementService.getActiveGoalCount()
+  const activeGoals = this.goals?.filter((goal: any) =>
+    goal.status === "not-started" || goal.status === "in-progress"
+  ).length || 0;
+
+  return activeGoals < limit;
+};
+
+// Alternative: Remove embedded goals logic entirely and always use GoalManagementService
+UserSchema.methods.canCreateGoalSimple = function(): boolean {
+  const goalLimits: Record<SubscriptionTier, number> = {
+    "free-trial": -1,
+    "basic": 3,
+    "pro": -1,
+    "elite": -1
+  };
+
+  const tier = this.subscriptionTier as SubscriptionTier;
+  const limit = goalLimits[tier] ?? 3;
+
+  // For unlimited plans, always allow
+  return limit === -1;
+};
+
+UserSchema.methods.hasFeatureAccess = function(feature: string): boolean {
+  const featureAccess: Record<SubscriptionTier, string[]> = {
+    "free-trial": ["all"],
+    "basic": ["streak", "dailyPrompts", "groupChat"],
+    "pro": ["streak", "dailyPrompts", "groupChat", "dmMessaging", "badges", "analytics"],
+    "elite": ["all"]
+  };
+
+  const tier = this.subscriptionTier as SubscriptionTier;
+  const userFeatures = featureAccess[tier] ?? ["streak", "dailyPrompts", "groupChat"]; // default to basic features
+  return userFeatures.includes("all") || userFeatures.includes(feature);
+};
+
+UserSchema.methods.isSubscriptionActive = function(): boolean {
+  return this.subscription_status === "active" || this.subscription_status === "trialing";
+};
+
+UserSchema.methods.isInTrial = function(): boolean {
+  if (this.subscription_status === "trial" || this.subscription_status === "trialing") {
+    if (this.trial_end_date) {
+      return new Date() < new Date(this.trial_end_date);
+    }
+  }
+  return false;
+};
+
+UserSchema.methods.getDaysUntilTrialEnd = function(): number {
+  if (!this.trial_end_date) return 0;
+  const now = new Date();
+  const trialEnd = new Date(this.trial_end_date);
+  const diffTime = trialEnd.getTime() - now.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return Math.max(0, diffDays);
+};
+
+// Existing methods
 UserSchema.methods.comparePassword = async function (
   candidatePassword: string
 ): Promise<boolean> {
@@ -345,16 +450,17 @@ UserSchema.methods.generateResetToken = function (): string {
 UserSchema.methods.updatePoints = async function (
   pointsToAdd: number
 ): Promise<void> {
-  this.points += pointsToAdd;
+  this.points = (this.points || 0) + pointsToAdd;
   await this.save();
 };
 
 UserSchema.methods.updateStreak = async function (): Promise<void> {
   const today = new Date();
-  if (!this.lastGoalCompletedAt || this.lastGoalCompletedAt.toDateString() !== today.toDateString()) {
-    this.streak += 1;
-  } else {
-    this.streak = 0;
+  const lastCompleted = this.lastGoalCompletedAt;
+
+  if (!lastCompleted || lastCompleted.toDateString() !== today.toDateString()) {
+    this.streak = (this.streak || 0) + 1;
+    this.streakCount = this.streak;
   }
   this.lastGoalCompletedAt = today;
   await this.save();

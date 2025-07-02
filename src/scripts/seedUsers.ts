@@ -21,9 +21,33 @@ interface SeedUser {
   bio?: string;
   activeStatus?: string;
   isActive?: boolean;
+  // Subscription fields - matching your User model
+  subscription_status?: "active" | "canceled" | "past_due" | "trialing" | "trial" | "expired";
+  subscriptionTier?: "free-trial" | "basic" | "pro" | "elite";
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
+  subscriptionStartDate?: Date;
+  subscriptionEndDate?: Date;
+  trial_start_date?: Date;
+  trial_end_date?: Date;
+  next_billing_date?: Date;
+  billing_cycle?: "monthly" | "yearly";
 }
 
-// Define users to seed
+// Helper function to create date offsets
+const daysFromNow = (days: number): Date => {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return date;
+};
+
+const monthsFromNow = (months: number): Date => {
+  const date = new Date();
+  date.setMonth(date.getMonth() + months);
+  return date;
+};
+
+// Define users to seed with various subscription statuses
 const users: SeedUser[] = [
   {
     email: "admin@example.com",
@@ -34,6 +58,14 @@ const users: SeedUser[] = [
     bio: "Managing the accountability buddy platform",
     activeStatus: "online",
     isActive: true,
+    subscription_status: "active",
+    subscriptionTier: "elite",
+    stripeCustomerId: "cus_admin_test",
+    stripeSubscriptionId: "sub_admin_test",
+    subscriptionStartDate: daysFromNow(-30),
+    subscriptionEndDate: monthsFromNow(11),
+    next_billing_date: monthsFromNow(1),
+    billing_cycle: "yearly",
   },
   {
     email: "user@example.com",
@@ -44,6 +76,10 @@ const users: SeedUser[] = [
     bio: "Testing the platform features",
     activeStatus: "online",
     isActive: true,
+    subscription_status: "trialing",
+    subscriptionTier: "free-trial",
+    trial_start_date: daysFromNow(-7),
+    trial_end_date: daysFromNow(7), // 7 days left in trial
   },
   {
     email: "alice@example.com",
@@ -55,6 +91,13 @@ const users: SeedUser[] = [
     bio: "Fitness enthusiast and productivity nerd. Looking for accountability partners to stay consistent with workouts and daily habits.",
     activeStatus: "online",
     isActive: true,
+    subscription_status: "active",
+    subscriptionTier: "pro",
+    stripeCustomerId: "cus_alice_test",
+    stripeSubscriptionId: "sub_alice_test",
+    subscriptionStartDate: daysFromNow(-60),
+    next_billing_date: daysFromNow(30),
+    billing_cycle: "monthly",
   },
   {
     email: "bob@example.com",
@@ -66,6 +109,13 @@ const users: SeedUser[] = [
     bio: "Software developer building healthy habits. Trying to balance coding with self-care and personal growth.",
     activeStatus: "online",
     isActive: true,
+    subscription_status: "active",
+    subscriptionTier: "basic",
+    stripeCustomerId: "cus_bob_test",
+    stripeSubscriptionId: "sub_bob_test",
+    subscriptionStartDate: daysFromNow(-90),
+    next_billing_date: daysFromNow(30),
+    billing_cycle: "monthly",
   },
   {
     email: "carol@example.com",
@@ -77,6 +127,14 @@ const users: SeedUser[] = [
     bio: "Entrepreneur and mindfulness practitioner. Building a startup while maintaining work-life balance.",
     activeStatus: "online",
     isActive: true,
+    subscription_status: "active",
+    subscriptionTier: "elite",
+    stripeCustomerId: "cus_carol_test",
+    stripeSubscriptionId: "sub_carol_test",
+    subscriptionStartDate: daysFromNow(-120),
+    subscriptionEndDate: monthsFromNow(10),
+    next_billing_date: monthsFromNow(12),
+    billing_cycle: "yearly",
   },
   {
     email: "david@example.com",
@@ -88,6 +146,10 @@ const users: SeedUser[] = [
     bio: "Writer working on consistency. Daily writing practice and creative projects are my main focus.",
     activeStatus: "online",
     isActive: true,
+    subscription_status: "trialing",
+    subscriptionTier: "free-trial",
+    trial_start_date: daysFromNow(-11),
+    trial_end_date: daysFromNow(3), // 3 days left in trial
   },
   {
     email: "emma@example.com",
@@ -99,6 +161,13 @@ const users: SeedUser[] = [
     bio: "Graduate student focusing on study habits and research. Working on time management and academic goals.",
     activeStatus: "offline",
     isActive: true,
+    subscription_status: "past_due",
+    subscriptionTier: "basic",
+    stripeCustomerId: "cus_emma_test",
+    stripeSubscriptionId: "sub_emma_test",
+    subscriptionStartDate: daysFromNow(-120),
+    next_billing_date: daysFromNow(-15), // Payment overdue
+    billing_cycle: "monthly",
   },
   {
     email: "frank@example.com",
@@ -110,6 +179,13 @@ const users: SeedUser[] = [
     bio: "Marathon runner and nutrition coach. Helping others achieve their fitness and wellness goals.",
     activeStatus: "online",
     isActive: true,
+    subscription_status: "canceled",
+    subscriptionTier: "pro",
+    stripeCustomerId: "cus_frank_test",
+    stripeSubscriptionId: "sub_frank_test",
+    subscriptionStartDate: daysFromNow(-180),
+    subscriptionEndDate: daysFromNow(5), // Will end in 5 days
+    billing_cycle: "monthly",
   },
   {
     email: "grace@example.com",
@@ -121,6 +197,14 @@ const users: SeedUser[] = [
     bio: "Designer and creative professional. Balancing client work with personal artistic projects.",
     activeStatus: "online",
     isActive: true,
+    subscription_status: "active",
+    subscriptionTier: "pro",
+    stripeCustomerId: "cus_grace_test",
+    stripeSubscriptionId: "sub_grace_test",
+    subscriptionStartDate: daysFromNow(-45),
+    subscriptionEndDate: monthsFromNow(11),
+    next_billing_date: monthsFromNow(12),
+    billing_cycle: "yearly",
   },
   {
     email: "henry@example.com",
@@ -132,6 +216,10 @@ const users: SeedUser[] = [
     bio: "Music teacher and performer. Practicing daily and working on music composition goals.",
     activeStatus: "online",
     isActive: true,
+    subscription_status: "trial",
+    subscriptionTier: "free-trial",
+    trial_start_date: daysFromNow(-2),
+    trial_end_date: daysFromNow(12), // 12 days left in trial
   },
   {
     email: "isabel@example.com",
@@ -143,6 +231,13 @@ const users: SeedUser[] = [
     bio: "Chef and food blogger. Developing healthy recipes and building a sustainable food business.",
     activeStatus: "offline",
     isActive: true,
+    subscription_status: "expired",
+    subscriptionTier: "basic",
+    stripeCustomerId: "cus_isabel_test",
+    stripeSubscriptionId: "sub_isabel_test",
+    subscriptionStartDate: daysFromNow(-240),
+    subscriptionEndDate: daysFromNow(-30), // Expired 30 days ago
+    billing_cycle: "monthly",
   }
 ];
 
@@ -173,7 +268,7 @@ const seedUsers = async (): Promise<void> => {
     logger.info(`🎉 Created ${createdUsers.length} users:`);
 
     createdUsers.forEach((user) => {
-      logger.info(`  ✅ ${user.name || user.username} (${user.email})`);
+      logger.info(`  ✅ ${user.name || user.username} (${user.email}) - ${user.subscriptionTier} (${user.subscription_status})`);
     });
 
     // Log login credentials for easy testing
@@ -184,11 +279,25 @@ const seedUsers = async (): Promise<void> => {
       logger.info(`     Email: ${user.email}`);
       logger.info(`     Password: ${user.password}`);
       logger.info(`     Role: ${user.role}`);
+      logger.info(`     Subscription: ${user.subscriptionTier} (${user.subscription_status})`);
+      if (user.trial_end_date) {
+        const daysLeft = Math.ceil((user.trial_end_date.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+        logger.info(`     Trial: ${daysLeft} days remaining`);
+      }
+      if (user.next_billing_date && user.subscription_status === "active") {
+        logger.info(`     Next billing: ${user.next_billing_date.toLocaleDateString()}`);
+      }
       logger.info("");
     });
 
-    logger.info("🎉 Users seeded successfully.");
-    logger.info("💬 You can now test messaging between these users!");
+    logger.info("🎉 Users seeded successfully with subscription data.");
+    logger.info("💬 You can now test different subscription scenarios!");
+    logger.info("\n🧪 Test scenarios available:");
+    logger.info("  • Active subscriptions (Alice, Bob, Carol, Grace)");
+    logger.info("  • Trial users with different days remaining (Test User, David, Henry)");
+    logger.info("  • Past due payment (Emma)");
+    logger.info("  • Canceled but still active (Frank)");
+    logger.info("  • Expired subscription (Isabel)");
 
   } catch (error) {
     logger.error(`❌ Error seeding users: ${(error as Error).message}`);
