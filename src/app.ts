@@ -1,4 +1,4 @@
-// src/app.ts - FIXED: Move webhooks before protection
+// src/app.ts - UPDATED: Added anonymous military chat support
 import dotenvFlow from "dotenv-flow";
 dotenvFlow.config();
 
@@ -26,6 +26,7 @@ import healthRoutes from "./api/routes/healthRoutes";
 import authRoutes from "./api/routes/auth";
 import faqRoutes from "./api/routes/faq";
 import webhooksRoutes from "./api/routes/webhooks"; // MOVED UP
+import anonymousMilitaryChatRoutes from "./api/routes/anonymousMilitaryChatRoutes"; // 🆕 ADDED
 
 // ─── Protected route imports ──────────────────────────────────
 import userRoutes from "./api/routes/user";
@@ -113,7 +114,7 @@ app.use(hpp());
 app.use(
   rateLimit({
     windowMs: 15 * 60_000,
-    max: 100,
+    max: 500,
   })
 );
 app.use(
@@ -132,6 +133,11 @@ app.use("/api/faqs", faqRoutes);
 
 // ⚠️ CRITICAL: Webhooks MUST be before protect middleware
 app.use("/api/webhooks", webhooksRoutes);
+
+// 🆕 NEW: Anonymous military chat (PUBLIC - no auth required for crisis support)
+app.use("/api/anonymous-military-chat", anonymousMilitaryChatRoutes);
+app.use("/api/military-support", militarySupportRoutes); // 📝 NOTE: This remains for authenticated military users
+
 
 // ─── Protect everything below ─────────────────────────────────
 app.use("/api", protect);
@@ -177,7 +183,6 @@ app.use("/api/analytics", goalAnalyticsRoutes);
 app.use("/api/history", historyRoutes);
 app.use("/api/leaderboard", leaderboardRoutes);
 app.use("/api/milestone", milestoneRoutes);
-app.use("/api/military-support", militarySupportRoutes);
 app.use("/api/newsletters", newsletterRoutes);
 app.use("/api/notification-triggers", notificationTriggersRoutes);
 app.use("/api/partner", partnerRoutes);

@@ -1,4 +1,4 @@
-// src/api/routes/militarySupportRoutes.ts
+// src/api/routes/militarySupportRoutes.ts 
 import { Router, Request, Response, NextFunction } from "express";
 import { check } from "express-validator";
 import { protect, militaryAuth } from "../middleware/authMiddleware";
@@ -10,12 +10,12 @@ const router = Router();
 
 /**
  * GET /api/military-support/resources
- * Get external military support resources (military members only)
+ * Get external military support resources (PUBLIC - no auth required)
+ * These are crisis resources that should be available to everyone
  */
 router.get(
   "/resources",
-  protect,
-  militaryAuth,
+  // REMOVED: protect, militaryAuth - now public for crisis support
   catchAsync(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     await militarySupportController.getResources(req, res, next);
   })
@@ -23,14 +23,19 @@ router.get(
 
 /**
  * GET /api/military-support/disclaimer
- * Get military support disclaimer (public)
+ * Get military support disclaimer (PUBLIC - no auth required)
  */
 router.get(
   "/disclaimer",
+  // Already public - no auth middleware
   catchAsync(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     await militarySupportController.getDisclaimer(req, res, next);
   })
 );
+
+// ========================================
+// AUTHENTICATED ROUTES (for members with accounts)
+// ========================================
 
 /**
  * POST /api/military-support/chat/send

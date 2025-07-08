@@ -1,8 +1,9 @@
-// src/sockets/index.ts
+// src/sockets/index.ts - FIXED: Register AnonymousMilitarySocketService
 import type { Server as HttpServer } from "http";
-// `Server` is used at runtime, so it must be a normal import:
 import { Server, Socket } from "socket.io";
 import chatSocket from "./chat";
+import { setupAnonymousMilitaryChat } from "./anonymousMilitaryChat";
+import { AnonymousMilitarySocketService } from "../api/services/AnonymousMilitarySocketService"; // ADD THIS
 import Notification from "../api/models/Notification";
 import AuthService from "../api/services/AuthService";
 import { logger } from "../utils/winstonLogger";
@@ -12,7 +13,7 @@ interface DecodedToken {
   role: string;
 }
 
-const socketServer = (server: HttpServer): Server => {
+const socketServer = (server: HttpServer): { io: Server; socketService: AnonymousMilitarySocketService } => {
   const io = new Server(server, {
     cors: {
       origin: process.env.ALLOWED_ORIGINS?.split(",") || "*",
@@ -21,8 +22,15 @@ const socketServer = (server: HttpServer): Server => {
     },
   });
 
+  // 🆕 CREATE the socket service for anonymous military chat
+  const anonymousSocketService = new AnonymousMilitarySocketService(io);
+
+  // Setup anonymous military chat (no auth required)
+  setupAnonymousMilitaryChat(io);
+
   /**
    * @desc    Middleware to authenticate WebSocket connections using JWT.
+   * NOTE: This only applies to the default namespace, not /anonymous-military-chat
    */
   io.use(async (socket: Socket, next) => {
     try {
@@ -56,7 +64,7 @@ const socketServer = (server: HttpServer): Server => {
   });
 
   /**
-   * @desc    Handles new socket connections.
+   * @desc    Handles new socket connections (authenticated users only).
    */
   io.on("connection", (socket: Socket) => {
     const { id: userId } = socket.data.user as { id: string; role: string };
@@ -99,7 +107,8 @@ const socketServer = (server: HttpServer): Server => {
     });
   });
 
-  return io;
+  // 🆕 RETURN both io and the socket service
+  return { io, socketService: anonymousSocketService };
 };
 
 export default socketServer;

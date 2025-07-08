@@ -1,4 +1,4 @@
-// src/server.ts
+// src/server.ts - FIXED: Register socket service with Express app
 
 // ─── Crash Guards ───────────────────────────────────────────────
 process.on("uncaughtException", (err) => {
@@ -23,6 +23,7 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import app from "./app";
 import { logger } from "./utils/winstonLogger";
+import socketServer from "./sockets/index"; // This now returns { io, socketService }
 
 // ─── Extend NodeJS global for Socket.io ────────────────────────
 declare global {
@@ -41,20 +42,16 @@ async function startServer(): Promise<void> {
     await mongoose.connect(process.env.MONGO_URI!);
     logger.info("✅ MongoDB connected");
 
-    // 2) Create HTTP server and attach Socket.io
+    // 2) Create HTTP server and setup Socket.IO with all features
     const httpServer = createServer(app);
-    global.io = new Server(httpServer, {
-      cors: { origin: process.env.ALLOWED_ORIGINS?.split(",") || "*" },
-    });
 
-    // 3) Handle Socket.io connections
-    global.io.on("connection", (socket) => {
-      const userId = socket.handshake.auth.userId as string;
-      if (userId) {
-        void socket.join(userId);  // explicitly ignore the returned Promise
-        logger.info(`🔌 Socket ${socket.id} joined room ${userId}`);
-      }
-    });
+    // 🆕 FIXED: Get both io and socketService from socketServer
+    const { io, socketService } = socketServer(httpServer);
+    global.io = io;
+
+    // 🆕 REGISTER the socket service with Express app so controllers can access it
+    app.set("anonymousMilitarySocketService", socketService);
+    logger.info("✅ Anonymous military socket service registered");
 
     // 4) Start listening
     const PORT = parseInt(process.env.PORT || "5000", 10);

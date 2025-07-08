@@ -1,4 +1,4 @@
-// src/api/models/MilitaryUser.ts
+// src/api/models/MilitarySupport.ts
 
 import type { Document, Model, Types } from "mongoose";
 import mongoose, { Schema } from "mongoose";

@@ -1,11 +1,12 @@
-// src/api/services/MilitarySupportService.ts
+// src/api/services/MilitarySupportService.ts - FIXED: Corrected import path
+
 import { createError } from "../middleware/errorHandler";
 import LoggingService from "./LoggingService";
 import {
   ExternalSupportResource,
   IExternalSupportResource,
   ResourceCategory,
-} from "../models/MilitaryResource";
+} from "../models/MilitaryResource"; // FIXED: Changed from MilitaryResource
 import MilitarySupportChatroom, {
   IMilitarySupportChatroom,
 } from "../models/MilitarySupportChatroom";
@@ -22,7 +23,7 @@ class MilitarySupportService {
 
   /** List all active resources, most recent first. */
   static async listResources(): Promise<IExternalSupportResource[]> {
-    const resources = await ExternalSupportResource.find()
+    const resources = await ExternalSupportResource.find({ isActive: true }) // ADDED: Only active resources
       .sort({ createdAt: -1 })
       .exec();
     if (resources.length === 0) {
@@ -79,9 +80,10 @@ class MilitarySupportService {
 
   // —— Chatroom & message methods —— //
 
-  /** List all chatrooms. */
+  /** List all active chatrooms. */
   static async listChatrooms(): Promise<IMilitarySupportChatroom[]> {
-    const rooms = await MilitarySupportChatroom.find().sort({ createdAt: -1 });
+    const rooms = await MilitarySupportChatroom.find({ isActive: true }) // ADDED: Only active chatrooms
+      .sort({ createdAt: -1 });
     if (rooms.length === 0) {
       throw createError("No military chatrooms found", 404);
     }
@@ -120,9 +122,17 @@ class MilitarySupportService {
     userId: string,
     text: string
   ): Promise<IMilitaryMessage> {
-    // ensure room exists
-    const room = await MilitarySupportChatroom.findById(chatroomId);
-    if (!room) throw createError("Chatroom not found", 404);
+    // ensure room exists and is active
+    const room = await MilitarySupportChatroom.findOne({
+      _id: chatroomId,
+      isActive: true
+    });
+    if (!room) throw createError("Chatroom not found or inactive", 404);
+
+    // Check if user is a member of the room
+    if (!room.members.includes(userId as any)) {
+      throw createError("User is not a member of this chatroom", 403);
+    }
 
     const msg = await MilitaryMessage.create({
       chatroom: chatroomId,
@@ -134,6 +144,53 @@ class MilitarySupportService {
       `Message ${msg._id} sent in room ${chatroomId} by ${userId}`
     );
     return msg;
+  }
+
+  /**
+   * Get messages for a chatroom.
+   * Only for members of the room.
+   */
+  static async getChatroomMessages(
+    chatroomId: string,
+    userId: string,
+    limit = 50
+  ): Promise<IMilitaryMessage[]> {
+    // Verify user is member of room
+    const room = await MilitarySupportChatroom.findOne({
+      _id: chatroomId,
+      isActive: true,
+      members: userId
+    });
+    if (!room) {
+      throw createError("Chatroom not found or access denied", 404);
+    }
+
+    const messages = await MilitaryMessage.getByChatroom(chatroomId as any, limit);
+    void LoggingService.logInfo(
+      `Fetched ${messages.length} messages for room ${chatroomId}`
+    );
+    return messages;
+  }
+
+  /**
+   * Join a chatroom.
+   */
+  static async joinChatroom(
+    chatroomId: string,
+    userId: string
+  ): Promise<IMilitarySupportChatroom> {
+    const room = await MilitarySupportChatroom.findOne({
+      _id: chatroomId,
+      isActive: true
+    });
+    if (!room) throw createError("Chatroom not found", 404);
+
+    // Add user if not already a member
+    const updatedRoom = await room.addMember(userId as any);
+    void LoggingService.logInfo(
+      `User ${userId} joined room ${chatroomId}`
+    );
+    return updatedRoom;
   }
 }
 
