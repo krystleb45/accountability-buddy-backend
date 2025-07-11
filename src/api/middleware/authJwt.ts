@@ -68,7 +68,7 @@ export const protect: RequestHandler = catchAsync(async (req, _res, next) => {
     isAdmin: userDoc.role === "admin",
     permissions: userDoc.permissions ?? [],
     trial_start_date: userDoc.trial_start_date,
-    subscription_status: userDoc.subscription_status,
+    subscription_status: userDoc.subscription_status as any,
     next_billing_date: userDoc.next_billing_date,
     points: userDoc.points,
     rewards: userDoc.rewards,

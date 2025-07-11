@@ -2,7 +2,7 @@ import Stripe from "stripe";
 import { User } from "../api/models/User";
 import Subscription from "../api/models/Subscription";
 import { logger } from "../utils/winstonLogger";
-import mongoose from "mongoose"; // Added for casting
+//import mongoose from "mongoose"; // Added for casting
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
   apiVersion: "2025-02-24.acacia",
@@ -56,7 +56,7 @@ export const createTrialSubscription = async (userId: string): Promise<Stripe.Su
     await newSubscription.save();
 
     // Cast newSubscription._id to mongoose.Types.ObjectId
-    user.subscriptions = [newSubscription._id as mongoose.Types.ObjectId];
+    // user.subscriptions = [newSubscription._id as mongoose.Types.ObjectId]; // Commented out - property doesn't exist on User model
     user.trial_start_date = new Date();
     user.subscription_status = "trial";
     user.subscriptionTier = "basic";
