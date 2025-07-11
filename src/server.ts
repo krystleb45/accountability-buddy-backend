@@ -44,12 +44,19 @@ declare global {
 // ─── Server Startup ─────────────────────────────────────────────
 async function startServer(): Promise<void> {
   try {
-    // 1) Load any secrets and connect to MongoDB
-    await loadSecretsFromAWS();
+    // 1) Only load AWS secrets in production, skip for staging
+    if (process.env.NODE_ENV === "production" && process.env.AWS_REGION) {
+      await loadSecretsFromAWS();
+      logger.info("✅ AWS secrets loaded");
+    } else {
+      logger.info("ℹ️ Skipping AWS secrets for staging environment");
+    }
+
+    // 2) Connect to MongoDB
     await mongoose.connect(process.env.MONGO_URI!);
     logger.info("✅ MongoDB connected");
 
-    // 2) Create HTTP server and setup Socket.IO with all features
+    // 3) Create HTTP server and setup Socket.IO with all features
     const httpServer = createServer(app);
 
     // 🆕 FIXED: Get both io and socketService from socketServer
