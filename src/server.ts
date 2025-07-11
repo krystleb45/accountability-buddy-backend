@@ -13,7 +13,14 @@ process.on("unhandledRejection", (reason) => {
 // ─── Imports ─────────────────────────────────────────────────────
 import mongoose from "mongoose";
 import dotenvFlow from "dotenv-flow";
-dotenvFlow.config();
+
+// Don't crash if .env files are missing (Railway uses environment variables directly)
+try {
+  dotenvFlow.config();
+  console.log("✅ Environment configuration loaded");
+} catch {
+  console.log("ℹ️ No .env files found, using environment variables directly");
+}
 
 import { validateEnv } from "./utils/validateEnv";
 validateEnv();
