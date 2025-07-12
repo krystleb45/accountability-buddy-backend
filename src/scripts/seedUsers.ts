@@ -149,7 +149,7 @@ const users: SeedUser[] = [
     subscription_status: "trialing",
     subscriptionTier: "free-trial",
     trial_start_date: daysFromNow(-11),
-    trial_end_date: daysFromNow(3), // 3 days left in trial
+    trial_end_date: daysFromNow(3), // 3 days left in trial 
   },
   {
     email: "emma@example.com",
