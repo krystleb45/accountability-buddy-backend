@@ -13,8 +13,10 @@ interface Config {
   JWT_REFRESH_EXPIRES_IN: string;
   STRIPE_SECRET_KEY: string;
   STRIPE_WEBHOOK_SECRET?: string;
-  REDIS_HOST: string;
-  REDIS_PORT: number;
+  // ✅ FIXED: Updated Redis configuration for Railway
+  REDIS_URL?: string;
+  REDIS_HOST?: string;
+  REDIS_PORT?: number;
   REDIS_PASSWORD?: string;
   PORT: number;
   NODE_ENV: "development" | "production" | "test";
@@ -46,9 +48,10 @@ const config: Config = {
   STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY || "",
   STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
 
-  // Redis Configuration
-  REDIS_HOST: process.env.REDIS_HOST || "127.0.0.1",
-  REDIS_PORT: parseInt(process.env.REDIS_PORT || "6379", 10),
+  // ✅ FIXED: Redis Configuration for Railway (no localhost fallbacks)
+  REDIS_URL: process.env.REDIS_URL, // Railway provides this
+  REDIS_HOST: process.env.REDIS_HOST, // Only use if REDIS_URL not available
+  REDIS_PORT: process.env.REDIS_PORT ? parseInt(process.env.REDIS_PORT, 10) : undefined,
   REDIS_PASSWORD: process.env.REDIS_PASSWORD,
 
   // Server
@@ -82,5 +85,24 @@ requiredVariables.forEach((variable) => {
     throw new Error(`${variable} is not defined in environment variables`);
   }
 });
+
+// ✅ ADDED: Redis validation with helpful error messages
+if (!process.env.DISABLE_REDIS && !process.env.SKIP_REDIS_INIT && !process.env.REDIS_DISABLED) {
+  if (!config.REDIS_URL && !config.REDIS_HOST) {
+    console.warn("⚠️ WARNING: No Redis configuration found. Make sure to:");
+    console.warn("   1. Add a Redis service in Railway");
+    console.warn("   2. Ensure REDIS_URL environment variable is set");
+    console.warn("   3. Or set DISABLE_REDIS=true to use mock queue");
+  }
+}
+
+// ✅ ADDED: Log Redis configuration status (for debugging)
+if (process.env.NODE_ENV !== "production") {
+  console.log("🔍 Redis Configuration Status:");
+  console.log("   REDIS_URL:", config.REDIS_URL ? "✅ Set" : "❌ Not set");
+  console.log("   REDIS_HOST:", config.REDIS_HOST ? "✅ Set" : "❌ Not set");
+  console.log("   REDIS_PORT:", config.REDIS_PORT ? "✅ Set" : "❌ Not set");
+  console.log("   REDIS_PASSWORD:", config.REDIS_PASSWORD ? "✅ Set" : "❌ Not set");
+}
 
 export default config;

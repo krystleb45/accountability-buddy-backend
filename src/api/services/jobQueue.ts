@@ -1,4 +1,4 @@
-// src/api/services/JobQueueService.ts - FIXED: Conditional Bull/Redis usage
+// src/api/services/JobQueueService.ts - FIXED: Proper Railway Redis configuration
 import { sendEmail } from "./emailService";
 import { logger } from "../../utils/winstonLogger";
 
@@ -66,12 +66,34 @@ class JobQueueService {
         // Dynamic import Bull only when Redis is enabled
         const Queue = require("bull");
 
-        const redisConfig = {
-          host: process.env.REDIS_HOST || "127.0.0.1",
-          port: parseInt(process.env.REDIS_PORT || "6379", 10),
-          password: process.env.REDIS_PASSWORD,
-          ...(process.env.NODE_ENV === "production" ? { tls: {} } : {}),
-        };
+        // ✅ FIXED: Proper Railway Redis configuration
+        let redisConfig;
+
+        if (process.env.REDIS_URL) {
+          // Use full Redis URL (Railway provides this)
+          logger.info("🔴 Using REDIS_URL for connection");
+          redisConfig = process.env.REDIS_URL;
+        } else if (process.env.REDIS_HOST) {
+          // Fallback to individual variables (but no localhost fallback!)
+          logger.info("🔴 Using individual Redis environment variables");
+          redisConfig = {
+            host: process.env.REDIS_HOST,
+            port: parseInt(process.env.REDIS_PORT || "6379", 10),
+            password: process.env.REDIS_PASSWORD,
+            ...(process.env.NODE_ENV === "production" ? { tls: {} } : {}),
+          };
+        } else {
+          // No Redis config available - throw error instead of using localhost
+          throw new Error("Redis configuration not found. REDIS_URL or REDIS_HOST must be set in Railway environment variables.");
+        }
+
+        // Log Redis config for debugging (without sensitive data)
+        logger.info("🔴 Redis config:", {
+          type: typeof redisConfig === "string" ? "URL" : "object",
+          hasPassword: !!(typeof redisConfig === "object" ? redisConfig.password : redisConfig?.includes("@")),
+          host: typeof redisConfig === "object" ? redisConfig.host : "from URL",
+          port: typeof redisConfig === "object" ? redisConfig.port : "from URL"
+        });
 
         this._emailQueue = new Queue("emailQueue", {
           redis: redisConfig,
@@ -104,6 +126,14 @@ class JobQueueService {
           // If Redis fails, fall back to mock
           logger.warn("⚠️ Falling back to mock queue due to Redis error");
           this.fallbackToMock();
+        });
+
+        this._emailQueue.on("ready", () => {
+          logger.info("✅ Bull queue is ready and connected to Redis");
+        });
+
+        this._emailQueue.on("connect", () => {
+          logger.info("✅ Bull queue connected to Redis");
         });
 
         logger.info("✅ JobQueueService initialized with Bull/Redis");
