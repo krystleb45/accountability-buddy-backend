@@ -1,6 +1,16 @@
-import dotenv from "dotenv";
+import dotenvFlow from "dotenv-flow";
 
-dotenv.config(); // Load environment variables from .env file
+// Only load .env files in development, ignore errors in production
+try {
+  if (process.env.NODE_ENV !== "production") {
+    dotenvFlow.config();
+    console.log("✅ Environment configuration loaded from .env files");
+  } else {
+    console.log("ℹ️ Production mode: Using Railway environment variables directly");
+  }
+} catch {
+  console.log("ℹ️ No .env files found, using environment variables directly (this is normal in production)");
+}
 
 /**
  * Interface for the configuration object.
@@ -78,13 +88,18 @@ const config: Config = {
   LOG_LEVEL: (process.env.LOG_LEVEL as "debug" | "info" | "warn" | "error") || "info",
 };
 
-// Validate critical environment variables
-const requiredVariables: Array<keyof Config> = ["MONGO_URI", "JWT_SECRET", "STRIPE_SECRET_KEY"];
+// Validate critical environment variables (but allow placeholder values for now)
+const requiredVariables: Array<keyof Config> = ["MONGO_URI", "JWT_SECRET"];
 requiredVariables.forEach((variable) => {
   if (!config[variable]) {
     throw new Error(`${variable} is not defined in environment variables`);
   }
 });
+
+// Make STRIPE_SECRET_KEY optional for now since you don't have real keys yet
+if (!config.STRIPE_SECRET_KEY || config.STRIPE_SECRET_KEY === "sk_test_placeholder") {
+  console.warn("⚠️ WARNING: Using placeholder Stripe key. Add real Stripe keys when ready for payments.");
+}
 
 // ✅ ADDED: Redis validation with helpful error messages
 if (!process.env.DISABLE_REDIS && !process.env.SKIP_REDIS_INIT && !process.env.REDIS_DISABLED) {
