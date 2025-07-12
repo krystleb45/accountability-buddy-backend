@@ -1,83 +1,39 @@
 {
-  "extends": "../tsconfig.base.json",
-  "references": [
-    { "path": "../shared" }
-  ],
   "compilerOptions": {
-    // ─── Overrides for the backend package ────────────────────────────────────
-    "module": "CommonJS",
-    "target": "ESNext",
-    "moduleResolution": "node",
-    "lib": ["ESNext", "DOM"],
-    "rootDir": "src",
-    "outDir": "dist",
-    "composite": true,
-    "incremental": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-
-    // ─── Strictness & safety ───────────────────────────────────────────────────
+    "target": "ES2020",
+    "module": "commonjs",
+    "lib": ["ES2020"],
+    "outDir": "./dist",
+    "rootDir": "./src",
     "strict": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
-    "forceConsistentCasingInFileNames": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "resolveJsonModule": true,
-
-    // ─── Unused code checks ────────────────────────────────────────────────────
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
+    "skipLibCheck": true,
+    "skipDefaultLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "node",
+    "allowJs": true,
+    "declaration": false,
+    "removeComments": true,
+    "noImplicitAny": false,
+    "strictNullChecks": false,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-
-    // ─── Path aliases ─────────────────────────────────────────────────────────
-    "baseUrl": ".",
-    "paths": {
-      "@src/*": ["src/*"],
-      "@test/*": ["src/test/*"]
-    },
-
-    // ─── Type roots & only these ambient types ────────────────────────────────
-    "typeRoots": [
-      "../shared/types",     // your shared ambient definitions
-      "src/types",           // your local augmentations (incl. global.d.ts)
-      "node_modules/@types"  // default @types
-    ],
-    "types": [
-      "node",
-      "express",
-      "cors",
-      "jsonwebtoken",
-      "jest"
-    ]
+    "resolveJsonModule": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "downlevelIteration": true,
+    "typeRoots": ["./node_modules/@types", "./src/types"],
+    "types": ["node"]
   },
-
-  // ─── Files to include & exclude ────────────────────────────────────────────
   "include": [
-    "src/**/*.ts",
-    "src/types/**/*.d.ts",   // pick up global.d.ts
-    "src/test/**/*.ts",
-    "jest.setup.ts",
-    "jest.config.js"
+    "src/**/*"
   ],
   "exclude": [
     "node_modules",
     "dist",
-    "coverage",
-    ".vscode",
-    ".env",
-    "**/*.test.js",
-    "**/*.spec.js",
-    "build",
-    "*.mjs",
-    "*.cjs"
-  ],
-
-  // ─── ts-node for local dev & testing ───────────────────────────────────────
-  "ts-node": {
-    "transpileOnly": true,
-    "files": true
-  }
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "**/node_modules/date-fns/**"
+  ]
 }

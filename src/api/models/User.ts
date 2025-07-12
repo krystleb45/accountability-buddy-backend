@@ -28,6 +28,7 @@ export type SubscriptionTier = "free-trial" | "basic" | "pro" | "elite";
 
 export interface IUser extends Document {
   _id: Types.ObjectId;
+  id: string; // Add this line - virtual field that maps to _id
   username: string;
   email: string;
   password: string;
