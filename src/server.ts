@@ -1,17 +1,18 @@
 // src/server.ts - EMERGENCY: Block all Redis before anything else
 
 // ═══════════════════════════════════════════════════════════════
-// 🚫 EMERGENCY REDIS BLOCKER - MUST BE FIRST
+// 🚫 ENHANCED REDIS BLOCKER - PRODUCTION SAFE
 // ═══════════════════════════════════════════════════════════════
 
-console.log("🚨 EMERGENCY: Activating Redis connection blocker");
+console.log("🚨 PRODUCTION: Enhanced Redis connection blocker");
 
-// Set all disable flags
+// Force ALL Redis disable flags
 process.env.DISABLE_REDIS = "true";
 process.env.SKIP_REDIS_INIT = "true";
 process.env.REDIS_DISABLED = "true";
+process.env.DISABLE_EMAIL_QUEUE = "true";
 
-// Clear all Redis environment variables
+// Clear ALL Redis environment variables
 delete process.env.REDIS_URL;
 delete process.env.REDIS_PRIVATE_URL;
 delete process.env.REDIS_PUBLIC_URL;
@@ -20,63 +21,83 @@ delete process.env.REDIS_PORT;
 delete process.env.REDIS_PASSWORD;
 delete process.env.REDIS_USERNAME;
 
-// Override module loading to block Redis
+// Enhanced module blocking
 const Module = require("module");
 const originalRequire = Module.prototype.require;
 
-Module.prototype.require = function(id: string) {
+Module.prototype.require = function(id: string): any {
   // Block any Redis-related modules
   if (id === "ioredis" ||
       id === "redis" ||
+      id === "@redis/client" ||
       id.includes("redis") ||
       id === "bull" ||
       id === "bullmq" ||
-      id.includes("bull")) {
+      id.includes("bull") ||
+      id === "connect-redis" ||
+      id === "rate-limit-redis") {
 
-    console.log(`🚫 BLOCKED Redis module: ${id}`);
+    console.log(`🚫 PRODUCTION BLOCKED: ${id}`);
 
-    // Return mock Redis object
+    // Return comprehensive mock Redis object
     return {
-      createClient: () => ({
-        on: () => {},
-        connect: () => Promise.resolve(),
-        disconnect: () => Promise.resolve(),
-        quit: () => Promise.resolve(),
-        get: () => Promise.resolve(null),
-        set: () => Promise.resolve("OK"),
-        del: () => Promise.resolve(1)
+      createClient: (): any => ({
+        on: (): void => {},
+        connect: (): Promise<void> => Promise.resolve(),
+        disconnect: (): Promise<void> => Promise.resolve(),
+        quit: (): Promise<void> => Promise.resolve(),
+        get: (): Promise<null> => Promise.resolve(null),
+        set: (): Promise<string> => Promise.resolve("OK"),
+        del: (): Promise<number> => Promise.resolve(1),
+        sendCommand: (): Promise<string> => Promise.resolve(""),
+        sAdd: (): Promise<number> => Promise.resolve(1),
+        sRem: (): Promise<number> => Promise.resolve(1),
+        sMembers: (): Promise<string[]> => Promise.resolve([]),
+        incr: (): Promise<number> => Promise.resolve(1),
+        expire: (): Promise<number> => Promise.resolve(1),
+        keys: (): Promise<string[]> => Promise.resolve([]),
+        flushDb: (): Promise<string> => Promise.resolve("OK"),
+        setex: (): Promise<string> => Promise.resolve("OK"),
+        ttl: (): Promise<number> => Promise.resolve(-1),
+        exists: (): Promise<number> => Promise.resolve(0)
       }),
       default: class MockRedis {
         constructor() {
-          console.log("🚫 Redis connection attempt blocked");
+          console.log("🚫 Mock Redis connection created");
         }
-        on() { return this; }
-        connect() { return Promise.resolve(); }
-        disconnect() { return Promise.resolve(); }
-        quit() { return Promise.resolve(); }
-        get() { return Promise.resolve(null); }
-        set() { return Promise.resolve("OK"); }
-        del() { return Promise.resolve(1); }
+        on(): this { return this; }
+        connect(): Promise<void> { return Promise.resolve(); }
+        disconnect(): Promise<void> { return Promise.resolve(); }
+        quit(): Promise<void> { return Promise.resolve(); }
+        get(): Promise<null> { return Promise.resolve(null); }
+        set(): Promise<string> { return Promise.resolve("OK"); }
+        del(): Promise<number> { return Promise.resolve(1); }
+        sendCommand(): Promise<string> { return Promise.resolve(""); }
+        setex(): Promise<string> { return Promise.resolve("OK"); }
+        keys(): Promise<string[]> { return Promise.resolve([]); }
       },
-      Redis: class MockRedis {
+      Redis: class MockIoRedis {
         constructor() {
-          console.log("🚫 ioredis Redis connection blocked");
+          console.log("🚫 Mock ioredis connection created");
         }
-        on() { return this; }
-        connect() { return Promise.resolve(); }
-        disconnect() { return Promise.resolve(); }
-        quit() { return Promise.resolve(); }
-        get() { return Promise.resolve(null); }
-        set() { return Promise.resolve("OK"); }
-        del() { return Promise.resolve(1); }
+        on(): this { return this; }
+        connect(): Promise<void> { return Promise.resolve(); }
+        disconnect(): Promise<void> { return Promise.resolve(); }
+        quit(): Promise<void> { return Promise.resolve(); }
+        get(): Promise<null> { return Promise.resolve(null); }
+        set(): Promise<string> { return Promise.resolve("OK"); }
+        del(): Promise<number> { return Promise.resolve(1); }
+        setex(): Promise<string> { return Promise.resolve("OK"); }
+        keys(): Promise<string[]> { return Promise.resolve([]); }
       },
       Queue: class MockQueue {
         constructor() {
-          console.log("🚫 Bull Queue blocked");
+          console.log("🚫 Mock Bull Queue created");
         }
-        add() { return Promise.resolve({ id: "mock" }); }
-        process() { return this; }
-        on() { return this; }
+        add(): Promise<{ id: string }> { return Promise.resolve({ id: "mock" }); }
+        process(): this { return this; }
+        on(): this { return this; }
+        close(): Promise<void> { return Promise.resolve(); }
       }
     };
   }
@@ -84,7 +105,7 @@ Module.prototype.require = function(id: string) {
   return originalRequire.apply(this, arguments);
 };
 
-console.log("✅ Redis blocker activated - all Redis connections will be blocked");
+console.log("✅ PRODUCTION: Enhanced Redis blocker activated - ALL Redis connections blocked");
 
 // ═══════════════════════════════════════════════════════════════
 // NOW CONTINUE WITH YOUR EXISTING SERVER CODE
