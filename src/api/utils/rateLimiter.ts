@@ -1,11 +1,13 @@
+// src/api/utils/rateLimiter.ts - FIXED: Conditional Redis usage
 import type { Options, RateLimitRequestHandler } from "express-rate-limit";
 import rateLimit from "express-rate-limit";
-import type { RedisReply } from "rate-limit-redis";
-import RedisStore from "rate-limit-redis";
-import redisClient from "../../config/redisClient"; // Ensure this points to your Redis client configuration
 import type { Request, Response } from "express";
 import { logger } from "../../utils/winstonLogger";
 
+// Check if Redis is disabled
+const isRedisDisabled = process.env.DISABLE_REDIS === "true" ||
+                       process.env.SKIP_REDIS_INIT === "true" ||
+                       process.env.REDIS_DISABLED === "true";
 
 /**
  * @desc    Creates a rate limiter with configurable limits, IP-based throttling, and optional Redis-backed storage.
@@ -44,41 +46,64 @@ const createRateLimiter = (
     },
     standardHeaders: true,
     legacyHeaders: false,
+    // Default to memory store
+    store: undefined,
   };
 
-  // If Redis is enabled, configure RedisStore
-  if (useRedis) {
-    options.store = new RedisStore({
-      sendCommand: async (...args: string[]): Promise<RedisReply> => {
-        try {
-          const response = await redisClient.sendCommand(args);
-      
-          if (response === null) {
-            // Replace null with an empty string or other fallback based on your use case
-            return "" as RedisReply;
-          }
-      
-          if (typeof response === "string") {
-            return response;
-          }
-      
-          if (Array.isArray(response)) {
-            // Recursively ensure the array conforms to RedisReply by filtering undefined/null values
-            return response.map((item) => (item === null ? "" : item)) as RedisReply;
-          }
-      
-          // Throw an error for unexpected response types
-          throw new Error(`Invalid Redis reply type: ${typeof response}`);
-        } catch (error: unknown) {
-          const errorMessage = error instanceof Error ? error.message : "Unknown error";
-          logger.error("Error executing Redis command", { args, error: errorMessage });
-          throw error;
-        }
-      },
-      
-    });
+  // Only attempt Redis if enabled and requested
+  if (useRedis && !isRedisDisabled) {
+    try {
+      logger.info("🔴 Attempting to use Redis store for rate limiting");
+
+      // Dynamic import Redis modules
+      const RedisStore = require("rate-limit-redis");
+      const redisClient = require("../../config/redisClient").default;
+
+      if (redisClient && typeof redisClient.sendCommand === "function") {
+        options.store = new RedisStore({
+          sendCommand: async (...args: string[]): Promise<any> => {
+            try {
+              const response = await redisClient.sendCommand(args);
+
+              if (response === null || response === undefined) {
+                return "";
+              }
+
+              if (typeof response === "string" || typeof response === "number") {
+                return response;
+              }
+
+              if (Array.isArray(response)) {
+                return response.map((item) => (item === null ? "" : item));
+              }
+
+              throw new Error(`Invalid Redis reply type: ${typeof response}`);
+            } catch (error) {
+              logger.error("Error executing Redis command for rate limiter", {
+                args,
+                error: (error as Error).message
+              });
+              throw error;
+            }
+          },
+        });
+
+        logger.info("✅ Rate limiter using Redis store");
+      } else {
+        logger.warn("⚠️ Redis client not available for rate limiter, using memory store");
+      }
+    } catch (error) {
+      logger.error(`Failed to setup Redis rate limiter: ${(error as Error).message}`);
+      logger.warn("⚠️ Rate limiter falling back to memory store");
+    }
+  } else if (useRedis && isRedisDisabled) {
+    logger.info("🚫 Redis disabled - rate limiter using memory store");
   }
-  
+
+  // Log the configuration
+  const storeType = options.store ? "Redis" : "Memory";
+  logger.info(`Rate limiter created: ${maxRequests} requests per ${windowMs}ms using ${storeType} store`);
+
   return rateLimit(options);
 };
 
@@ -94,6 +119,7 @@ export const globalRateLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  // Uses memory store by default (no store specified)
 });
 
 /**
@@ -104,7 +130,7 @@ export const authRateLimiter = createRateLimiter(
   5,
   15 * 60 * 1000,
   "Too many login attempts, please try again later.",
-  true,
+  false, // Changed to false to avoid Redis when disabled
 );
 
 /**
@@ -115,7 +141,7 @@ export const sensitiveDataRateLimiter = createRateLimiter(
   10,
   30 * 60 * 1000,
   "Too many attempts, please try again in 30 minutes.",
-  true,
+  false, // Changed to false to avoid Redis when disabled
 );
 
 /**

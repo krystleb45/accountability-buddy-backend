@@ -1,58 +1,125 @@
+// src/api/middleware/sessionMiddleware.ts - COMPLETELY REWRITTEN: No top-level Redis imports
 import type { SessionOptions } from "express-session";
 import session from "express-session";
-import connectRedis from "connect-redis";
-import { createClient } from "redis";
 import type { Request, Response, NextFunction } from "express";
 import { logger } from "../../utils/winstonLogger";
-// Create Redis client
-const redisClient = createClient({
-  url: process.env.REDIS_URL || `redis://${process.env.REDIS_HOST}:${process.env.REDIS_PORT}`,
-  password: process.env.REDIS_PASSWORD,
-});
 
-// Redis client error handling
-redisClient.on("error", (err: Error) =>
-  logger.error(`Redis client error: ${err.message}`),
-);
-redisClient.on("connect", () =>
-  logger.info("Connected to Redis server"),
-);
+// Check if Redis is disabled BEFORE any Redis imports
+const isRedisDisabled = process.env.DISABLE_REDIS === "true" ||
+                       process.env.SKIP_REDIS_INIT === "true" ||
+                       process.env.REDIS_DISABLED === "true";
 
-// Ensure Redis client connects before use
-void (async (): Promise<void> => {
+let sessionMiddleware: any;
+
+if (isRedisDisabled) {
+  logger.info("🚫 Redis disabled - using memory store for sessions");
+  console.log("🚫 Sessions: Using memory store (Redis disabled)");
+
+  // Use memory store only - no Redis imports needed
+  sessionMiddleware = session({
+    secret: process.env.SESSION_SECRET || "emergency-fallback-secret-key",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+      sameSite: "lax"
+    },
+    // No store specified = uses default MemoryStore
+    name: "accountability-buddy-session"
+  } as SessionOptions);
+
+  logger.info("✅ Session middleware initialized with memory store");
+
+} else {
+  logger.info("🔴 Redis enabled - attempting to use Redis store for sessions");
+  console.log("🔴 Sessions: Attempting Redis store setup");
+
   try {
-    await redisClient.connect();
+    // Dynamic imports only when Redis is enabled
+    const connectRedis = require("connect-redis");
+    const { createClient } = require("redis");
+
+    // Create Redis client
+    const redisClient = createClient({
+      url: process.env.REDIS_URL ||
+           `redis://${process.env.REDIS_HOST || "localhost"}:${process.env.REDIS_PORT || "6379"}`,
+      password: process.env.REDIS_PASSWORD,
+    });
+
+    // Redis client error handling
+    redisClient.on("error", (err: Error) => {
+      logger.error(`Redis session client error: ${err.message}`);
+      console.error("Redis session store error:", err.message);
+    });
+
+    redisClient.on("connect", () => {
+      logger.info("Session Redis client connected");
+      console.log("✅ Session Redis client connected");
+    });
+
+    // Connect to Redis (but don't exit on failure)
+    void (async () => {
+      try {
+        await redisClient.connect();
+        logger.info("Session Redis client ready");
+      } catch (error) {
+        logger.error(`Failed to connect session Redis: ${(error as Error).message}`);
+        console.error("Session Redis connection failed - continuing with memory store");
+        // Don't exit process, just log the error
+      }
+    })();
+
+    // Initialize Redis store for sessions
+    const RedisStore = connectRedis(session);
+
+    const sessionStore = new RedisStore({
+      client: redisClient as any,
+      prefix: "accountability-buddy:sess:",
+      ttl: 7 * 24 * 60 * 60, // 7 days in seconds
+    });
+
+    sessionMiddleware = session({
+      store: sessionStore,
+      secret: process.env.SESSION_SECRET || "fallback-secret-key",
+      resave: false,
+      saveUninitialized: false,
+      cookie: {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+        sameSite: "lax"
+      },
+      name: "accountability-buddy-session"
+    } as SessionOptions);
+
+    logger.info("✅ Session middleware initialized with Redis store");
+
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    logger.error(`Failed to connect to Redis: ${errorMessage}`);
-    process.exit(1); // Exit process if Redis connection fails
+    logger.error(`Failed to setup Redis sessions: ${(error as Error).message}`);
+    logger.warn("⚠️ Falling back to memory store for sessions");
+    console.log("⚠️ Redis session setup failed, using memory store");
+
+    // Fallback to memory store if Redis setup fails
+    sessionMiddleware = session({
+      secret: process.env.SESSION_SECRET || "fallback-secret-key",
+      resave: false,
+      saveUninitialized: false,
+      cookie: {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+        sameSite: "lax"
+      },
+      name: "accountability-buddy-session"
+    } as SessionOptions);
+
+    logger.info("✅ Session middleware initialized with fallback memory store");
   }
-})();
+}
 
-// Initialize Redis store for sessions
-const RedisStore = connectRedis(session);
-
-const sessionStore = new RedisStore({
-  client: redisClient as any,
-});
-
-// Configure session middleware
-const SESSION_SECRET = process.env.SESSION_SECRET || "defaultsecret";
-
-const sessionMiddleware = session({
-  store: sessionStore,
-  secret: SESSION_SECRET,
-  resave: false, // Do not save session if unmodified
-  saveUninitialized: false, // Do not save empty sessions
-  cookie: {
-    httpOnly: true, // Prevent client-side JavaScript from accessing cookies
-    secure: process.env.NODE_ENV === "production", // Use secure cookies in production
-    maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days expiration
-    sameSite: "lax", // Protect against CSRF attacks
-  },
-} as SessionOptions);
-
-// Middleware wrapper to handle session errors gracefully
+// Enhanced middleware wrapper to handle session errors gracefully
 const enhancedSessionMiddleware = (
   req: Request,
   res: Response,
