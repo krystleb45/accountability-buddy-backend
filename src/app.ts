@@ -1,6 +1,23 @@
-// src/app.ts - UPDATED: Added anonymous military chat support
+// src/app.ts - FIXED: Proper route ordering and Redis disable
 import dotenvFlow from "dotenv-flow";
 dotenvFlow.config();
+
+// 🚫 REDIS DISABLE: Force disable Redis at startup BEFORE any other imports
+if (process.env.DISABLE_REDIS === "true" || process.env.SKIP_REDIS_INIT === "true") {
+  // Clear all Redis-related environment variables
+  delete process.env.REDIS_URL;
+  delete process.env.REDIS_PRIVATE_URL;
+  delete process.env.REDIS_PUBLIC_URL;
+  delete process.env.REDIS_HOST;
+  delete process.env.REDIS_PORT;
+  delete process.env.REDIS_PASSWORD;
+  delete process.env.REDIS_USERNAME;
+
+  // Set disabled flag for other modules to check
+  process.env.REDIS_DISABLED = "true";
+  console.log("✅ Redis forcibly disabled at application startup");
+  console.log("📝 All Redis environment variables cleared");
+}
 
 import { validateEnv } from "./utils/validateEnv";
 validateEnv();
@@ -25,8 +42,8 @@ import { protect } from "./api/middleware/authJwt";
 import healthRoutes from "./api/routes/healthRoutes";
 import authRoutes from "./api/routes/auth";
 import faqRoutes from "./api/routes/faq";
-import webhooksRoutes from "./api/routes/webhooks"; // MOVED UP
-import anonymousMilitaryChatRoutes from "./api/routes/anonymousMilitaryChatRoutes"; // 🆕 ADDED
+import webhooksRoutes from "./api/routes/webhooks";
+import anonymousMilitaryChatRoutes from "./api/routes/anonymousMilitaryChatRoutes";
 
 // ─── Protected route imports ──────────────────────────────────
 import userRoutes from "./api/routes/user";
@@ -62,7 +79,6 @@ import searchRoutes from "./api/routes/search";
 import rateLimitRoutes from "./api/routes/rateLimit";
 import gamificationRoutes from "./api/routes/gamification";
 import dashboardRoutes from "./api/routes/dashboard";
-
 import eventRoutes from "./api/routes/event";
 import feedbackRoutes from "./api/routes/feedback";
 import fileUploadRoutes from "./api/routes/fileUpload";
@@ -93,6 +109,13 @@ import { errorHandler } from "./api/middleware/errorHandler";
 import setupSwagger from "./config/swaggerConfig";
 
 const app = express();
+
+// 🔍 Log Redis status after all imports
+if (process.env.REDIS_DISABLED === "true") {
+  console.log("🚫 Redis Status: DISABLED");
+  console.log("📋 REDIS_URL:", process.env.REDIS_URL || "undefined");
+  console.log("📋 REDIS_PRIVATE_URL:", process.env.REDIS_PRIVATE_URL || "undefined");
+}
 
 // ─── Serve uploads folder ─────────────────────────────────────
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
@@ -125,7 +148,32 @@ app.use(
   })
 );
 
-// ─── Public routes ────────────────────────────────────────────
+// ─── Test routes (for debugging) ──────────────────────────────
+app.get("/api", (req, res) => {
+  res.json({
+    message: "Backend API is working!",
+    timestamp: new Date().toISOString(),
+    redis: {
+      disabled: process.env.REDIS_DISABLED === "true",
+      skipInit: process.env.SKIP_REDIS_INIT === "true"
+    },
+    availableEndpoints: [
+      "/api/health",
+      "/api/auth",
+      "/api/test"
+    ]
+  });
+});
+
+app.get("/api/test", (req, res) => {
+  res.json({
+    message: "Test endpoint working!",
+    timestamp: new Date().toISOString(),
+    redis: process.env.REDIS_DISABLED === "true" ? "disabled" : "unknown"
+  });
+});
+
+// ─── PUBLIC routes (NO AUTHENTICATION REQUIRED) ───────────────
 app.use("/api/health", healthRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/auths", authRoutes);
@@ -136,13 +184,13 @@ app.use("/api/webhooks", webhooksRoutes);
 
 // 🆕 NEW: Anonymous military chat (PUBLIC - no auth required for crisis support)
 app.use("/api/anonymous-military-chat", anonymousMilitaryChatRoutes);
-app.use("/api/military-support", militarySupportRoutes); // 📝 NOTE: This remains for authenticated military users
 
+// ─── PROTECTED routes (AUTHENTICATION REQUIRED) ───────────────
+// Apply protection to all remaining /api/* routes
+app.use("/api/*", protect);
 
-// ─── Protect everything below ─────────────────────────────────
-app.use("/api", protect);
-
-// ─── Protected routes ────────────────────────────────────────
+// Now add all protected routes
+app.use("/api/military-support", militarySupportRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/support", supportRoutes);
 app.use("/api/reminders", reminderRoutes);
@@ -186,7 +234,6 @@ app.use("/api/milestone", milestoneRoutes);
 app.use("/api/newsletters", newsletterRoutes);
 app.use("/api/notification-triggers", notificationTriggersRoutes);
 app.use("/api/partner", partnerRoutes);
-app.use("/api/goals", goalRoutes);
 app.use("/api/polls", pollRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/redemptions", redemptionsRoutes);
@@ -200,7 +247,6 @@ app.use("/api/tasks", taskRoutes);
 app.use("/api/tracker", trackerRoutes);
 app.use("/api/user-points", userPointsRoutes);
 app.use("/api/xp-history", xpHistoryRoutes);
-// REMOVED: webhooks route (now above)
 
 // ─── Meta-test catch-all for *.test ───────────────────────────
 app.use((req, res, next) => {
