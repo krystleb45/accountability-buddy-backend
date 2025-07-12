@@ -160,7 +160,7 @@ app.use(
 );
 
 // ─── Test routes (for debugging) ──────────────────────────────
-app.get("/api", (req, res) => {
+app.get("/api", (_req, res) => {
   res.json({
     message: "Backend API is working!",
     timestamp: new Date().toISOString(),
@@ -176,7 +176,7 @@ app.get("/api", (req, res) => {
   });
 });
 
-app.get("/api/test", (req, res) => {
+app.get("/api/test", (_req, res) => {
   res.json({
     message: "Test endpoint working!",
     timestamp: new Date().toISOString(),
