@@ -1,6 +1,17 @@
 // src/app.ts - FIXED: Proper route ordering and Redis disable
 import dotenvFlow from "dotenv-flow";
-dotenvFlow.config();
+
+// ✅ FIXED: Only load .env files in development
+try {
+  if (process.env.NODE_ENV !== "production") {
+    dotenvFlow.config();
+    console.log("✅ Environment configuration loaded from .env files");
+  } else {
+    console.log("ℹ️ Production mode: Using Railway environment variables directly");
+  }
+} catch {
+  console.log("ℹ️ No .env files found, using environment variables directly");
+}
 
 // 🚫 REDIS DISABLE: Force disable Redis at startup BEFORE any other imports
 if (process.env.DISABLE_REDIS === "true" || process.env.SKIP_REDIS_INIT === "true") {

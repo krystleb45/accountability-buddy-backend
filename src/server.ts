@@ -125,10 +125,14 @@ process.on("unhandledRejection", (reason) => {
 import mongoose from "mongoose";
 import dotenvFlow from "dotenv-flow";
 
-// Don't crash if .env files are missing (Railway uses environment variables directly)
+// ✅ FIXED: Only load .env files in development, ignore errors in production
 try {
-  dotenvFlow.config();
-  console.log("✅ Environment configuration loaded");
+  if (process.env.NODE_ENV !== "production") {
+    dotenvFlow.config();
+    console.log("✅ Environment configuration loaded from .env files");
+  } else {
+    console.log("ℹ️ Production mode: Using Railway environment variables directly");
+  }
 } catch {
   console.log("ℹ️ No .env files found, using environment variables directly");
 }
